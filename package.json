@@ -1,0 +1,40 @@
+{
+  "name": "beastcaller",
+  "version": "1.0.0",
+  "description": "Beastcaller - a 3D gacha creature-collecting game",
+  "main": "main.js",
+  "author": "TJ",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.tj.beastcaller",
+    "productName": "Beastcaller",
+    "files": [
+      "main.js",
+      "index.html",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "Beastcaller.exe"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

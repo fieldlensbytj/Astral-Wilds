@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beastcaller 3D</title>
+<style>
+  :root{
+    --bg:#171310;
+    --bg-elevated:#221d19;
+    --bg-sunken:#120f0c;
+    --text:#f1ece0;
+    --text-dim:#a89e8c;
+    --border:#3a332b;
+    --accent:#9c7bff;
+    --accent-text:#171310;
+    --success:#54c46a;
+    --card-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding-inline:16px;
+    padding-block:16px;
+    max-width:980px;
+    margin:0 auto;
+  }
+  h1,h2,h3{margin:0 0 4px 0;}
+  .title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;margin-bottom:14px;}
+  .title-row .brand{display:flex;align-items:center;gap:10px;}
+  .brand .logo{font-size:32px;}
+  .subtitle{color:var(--text-dim);font-size:13px;margin-top:2px;}
+
+  .currency-bar{display:flex;gap:10px;flex-wrap:wrap;}
+  .pill{
+    background:var(--bg-elevated);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:6px 12px;
+    font-size:14px;
+    font-weight:600;
+    display:flex;align-items:center;gap:6px;
+    box-shadow:var(--card-shadow);
+    white-space:nowrap;
+  }
+
+  #stageWrap{
+    position:relative;
+    width:100%;
+    aspect-ratio:16/9;
+    max-height:420px;
+    background:radial-gradient(circle at 50% 30%, #2a2140 0%, #0e0b14 75%);
+    border:1px solid var(--border);
+    border-radius:16px;
+    overflow:hidden;
+    margin-bottom:16px;
+    box-shadow:var(--card-shadow);
+  }
+  #stage3d{width:100%;height:100%;display:block;cursor:grab;}
+  #stage3d:active{cursor:grabbing;}
+  #stageHint{
+    position:absolute;bottom:8px;left:12px;font-size:11px;color:rgba(241,236,224,0.6);
+    pointer-events:none;
+  }
+  #stageLabel{
+    position:absolute;top:10px;left:12px;font-size:12px;font-weight:700;
+    color:rgba(241,236,224,0.85);background:rgba(0,0,0,0.35);padding:4px 10px;border-radius:999px;
+    pointer-events:none;
+  }
+  #stageFallback{
+    position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    text-align:center;padding:20px;font-size:13px;color:var(--text-dim);
+  }
+
+  nav.tabs{
+    display:flex;
+    gap:6px;
+    overflow-x:auto;
+    margin:16px 0;
+    border-bottom:1px solid var(--border);
+  }
+  nav.tabs button{
+    background:transparent;
+    border:none;
+    color:var(--text-dim);
+    font-size:14px;
+    font-weight:600;
+    padding:10px 14px;
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+    white-space:nowrap;
+  }
+  nav.tabs button.active{ color:var(--accent); border-bottom-color:var(--accent); }
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .card-surface{
+    background:var(--bg-elevated);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px;
+    box-shadow:var(--card-shadow);
+    margin-bottom:14px;
+  }
+
+  .btn{
+    background:var(--accent); color:var(--accent-text); border:none; border-radius:10px;
+    padding:10px 16px; font-size:14px; font-weight:700; cursor:pointer;
+  }
+  .btn:disabled{opacity:0.45;cursor:not-allowed;}
+  .btn.secondary{ background:var(--bg-sunken); color:var(--text); border:1px solid var(--border); }
+  .btn.small{padding:6px 10px;font-size:12px;border-radius:8px;}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+  .rate-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .rate-table td,.rate-table th{padding:4px 6px;text-align:left;border-bottom:1px solid var(--border);}
+  .rate-wrap{overflow-x:auto;}
+
+  .pity-track{height:8px;border-radius:999px;background:var(--bg-sunken);overflow:hidden;border:1px solid var(--border);margin-top:6px;}
+  .pity-fill{height:100%;background:var(--accent);}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;}
+
+  .mon-card{
+    background:var(--bg-elevated); border-radius:12px; padding:10px 8px; text-align:center;
+    border:2px solid var(--rc,var(--border)); position:relative; box-shadow:var(--card-shadow); cursor:pointer;
+  }
+  .mon-card .emoji{font-size:34px;line-height:1;}
+  .mon-card .name{font-size:12px;font-weight:700;margin-top:4px;}
+  .mon-card .meta{font-size:10px;color:var(--text-dim);margin-top:2px;}
+  .mon-card.locked{opacity:0.35;filter:grayscale(1);cursor:default;}
+  .rarity-chip{display:inline-block;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;color:#fff;background:var(--rc);}
+  .elem-chip{display:inline-block;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;color:#fff;background:var(--ec);margin-left:4px;}
+
+  .team-slot{
+    width:100%;aspect-ratio:1/1;border:2px dashed var(--border);border-radius:12px;
+    display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--text-dim);
+    background:var(--bg-sunken);cursor:pointer;
+  }
+  .team-slot.filled{border-style:solid;background:var(--bg-elevated);flex-direction:column;}
+  .team-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:420px;}
+
+  .zone-card{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .zone-info{flex:1;min-width:180px;}
+  .zone-bar{height:6px;border-radius:99px;background:var(--bg-sunken);overflow:hidden;margin-top:6px;border:1px solid var(--border);}
+  .zone-bar-fill{height:100%;background:var(--success);}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal{background:var(--bg-elevated);border-radius:16px;padding:20px;max-width:480px;width:100%;max-height:80vh;overflow-y:auto;border:1px solid var(--border);}
+  .pull-reveal{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin:14px 0;}
+  .reveal-card{border:2px solid var(--rc,var(--border));border-radius:10px;padding:8px 4px;text-align:center;background:var(--bg-sunken);animation:pop 0.35s ease;}
+  .reveal-card .emoji{font-size:28px;}
+  .reveal-card .name{font-size:11px;font-weight:700;margin-top:2px;}
+  .reveal-card .tag{font-size:9px;color:var(--text-dim);}
+  @keyframes pop{from{transform:scale(0.4);opacity:0;}to{transform:scale(1);opacity:1;}}
+
+  .toast{
+    position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+    background:var(--bg-elevated);border:1px solid var(--border);color:var(--text);
+    padding:10px 16px;border-radius:10px;box-shadow:var(--card-shadow);font-size:13px;z-index:60;max-width:90vw;
+  }
+
+  .empty-hint{color:var(--text-dim);font-size:13px;}
+  .footer-row{display:flex;justify-content:space-between;align-items:center;margin-top:20px;flex-wrap:wrap;gap:8px;}
+  .footer-row .small-note{font-size:11px;color:var(--text-dim);}
+
+  .battle-banner{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    font-size:22px;font-weight:800;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.8);
+    background:rgba(0,0,0,0.35);padding:10px 22px;border-radius:12px;opacity:0;transition:opacity 0.25s;
+    pointer-events:none;
+  }
+  .battle-banner.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="title-row">
+  <div class="brand">
+    <div class="logo">🐲</div>
+    <div>
+      <h1>Beastcaller 3D</h1>
+      <div class="subtitle">summon real 3D creatures, build a team, explore the rifts</div>
+    </div>
+  </div>
+  <div class="currency-bar">
+    <div class="pill">🔮 <span id="orbsDisplay">0</span></div>
+    <div class="pill">✨ <span id="essenceDisplay">0</span></div>
+    <div class="pill">⚔️ Power <span id="powerDisplay">0</span></div>
+  </div>
+</div>
+
+<div id="stageWrap">
+  <canvas id="stage3d"></canvas>
+  <div id="stageLabel">Your Team</div>
+  <div id="stageHint">drag to rotate</div>
+  <div class="battle-banner" id="battleBanner"></div>
+  <div id="stageFallback">3D preview couldn't load (no connection to the model library), but the game below still works fully.</div>
+</div>
+
+<nav class="tabs">
+  <button data-tab="summon" class="active">Summon</button>
+  <button data-tab="collection">Collection</button>
+  <button data-tab="team">Team</button>
+  <button data-tab="expedition">Expeditions</button>
+</nav>
+
+<div class="panel active" id="panel-summon">
+  <div class="card-surface">
+    <h3>Rift Gate</h3>
+    <p class="empty-hint">Spend Orbs to summon new creatures. Rarer creatures hit harder and tank more.</p>
+    <div class="pity-track"><div class="pity-fill" id="pityFill" style="width:0%"></div></div>
+    <p class="empty-hint" id="pityText" style="margin-top:6px;"></p>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn" id="summon1">Summon x1 — 100 🔮</button>
+      <button class="btn" id="summon10">Summon x10 — 900 🔮</button>
+      <button class="btn secondary" id="claimDaily">🎁 Daily Bonus</button>
+    </div>
+  </div>
+  <div class="card-surface">
+    <h3>Drop Rates</h3>
+    <div class="rate-wrap">
+      <table class="rate-table">
+        <tr><th>Rarity</th><th>Chance</th></tr>
+        <tr><td><span class="rarity-chip" style="--rc:#8a8f98">Common</span></td><td>55%</td></tr>
+        <tr><td><span class="rarity-chip" style="--rc:#2f9e44">Uncommon</span></td><td>27%</td></tr>
+        <tr><td><span class="rarity-chip" style="--rc:#1971c2">Rare</span></td><td>12%</td></tr>
+        <tr><td><span class="rarity-chip" style="--rc:#9c36b5">Epic</span></td><td>5%</td></tr>
+        <tr><td><span class="rarity-chip" style="--rc:#f08c00">Legendary</span></td><td>1%</td></tr>
+      </table>
+    </div>
+    <p class="empty-hint" style="margin-top:8px;">Pity: guaranteed Epic or better within 50 summons. A 10x summon always contains at least one Rare or better.</p>
+  </div>
+</div>
+
+<div class="panel" id="panel-collection">
+  <div class="card-surface">
+    <h3>Codex <span class="empty-hint" id="collectionCount"></span></h3>
+    <p class="empty-hint">Tap a discovered creature to view it in 3D above.</p>
+    <div class="grid" id="collectionGrid"></div>
+  </div>
+</div>
+
+<div class="panel" id="panel-team">
+  <div class="card-surface">
+    <h3>Active Team</h3>
+    <p class="empty-hint">Your team's total power determines your odds in Expeditions. Tap a slot to choose a creature.</p>
+    <div class="team-grid" id="teamGrid"></div>
+  </div>
+  <div class="card-surface">
+    <h3>Level Up</h3>
+    <p class="empty-hint">Spend Essence to level up any creature you own (max level 60).</p>
+    <div id="levelUpList"></div>
+  </div>
+</div>
+
+<div class="panel" id="panel-expedition">
+  <div class="card-surface">
+    <h3>Rift Zones</h3>
+    <p class="empty-hint">Send your team into a zone. Higher recommended power = better rewards but tougher odds.</p>
+    <div id="zoneList"></div>
+  </div>
+</div>
+
+<div class="footer-row">
+  <div class="small-note">Progress saves automatically in this browser. Open this file anytime to keep playing — no install needed.</div>
+  <button class="btn secondary small" id="resetBtn">Reset Save</button>
+</div>
+
+<div id="modalRoot"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  /* ===================== GAME DATA ===================== */
+
+  const RARITIES = ["common","uncommon","rare","epic","legendary"];
+  const RARITY_LABEL = {common:"Common",uncommon:"Uncommon",rare:"Rare",epic:"Epic",legendary:"Legendary"};
+  const RARITY_COLOR = {common:"#8a8f98",uncommon:"#2f9e44",rare:"#1971c2",epic:"#9c36b5",legendary:"#f08c00"};
+  const RARITY_WEIGHT = {common:55,uncommon:27,rare:12,epic:5,legendary:1};
+  const ELEM_COLOR = {Fire:0xe8590c,Water:0x1971c2,Nature:0x2f9e44,Electric:0xf08c00,Shadow:0x6741d9,Light:0xd8b23a};
+  const ELEM_COLOR_CSS = {Fire:"#e8590c",Water:"#1971c2",Nature:"#2f9e44",Electric:"#f08c00",Shadow:"#6741d9",Light:"#c9992b"};
+
+  const ATK_RANGE = {common:[6,10],uncommon:[11,17],rare:[18,25],epic:[28,36],legendary:[42,52]};
+  const HP_RANGE = {common:[35,55],uncommon:[55,80],rare:[85,120],epic:[130,175],legendary:[210,270]};
+
+  const RAW_MONSTERS = [
+    ["Emberpup","🐾","Fire","common"],
+    ["Droplet","💧","Water","common"],
+    ["Mossling","🌱","Nature","common"],
+    ["Sparkit","⚡","Electric","common"],
+    ["Gloomrat","🐀","Shadow","common"],
+    ["Glowmoth","🦋","Light","common"],
+
+    ["Cinderfox","🦊","Fire","uncommon"],
+    ["Tidepaw","🦦","Water","uncommon"],
+    ["Thornhog","🦔","Nature","uncommon"],
+    ["Voltfin","🐟","Electric","uncommon"],
+    ["Duskcrow","🐦‍⬛","Shadow","uncommon"],
+    ["Lumenhare","🐇","Light","uncommon"],
+
+    ["Blazehorn","🐂","Fire","rare"],
+    ["Wavefang","🦈","Water","rare"],
+    ["Bramblestag","🦌","Nature","rare"],
+    ["Boltwing","🦅","Electric","rare"],
+    ["Nightowl","🦉","Shadow","rare"],
+    ["Prismstag","🦄","Light","rare"],
+
+    ["Infernowolf","🐺","Fire","epic"],
+    ["Abysswhale","🐋","Water","epic"],
+    ["Verdantreant","🌳","Nature","epic"],
+    ["Thunderlion","🦁","Electric","epic"],
+    ["Voidpanther","🐆","Shadow","epic"],
+    ["Aurorafox","🦊","Light","epic"],
+
+    ["Pyrodrake","🐉","Fire","legendary"],
+    ["Leviathan","🐳","Water","legendary"],
+    ["Gaiatitan","🗿","Nature","legendary"],
+    ["Stormeagle","🦅","Electric","legendary"],
+    ["Nightmarelord","👹","Shadow","legendary"],
+    ["Celestius","🌟","Light","legendary"]
+  ];
+
+  function buildMonsters(){
+    const byRarity = {}; RARITIES.forEach(r=>byRarity[r]=0);
+    return RAW_MONSTERS.map((m,idx)=>{
+      const [name,emoji,element,rarity] = m;
+      const i = byRarity[rarity]++;
+      const [aMin,aMax] = ATK_RANGE[rarity];
+      const [hMin,hMax] = HP_RANGE[rarity];
+      const atk = Math.round(aMin + (aMax-aMin) * (i/5));
+      const hp = Math.round(hMin + (hMax-hMin) * (1 - i/5));
+      return {id:"m"+idx, name, emoji, element, rarity, baseAtk:atk, baseHp:hp, seed:idx};
+    });
+  }
+  const MONSTERS = buildMonsters();
+  const MONSTER_BY_ID = {}; MONSTERS.forEach(m=>MONSTER_BY_ID[m.id]=m);
+
+  const ZONES = [
+    {id:"z1", name:"Whispering Meadow", recPower:20, orbs:40, essence:10, cd:5, enemyRarity:"common"},
+    {id:"z2", name:"Ember Hollow", recPower:60, orbs:90, essence:25, cd:8, enemyRarity:"uncommon"},
+    {id:"z3", name:"Tidal Grotto", recPower:150, orbs:180, essence:55, cd:12, enemyRarity:"rare"},
+    {id:"z4", name:"Thunder Peaks", recPower:320, orbs:320, essence:100, cd:18, enemyRarity:"epic"},
+    {id:"z5", name:"Shadow Rift", recPower:600, orbs:550, essence:180, cd:25, enemyRarity:"epic"},
+    {id:"z6", name:"Celestial Sanctum", recPower:1000, orbs:900, essence:300, cd:35, enemyRarity:"legendary"}
+  ];
+
+  const SAVE_KEY = "beastcaller3d_save_v1";
+  const MAX_LEVEL = 60;
+
+  function defaultState(){
+    return { orbs:500, essence:50, owned:{}, team:[null,null,null,null], pity:0, lastDaily:0, zoneCd:{} };
+  }
+  function seedStarter(s){
+    const commons = MONSTERS.filter(m=>m.rarity==="common");
+    const pick = commons[Math.floor(Math.random()*commons.length)];
+    s.owned[pick.id] = {level:1};
+    s.team[0] = pick.id;
+    return s;
+  }
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(SAVE_KEY);
+      if(!raw) return seedStarter(defaultState());
+      const parsed = JSON.parse(raw);
+      if(!parsed.owned) return seedStarter(defaultState());
+      return parsed;
+    }catch(e){ return seedStarter(defaultState()); }
+  }
+  let state = loadState();
+  function saveState(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){} }
+
+  function toast(msg){
+    const el = document.createElement("div");
+    el.className = "toast"; el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(), 2600);
+  }
+
+  function statAtLevel(base, level){ return Math.round(base * (1 + (level-1)*0.08)); }
+  function levelUpCost(level){ return Math.round(20 * Math.pow(1.15, level-1)); }
+
+  function teamPower(){
+    let total = 0;
+    state.team.forEach(id=>{
+      if(!id) return;
+      const owned = state.owned[id]; const mon = MONSTER_BY_ID[id];
+      if(!owned || !mon) return;
+      total += statAtLevel(mon.baseAtk, owned.level) + statAtLevel(mon.baseHp, owned.level)/4;
+    });
+    return Math.round(total);
+  }
+
+  function rarityIndex(r){ return RARITIES.indexOf(r); }
+  function rollRarity(){
+    const total = Object.values(RARITY_WEIGHT).reduce((a,b)=>a+b,0);
+    let r = Math.random()*total;
+    for(const rar of RARITIES){ if(r < RARITY_WEIGHT[rar]) return rar; r -= RARITY_WEIGHT[rar]; }
+    return "common";
+  }
+  function rollForcedEpicPlus(){ return Math.random() < 0.8 ? "epic" : "legendary"; }
+  function pickMonsterOfRarity(rarity){
+    const pool = MONSTERS.filter(m=>m.rarity===rarity);
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
+  function doSinglePull(){
+    let rarity = rollRarity();
+    state.pity++;
+    if(rarityIndex(rarity) < rarityIndex("epic") && state.pity >= 50){ rarity = rollForcedEpicPlus(); }
+    if(rarityIndex(rarity) >= rarityIndex("epic")){ state.pity = 0; }
+    const mon = pickMonsterOfRarity(rarity);
+    const isNew = !state.owned[mon.id];
+    let essenceGain = 0;
+    if(isNew){ state.owned[mon.id] = {level:1}; }
+    else { essenceGain = {common:5,uncommon:10,rare:20,epic:40,legendary:80}[rarity]; state.essence += essenceGain; }
+    return {mon, isNew, essenceGain};
+  }
+
+  function doPull(count){
+    const cost = count === 1 ? 100 : 900;
+    if(state.orbs < cost){ toast("Not enough Orbs."); return null; }
+    state.orbs -= cost;
+    const results = [];
+    for(let i=0;i<count;i++){ results.push(doSinglePull()); }
+    if(count === 10){
+      const hasRarePlus = results.some(r=>rarityIndex(r.mon.rarity) >= rarityIndex("rare"));
+      if(!hasRarePlus){
+        const mon = pickMonsterOfRarity("rare");
+        const isNew = !state.owned[mon.id];
+        let essenceGain = 0;
+        if(isNew){ state.owned[mon.id] = {level:1}; } else { essenceGain = 20; state.essence += essenceGain; }
+        results[results.length-1] = {mon, isNew, essenceGain};
+      }
+    }
+    saveState();
+    return results;
+  }
+
+  /* ===================== 3D STAGE ===================== */
+
+  const Stage = (function(){
+    let renderer, scene, camera, clock;
+    let ready = false;
+    let targetAzimuth = 0.5, currentAzimuth = 0.5;
+    let targetElevation = 0.35, currentElevation = 0.35;
+    let dragging = false, lastX = 0, lastY = 0, autoRotate = true, lastInteract = 0;
+    let liveGroups = []; // {group, bobPhase, rotSpeed, baseY}
+    let mode = "idle"; // idle | reveal | battle
+    let modeTimer = 0;
+    let onModeDone = null;
+    let pendingReveal = null;
+    let pendingBattle = null;
+
+    function init(){
+      const canvas = document.getElementById("stage3d");
+      if(typeof THREE === "undefined"){
+        document.getElementById("stageFallback").style.display = "flex";
+        return;
+      }
+      try{
+        renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:false});
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0e0b14);
+        scene.fog = new THREE.FogExp2(0x0e0b14, 0.055);
+
+        camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+
+        const hemi = new THREE.HemisphereLight(0x8878ff, 0x14101c, 0.9);
+        scene.add(hemi);
+        const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+        dir.position.set(3,5,2);
+        scene.add(dir);
+        const rim = new THREE.PointLight(0x9c7bff, 0.6, 12);
+        rim.position.set(-3,2,-3);
+        scene.add(rim);
+
+        const platGeo = new THREE.CylinderGeometry(3.1, 3.3, 0.25, 40);
+        const platMat = new THREE.MeshStandardMaterial({color:0x1c1730, roughness:0.7, metalness:0.2});
+        const platform = new THREE.Mesh(platGeo, platMat);
+        platform.position.y = -0.12;
+        scene.add(platform);
+
+        const ringGeo = new THREE.TorusGeometry(3.15, 0.04, 12, 64);
+        const ringMat = new THREE.MeshStandardMaterial({color:0x9c7bff, emissive:0x6b4fff, emissiveIntensity:0.8, roughness:0.3});
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI/2;
+        ring.position.y = 0.02;
+        scene.add(ring);
+
+        // starfield
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 260;
+        const positions = new Float32Array(starCount*3);
+        for(let i=0;i<starCount;i++){
+          const r = 18 + Math.random()*14;
+          const theta = Math.random()*Math.PI*2;
+          const phi = Math.random()*Math.PI*0.55 + 0.05;
+          positions[i*3] = r*Math.sin(phi)*Math.cos(theta);
+          positions[i*3+1] = r*Math.cos(phi)*0.6 + 2;
+          positions[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+        }
+        starGeo.setAttribute("position", new THREE.BufferAttribute(positions,3));
+        const starMat = new THREE.PointsMaterial({color:0xffffff, size:0.06, transparent:true, opacity:0.7});
+        scene.add(new THREE.Points(starGeo, starMat));
+
+        clock = new THREE.Clock();
+        ready = true;
+        resize();
+        attachPointerControls(canvas);
+        animate();
+      }catch(e){
+        document.getElementById("stageFallback").style.display = "flex";
+        ready = false;
+      }
+    }
+
+    function resize(){
+      if(!ready) return;
+      const wrap = document.getElementById("stageWrap");
+      const w = wrap.clientWidth, h = wrap.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w/h;
+      camera.updateProjectionMatrix();
+    }
+
+    function attachPointerControls(canvas){
+      canvas.addEventListener("pointerdown", (e)=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; lastInteract=performance.now(); });
+      window.addEventListener("pointerup", ()=>{ dragging=false; });
+      window.addEventListener("pointermove", (e)=>{
+        if(!dragging) return;
+        const dx = e.clientX-lastX, dy = e.clientY-lastY;
+        lastX=e.clientX; lastY=e.clientY; lastInteract=performance.now();
+        targetAzimuth += dx*0.008;
+        targetElevation = Math.max(0.08, Math.min(0.9, targetElevation - dy*0.006));
+      });
+    }
+
+    function makeCreatureGroup(monster, opts){
+      opts = opts || {};
+      const rarity = monster.rarity;
+      const scaleMap = {common:0.75,uncommon:0.85,rare:0.95,epic:1.1,legendary:1.3};
+      const scale = scaleMap[rarity] || 0.85;
+      const baseColor = opts.corrupted ? 0x55424f : ELEM_COLOR[monster.element];
+      const group = new THREE.Group();
+
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: baseColor, roughness:0.45, metalness: monster.element==="Light" ? 0.5 : 0.15,
+        emissive: opts.corrupted ? 0x4a1020 : baseColor, emissiveIntensity: opts.corrupted ? 0.35 : 0.12
+      });
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.55,20,16), bodyMat);
+      body.scale.set(1, 0.85, 1.15);
+      body.position.y = 0.55;
+      group.add(body);
+
+      const headMat = bodyMat.clone();
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.3,18,14), headMat);
+      head.position.set(0, 1.05, 0.42);
+      group.add(head);
+
+      const eyeMat = new THREE.MeshStandardMaterial({
+        color: monster.element==="Shadow" ? 0xff5ec4 : 0x181414,
+        emissive: monster.element==="Shadow" ? 0xff2ea6 : 0x000000,
+        emissiveIntensity: monster.element==="Shadow" ? 1.2 : 0
+      });
+      [-0.13, 0.13].forEach(xOff=>{
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045,10,10), eyeMat);
+        eye.position.set(xOff, 1.08, 0.68);
+        group.add(eye);
+      });
+
+      const decorMat = new THREE.MeshStandardMaterial({color: baseColor, emissive: baseColor, emissiveIntensity:0.6, roughness:0.3});
+
+      if(monster.element === "Fire"){
+        for(let i=0;i<3;i++){
+          const spike = new THREE.Mesh(new THREE.ConeGeometry(0.08,0.3,8), decorMat);
+          spike.position.set((i-1)*0.18, 0.95 + i*0.05, -0.25);
+          spike.rotation.x = 0.4;
+          group.add(spike);
+        }
+      } else if(monster.element === "Water"){
+        const fin = new THREE.Mesh(new THREE.TorusGeometry(0.55,0.05,8,24,Math.PI), decorMat);
+        fin.position.y = 0.55; fin.rotation.z = Math.PI;
+        group.add(fin);
+      } else if(monster.element === "Nature"){
+        for(let i=0;i<4;i++){
+          const bud = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09,0), decorMat);
+          const ang = (i/4)*Math.PI*2;
+          bud.position.set(Math.cos(ang)*0.5, 0.6+Math.sin(i)*0.15, Math.sin(ang)*0.5);
+          group.add(bud);
+        }
+      } else if(monster.element === "Electric"){
+        for(let i=0;i<3;i++){
+          const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.13,0), decorMat);
+          shard.position.set((i-1)*0.22, 1.35, 0);
+          shard.userData.floatPhase = i;
+          group.add(shard);
+        }
+      } else if(monster.element === "Light"){
+        const halo = new THREE.Mesh(new THREE.TorusGeometry(0.34,0.035,10,32), decorMat);
+        halo.position.y = 1.42; halo.rotation.x = Math.PI/2.1;
+        group.add(halo);
+      } else if(monster.element === "Shadow"){
+        const wisp = new THREE.Mesh(new THREE.ConeGeometry(0.12,0.4,8), decorMat);
+        wisp.position.set(0, 0.3, -0.4); wisp.rotation.x = -0.6;
+        group.add(wisp);
+      }
+
+      if(rarity === "epic" || rarity === "legendary"){
+        const orbitCount = rarity === "legendary" ? 4 : 2;
+        const orbitGroup = new THREE.Group();
+        for(let i=0;i<orbitCount;i++){
+          const orb = new THREE.Mesh(new THREE.SphereGeometry(0.06,10,10), decorMat);
+          const ang = (i/orbitCount)*Math.PI*2;
+          orb.position.set(Math.cos(ang)*0.85, 0.6, Math.sin(ang)*0.85);
+          orbitGroup.add(orb);
+        }
+        orbitGroup.userData.isOrbit = true;
+        group.add(orbitGroup);
+      }
+
+      const shadowMat = new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.35});
+      const shadowBlob = new THREE.Mesh(new THREE.CircleGeometry(0.5,24), shadowMat);
+      shadowBlob.rotation.x = -Math.PI/2;
+      shadowBlob.position.y = 0.02;
+      group.add(shadowBlob);
+
+      group.scale.setScalar(scale);
+      group.userData.bobPhase = Math.random()*Math.PI*2;
+      group.userData.rotSpeed = 0.15 + Math.random()*0.1;
+      group.userData.baseY = 0;
+      group.userData.legendary = rarity === "legendary";
+      group.userData.mats = [bodyMat, headMat, decorMat];
+      return group;
+    }
+
+    function clearStage(){
+      liveGroups.forEach(g=>scene.remove(g.group));
+      liveGroups = [];
+    }
+
+    function arrangeRow(monsters, opts){
+      opts = opts || {};
+      clearStage();
+      const n = monsters.length || 1;
+      const spread = Math.min(2.6, 0.9*(n-1));
+      monsters.forEach((mon,i)=>{
+        const grp = makeCreatureGroup(mon, opts.perMonsterOpts ? opts.perMonsterOpts[i] : undefined);
+        const x = n===1 ? 0 : -spread/2 + (spread/(n-1))*i;
+        grp.position.x = x;
+        grp.position.z = opts.z || 0;
+        if(opts.startScale === 0){ grp.scale.multiplyScalar(0.001); }
+        scene.add(grp);
+        liveGroups.push({group:grp, targetScale: grp.scale.x});
+      });
+    }
+
+    function showIdleTeam(){
+      if(!ready) return;
+      document.getElementById("stageLabel").textContent = "Your Team";
+      const teamMons = state.team.map(id=>id?MONSTER_BY_ID[id]:null).filter(Boolean);
+      if(teamMons.length===0){
+        const owned = Object.keys(state.owned);
+        if(owned.length) teamMons.push(MONSTER_BY_ID[owned[0]]);
+      }
+      mode = "idle";
+      arrangeRow(teamMons);
+    }
+
+    function showcase(monster){
+      if(!ready) return;
+      document.getElementById("stageLabel").textContent = monster.name;
+      mode = "idle";
+      arrangeRow([monster]);
+    }
+
+    function playReveal(results){
+      if(!ready){ return; }
+      document.getElementById("stageLabel").textContent = "Summoning...";
+      const monsters = results.map(r=>r.mon);
+      arrangeRow(monsters, {startScale:0});
+      mode = "reveal"; modeTimer = 0;
+    }
+
+    function playBattle(teamMons, enemyMon, win, onDone){
+      if(!ready){ onDone(); return; }
+      document.getElementById("stageLabel").textContent = "Battle!";
+      clearStage();
+      const n = teamMons.length || 1;
+      const spread = Math.min(2.0, 0.7*(n-1));
+      teamMons.forEach((mon,i)=>{
+        const grp = makeCreatureGroup(mon);
+        grp.position.x = (n===1?-0.8:-1.6 - spread/2 + (spread/(n-1))*i);
+        grp.position.z = 0.4;
+        grp.rotation.y = -0.4;
+        scene.add(grp);
+        liveGroups.push({group:grp, side:"team"});
+      });
+      const enemyGrp = makeCreatureGroup(enemyMon, {corrupted:true});
+      enemyGrp.position.x = 1.8; enemyGrp.position.z = -0.3; enemyGrp.rotation.y = 2.6;
+      enemyGrp.scale.multiplyScalar(1.15);
+      scene.add(enemyGrp);
+      liveGroups.push({group:enemyGrp, side:"enemy"});
+
+      mode = "battle"; modeTimer = 0;
+      pendingBattle = {win, onDone};
+    }
+
+    function updateBanner(text, show){
+      const el = document.getElementById("battleBanner");
+      el.textContent = text;
+      el.classList.toggle("show", !!show);
+    }
+
+    function animate(){
+      requestAnimationFrame(animate);
+      if(!ready) return;
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const t = clock.getElapsedTime();
+
+      if(!dragging && performance.now()-lastInteract > 4000){
+        targetAzimuth += dt*0.12;
+      }
+      currentAzimuth += (targetAzimuth-currentAzimuth)*0.08;
+      currentElevation += (targetElevation-currentElevation)*0.08;
+      const radius = 5.6;
+      camera.position.x = Math.sin(currentAzimuth)*radius*Math.cos(currentElevation);
+      camera.position.z = Math.cos(currentAzimuth)*radius*Math.cos(currentElevation);
+      camera.position.y = 1.2 + Math.sin(currentElevation)*radius*0.6;
+      camera.lookAt(0, 0.7, 0);
+
+      liveGroups.forEach(lg=>{
+        const g = lg.group;
+        g.position.y = (g.userData.baseY||0) + Math.sin(t*1.6+g.userData.bobPhase)*0.07;
+        g.rotation.y += g.userData.rotSpeed*dt;
+        if(g.userData.legendary && g.userData.mats){
+          const pulse = 0.25 + 0.25*Math.sin(t*3);
+          g.userData.mats.forEach(m=>{ if(m.emissiveIntensity!==undefined) m.emissiveIntensity = pulse; });
+        }
+        g.children.forEach(child=>{
+          if(child.userData && child.userData.isOrbit){
+            child.rotation.y += dt*0.8;
+          }
+        });
+      });
+
+      if(mode === "reveal"){
+        modeTimer += dt;
+        const dur = 0.6;
+        const p = Math.min(1, modeTimer/dur);
+        const eased = 1 - Math.pow(1-p, 3);
+        liveGroups.forEach(lg=>{
+          const target = lg.targetScale || 1;
+          lg.group.scale.setScalar(target*eased);
+        });
+        if(p >= 1){ mode = "idle"; }
+      }
+
+      if(mode === "battle" && pendingBattle){
+        modeTimer += dt;
+        const lunge = Math.min(1, modeTimer/0.7);
+        liveGroups.forEach(lg=>{
+          if(lg.side==="team") lg.group.position.x += 0; // hold, lunge handled below via offset
+        });
+        const lungeOffset = Math.sin(Math.min(modeTimer,0.7)/0.7*Math.PI) * 0.5;
+        liveGroups.forEach(lg=>{
+          if(lg.side==="team") lg.group.position.z = 0.4 - lungeOffset*0.4;
+          if(lg.side==="enemy") lg.group.position.z = -0.3 + lungeOffset*0.4;
+        });
+        if(modeTimer > 0.75 && modeTimer < 0.78){
+          updateBanner(pendingBattle.win ? "Hit!" : "Blocked!", true);
+        }
+        if(modeTimer > 1.6){
+          updateBanner(pendingBattle.win ? "VICTORY" : "RETREAT", true);
+        }
+        if(modeTimer > 2.6){
+          updateBanner("", false);
+          const cb = pendingBattle.onDone; pendingBattle = null; mode = "idle";
+          if(cb) cb();
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener("resize", resize);
+
+    return { init, resize, showIdleTeam, showcase, playReveal, playBattle };
+  })();
+
+  /* ===================== UI RENDERING ===================== */
+
+  function renderCurrency(){
+    document.getElementById("orbsDisplay").textContent = state.orbs;
+    document.getElementById("essenceDisplay").textContent = state.essence;
+    document.getElementById("powerDisplay").textContent = teamPower();
+  }
+
+  function renderPity(){
+    const pct = Math.min(100, Math.round((state.pity/50)*100));
+    document.getElementById("pityFill").style.width = pct+"%";
+    document.getElementById("pityText").textContent = state.pity+" / 50 summons since last Epic or better.";
+  }
+
+  function renderCollection(){
+    const grid = document.getElementById("collectionGrid");
+    const ownedCount = Object.keys(state.owned).length;
+    document.getElementById("collectionCount").textContent = "("+ownedCount+" / "+MONSTERS.length+" discovered)";
+    grid.innerHTML = MONSTERS.map(m=>{
+      const owned = state.owned[m.id];
+      const rc = RARITY_COLOR[m.rarity];
+      const ec = ELEM_COLOR_CSS[m.element];
+      if(!owned){
+        return '<div class="mon-card locked" style="--rc:'+rc+'">'
+          + '<div class="emoji">❓</div><div class="name">???</div>'
+          + '<div class="meta"><span class="rarity-chip" style="--rc:'+rc+'">'+RARITY_LABEL[m.rarity]+'</span></div></div>';
+      }
+      return '<div class="mon-card" data-view="'+m.id+'" style="--rc:'+rc+'">'
+        + '<div class="emoji">'+m.emoji+'</div><div class="name">'+m.name+'</div>'
+        + '<div class="meta">Lv.'+owned.level+'</div>'
+        + '<div class="meta"><span class="rarity-chip" style="--rc:'+rc+'">'+RARITY_LABEL[m.rarity]+'</span><span class="elem-chip" style="--ec:'+ec+'">'+m.element+'</span></div></div>';
+    }).join("");
+    Array.from(grid.querySelectorAll("[data-view]")).forEach(el=>{
+      el.addEventListener("click", ()=>Stage.showcase(MONSTER_BY_ID[el.dataset.view]));
+    });
+  }
+
+  function renderTeam(){
+    const grid = document.getElementById("teamGrid");
+    grid.innerHTML = state.team.map((id,slot)=>{
+      if(!id || !state.owned[id]) return '<div class="team-slot" data-slot="'+slot+'">+</div>';
+      const mon = MONSTER_BY_ID[id];
+      const rc = RARITY_COLOR[mon.rarity];
+      return '<div class="team-slot filled" data-slot="'+slot+'" style="border-color:'+rc+'">'
+        + '<div style="font-size:26px;">'+mon.emoji+'</div>'
+        + '<div style="font-size:10px;font-weight:700;">'+mon.name+'</div>'
+        + '<div style="font-size:9px;color:var(--text-dim);">Lv.'+state.owned[id].level+'</div></div>';
+    }).join("");
+    Array.from(grid.querySelectorAll(".team-slot")).forEach(el=>{
+      el.addEventListener("click", ()=>openTeamPicker(parseInt(el.dataset.slot,10)));
+    });
+  }
+
+  function openTeamPicker(slot){
+    const root = document.getElementById("modalRoot");
+    const ownedIds = Object.keys(state.owned);
+    const options = ownedIds.map(id=>{
+      const mon = MONSTER_BY_ID[id]; const rc = RARITY_COLOR[mon.rarity];
+      const inTeam = state.team.includes(id);
+      return '<div class="mon-card" data-pick="'+id+'" style="--rc:'+rc+';'+(inTeam?'opacity:0.4;':'')+'">'
+        + '<div class="emoji">'+mon.emoji+'</div><div class="name">'+mon.name+'</div>'
+        + '<div class="meta">Lv.'+state.owned[id].level+'</div></div>';
+    }).join("");
+    root.innerHTML = '<div class="modal-backdrop"><div class="modal">'
+      + '<h3>Choose a creature</h3><div class="grid">'+options+'</div>'
+      + '<div class="btn-row" style="margin-top:12px;">'
+      + '<button class="btn secondary" id="clearSlot">Clear Slot</button>'
+      + '<button class="btn secondary" id="closePick">Cancel</button></div></div></div>';
+    document.getElementById("closePick").addEventListener("click", ()=>{ root.innerHTML=""; });
+    document.getElementById("clearSlot").addEventListener("click", ()=>{
+      state.team[slot] = null; saveState(); root.innerHTML=""; renderAll(); Stage.showIdleTeam();
+    });
+    Array.from(root.querySelectorAll("[data-pick]")).forEach(el=>{
+      el.addEventListener("click", ()=>{
+        const id = el.dataset.pick;
+        if(state.team.includes(id)){ toast("Already on your team."); return; }
+        state.team[slot] = id; saveState(); root.innerHTML=""; renderAll(); Stage.showIdleTeam();
+      });
+    });
+  }
+
+  function renderLevelUp(){
+    const list = document.getElementById("levelUpList");
+    const ownedIds = Object.keys(state.owned);
+    if(ownedIds.length === 0){ list.innerHTML = '<p class="empty-hint">Summon a creature first.</p>'; return; }
+    list.innerHTML = ownedIds.map(id=>{
+      const mon = MONSTER_BY_ID[id]; const owned = state.owned[id]; const rc = RARITY_COLOR[mon.rarity];
+      const maxed = owned.level >= MAX_LEVEL;
+      const cost = maxed ? 0 : levelUpCost(owned.level);
+      return '<div class="card-surface" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px;margin-bottom:8px;">'
+        + '<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:24px;">'+mon.emoji+'</span>'
+        + '<div><div style="font-weight:700;font-size:13px;">'+mon.name+' <span class="rarity-chip" style="--rc:'+rc+'">'+RARITY_LABEL[mon.rarity]+'</span></div>'
+        + '<div class="empty-hint">Lv.'+owned.level+' · ATK '+statAtLevel(mon.baseAtk,owned.level)+' · HP '+statAtLevel(mon.baseHp,owned.level)+'</div></div></div>'
+        + (maxed ? '<span class="empty-hint">MAX LEVEL</span>' : '<button class="btn small" data-lvl="'+id+'">Level Up — '+cost+' ✨</button>')
+        + '</div>';
+    }).join("");
+    Array.from(list.querySelectorAll("[data-lvl]")).forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const id = btn.dataset.lvl; const owned = state.owned[id]; const cost = levelUpCost(owned.level);
+        if(state.essence < cost){ toast("Not enough Essence."); return; }
+        state.essence -= cost; owned.level += 1; saveState(); renderAll();
+      });
+    });
+  }
+
+  function renderZones(){
+    const list = document.getElementById("zoneList");
+    const now = Date.now(); const power = teamPower();
+    list.innerHTML = ZONES.map(z=>{
+      const cdUntil = state.zoneCd[z.id] || 0;
+      const remaining = Math.max(0, Math.ceil((cdUntil-now)/1000));
+      const winChance = Math.max(0.1, Math.min(0.95, 0.5 + (power - z.recPower)/(z.recPower*2 || 1)));
+      const pct = Math.round(winChance*100);
+      return '<div class="card-surface zone-card"><div class="zone-info">'
+        + '<div style="font-weight:700;">'+z.name+'</div>'
+        + '<div class="empty-hint">Recommended power '+z.recPower+' · Reward '+z.orbs+' 🔮 / '+z.essence+' ✨</div>'
+        + '<div class="zone-bar"><div class="zone-bar-fill" style="width:'+pct+'%"></div></div>'
+        + '<div class="empty-hint">Win chance ~'+pct+'%</div></div>'
+        + (remaining > 0 ? '<button class="btn secondary" disabled>Cooldown '+remaining+'s</button>'
+                          : '<button class="btn" data-zone="'+z.id+'">Explore</button>')
+        + '</div>';
+    }).join("");
+    Array.from(list.querySelectorAll("[data-zone]")).forEach(btn=>{
+      btn.addEventListener("click", ()=>runExpedition(btn.dataset.zone));
+    });
+  }
+
+  function runExpedition(zoneId){
+    const z = ZONES.find(zz=>zz.id===zoneId);
+    if(!z) return;
+    const power = teamPower();
+    const teamMons = state.team.map(id=>id?MONSTER_BY_ID[id]:null).filter(Boolean);
+    if(teamMons.length===0){ toast("Assign creatures to your team first."); return; }
+    const winChance = Math.max(0.1, Math.min(0.95, 0.5 + (power - z.recPower)/(z.recPower*2 || 1)));
+    const win = Math.random() < winChance;
+    const orbsGain = win ? z.orbs : Math.round(z.orbs*0.25);
+    const essGain = win ? z.essence : Math.round(z.essence*0.25);
+    const enemyMon = pickMonsterOfRarity(z.enemyRarity);
+
+    state.zoneCd[z.id] = Date.now() + z.cd*1000;
+    document.querySelectorAll("[data-zone='"+zoneId+"']").forEach(b=>{ b.disabled = true; b.textContent = "Battling..."; });
+
+    Stage.playBattle(teamMons, enemyMon, win, ()=>{
+      state.orbs += orbsGain; state.essence += essGain; saveState();
+      toast((win ? "Victory at " : "Retreated from ")+z.name+"! +"+orbsGain+" 🔮  +"+essGain+" ✨");
+      renderAll();
+      Stage.showIdleTeam();
+      setTimeout(renderZones, 50);
+    });
+  }
+
+  function claimDaily(){
+    const now = Date.now(); const DAY = 24*60*60*1000;
+    if(now - state.lastDaily < DAY){
+      const remaining = DAY - (now - state.lastDaily);
+      toast("Come back in ~"+Math.ceil(remaining/3600000)+"h for your next bonus.");
+      return;
+    }
+    state.lastDaily = now; state.orbs += 150; state.essence += 30; saveState();
+    toast("Daily bonus claimed: +150 🔮 +30 ✨"); renderAll();
+  }
+
+  function showPullModal(results){
+    const root = document.getElementById("modalRoot");
+    const cardsHtml = results.map(r=>{
+      const rc = RARITY_COLOR[r.mon.rarity];
+      const tag = r.isNew ? "NEW" : ("+"+r.essenceGain+" ✨");
+      return '<div class="reveal-card" style="--rc:'+rc+'"><div class="emoji">'+r.mon.emoji+'</div>'
+        + '<div class="name">'+r.mon.name+'</div><div class="tag">'+RARITY_LABEL[r.mon.rarity]+' · '+tag+'</div></div>';
+    }).join("");
+    root.innerHTML = '<div class="modal-backdrop"><div class="modal"><h3>Summon Results</h3>'
+      + '<div class="pull-reveal">'+cardsHtml+'</div><button class="btn" id="closePullModal">Nice!</button></div></div>';
+    document.getElementById("closePullModal").addEventListener("click", ()=>{
+      root.innerHTML = ""; renderAll(); Stage.showIdleTeam();
+    });
+  }
+
+  function switchTab(tab){
+    Array.from(document.querySelectorAll("nav.tabs button")).forEach(b=>b.classList.toggle("active", b.dataset.tab===tab));
+    Array.from(document.querySelectorAll(".panel")).forEach(p=>p.classList.toggle("active", p.id==="panel-"+tab));
+    if(tab === "team" || tab === "summon"){ Stage.showIdleTeam(); }
+  }
+
+  function renderAll(){
+    renderCurrency(); renderPity(); renderCollection(); renderTeam(); renderLevelUp(); renderZones();
+  }
+
+  document.querySelectorAll("nav.tabs button").forEach(btn=>btn.addEventListener("click", ()=>switchTab(btn.dataset.tab)));
+
+  document.getElementById("summon1").addEventListener("click", ()=>{
+    const results = doPull(1);
+    if(results){ Stage.playReveal(results); setTimeout(()=>showPullModal(results), 650); }
+  });
+  document.getElementById("summon10").addEventListener("click", ()=>{
+    const results = doPull(10);
+    if(results){ Stage.playReveal(results); setTimeout(()=>showPullModal(results), 650); }
+  });
+  document.getElementById("claimDaily").addEventListener("click", claimDaily);
+  document.getElementById("resetBtn").addEventListener("click", ()=>{
+    if(confirm("Reset all progress? This cannot be undone.")){
+      state = seedStarter(defaultState()); saveState(); renderAll(); Stage.showIdleTeam();
+      toast("Save reset.");
+    }
+  });
+
+  Stage.init();
+  renderAll();
+  Stage.showIdleTeam();
+  setInterval(renderZones, 1000);
+})();
+</script>
+</body>
+</html>
