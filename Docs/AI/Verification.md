@@ -50,6 +50,15 @@
 - Play Mode verified an Ember Hollow Burst/Guard round: both opponents 30 -> 22; unguarded Cindrel 30 -> 24; guarded Mossling 30 -> 28. The exact round summary rendered in controller state and the Arc Burst HUD action was present.
 - No paid or generative provider calls were used.
 
+## 2026-09-17 Wayfarer Commission milestone
+
+- Added `AstralWayfarerCommission`, a persistent post-expedition quest that records two Salvaged Alloy sales and awards 40 gameplay-earned Starshards once the main two-site/beacon expedition is acknowledged.
+- The objective HUD hands off from the main expedition to live commission progress and then a completion receipt.
+- Advanced saves to schema v6 with v1-v5 compatibility and validation that rejects negative sales or a completed commission without the required sales and acknowledged expedition.
+- Full EditMode assembly: 48 passed, 0 failed, 0 skipped. Tests cover locked completion, one-time payout, insufficient sales, wallet overflow, and impossible restore state.
+- Play Mode verified the complete extended loop: two exploration finds -> two relay sales (30 Starshards) -> both encounter victories (+100) -> beacon/Victory -> Continue -> one 40-Starshard quest payout. Final balance was 170, repeated continuation did not pay again, and the live objective HUD read `Wayfarer Commission complete: earned 40 Starshards.`
+- No paid or generative provider calls were used.
+
 ## 2026-09-17 release UI hardening milestone
 
 - Legacy IMGUI diagnostics now compile only in Editor/debug managed-code variants; release players use the generated uGUI exclusively.

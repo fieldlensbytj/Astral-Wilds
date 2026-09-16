@@ -26,7 +26,7 @@ namespace AstralWilds
 
         [Serializable] private sealed class SaveData
         {
-            public int version = 5;
+            public int version = 6;
             public Flow flow;
             public bool beaconActivated;
             public int encountersCompleted;
@@ -34,6 +34,8 @@ namespace AstralWilds
             // Retained solely so v1-v3 files migrate their Starshards into economy.
             public long starshards;
             public AstralEconomySaveData economy;
+            public int alloySold;
+            public bool wayfarerCommissionComplete;
             public List<DemoMember> party = new List<DemoMember>();
             public List<DemoMember> reserve = new List<DemoMember>();
             public List<string> clearedEncounterZoneIds = new List<string>();
@@ -60,6 +62,7 @@ namespace AstralWilds
         private readonly bool[] guarded = new bool[2];
         private readonly AstralWallet wallet = new AstralWallet();
         private readonly AstralInventory inventory = new AstralInventory();
+        private readonly AstralWayfarerCommission wayfarerCommission = new AstralWayfarerCommission();
         private readonly HashSet<string> collectedCurrencyPickupIds = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> collectedItemPickupIds = new HashSet<string>(StringComparer.Ordinal);
         private AstralPlayerController playerController;
@@ -109,6 +112,8 @@ namespace AstralWilds
         public long Starshards => wallet.Balance;
         public int SalvagedAlloy => inventory.GetCount(AstralItemId.SalvagedAlloy);
         public int FieldTonics => inventory.GetCount(AstralItemId.FieldTonic);
+        public int AlloySold => wayfarerCommission.AlloySold;
+        public bool WayfarerCommissionComplete => wayfarerCommission.IsComplete;
         public bool CanUseVendor => IsExploration && TryGetVendorAtPlayer();
         public bool CanUseFieldTonic => IsExploration && FieldTonics > 0 && FindTonicTarget() != null;
         public bool BeaconActivated => beacon != null ? beacon.IsActivated : beaconActivated;
@@ -354,6 +359,7 @@ namespace AstralWilds
             victoryAcknowledged = false;
             wallet.Reset();
             inventory.Reset();
+            wayfarerCommission.Reset();
             collectedCurrencyPickupIds.Clear();
             collectedItemPickupIds.Clear();
             activeParty[0] = 0;
@@ -450,7 +456,13 @@ namespace AstralWilds
                 return;
 
             if (AstralVendorService.TrySellSalvagedAlloy(wallet, inventory))
-                message = $"Sold one Salvaged Alloy for {AstralVendorService.SalvagedAlloySaleValue} Starshards. Balance: {wallet.Balance}.";
+            {
+                wayfarerCommission.TryRecordAlloySale(1);
+                bool commissionCompleted = TryCompleteWayfarerCommission();
+                message = commissionCompleted
+                    ? $"Commission complete. Sold the alloy and earned {AstralWayfarerCommission.CompletionReward} bonus Starshards. Balance: {wallet.Balance}."
+                    : $"Sold one Salvaged Alloy for {AstralVendorService.SalvagedAlloySaleValue} Starshards. Balance: {wallet.Balance}.";
+            }
             else
                 message = "Trade declined. No Salvaged Alloy is available, or the wallet is full; no currency or items changed.";
         }
@@ -503,7 +515,13 @@ namespace AstralWilds
         private string BuildObjectiveGuidance()
         {
             if (DemoObjectiveComplete)
-                return "Objective complete: two wild sites cleared and the beacon is online.";
+            {
+                if (!victoryAcknowledged)
+                    return "Objective complete: two wild sites cleared and the beacon is online.";
+                if (!wayfarerCommission.IsComplete)
+                    return $"Wayfarer Commission: sell Salvaged Alloy at the relay ({wayfarerCommission.AlloySold}/{AstralWayfarerCommission.RequiredAlloySales}).";
+                return $"Wayfarer Commission complete: earned {AstralWayfarerCommission.CompletionReward} Starshards.";
+            }
 
             if (playerController == null)
                 return "Objective: explore the wilds.";
@@ -868,8 +886,16 @@ namespace AstralWilds
         {
             victoryAcknowledged = true;
             flow = Flow.Exploration;
-            message = "Expedition complete. Free exploration continues; save or begin a new expedition when ready.";
+            bool commissionCompleted = TryCompleteWayfarerCommission();
+            message = commissionCompleted
+                ? $"Expedition and Wayfarer Commission complete. Earned {AstralWayfarerCommission.CompletionReward} bonus Starshards."
+                : "Expedition complete. Wayfarer Commission available: sell two Salvaged Alloy at the relay.";
             ApplyInputGate();
+        }
+
+        private bool TryCompleteWayfarerCommission()
+        {
+            return wayfarerCommission.TryComplete(DemoObjectiveComplete && victoryAcknowledged, wallet);
         }
 
         private void SaveGame()
@@ -884,7 +910,9 @@ namespace AstralWilds
                     beaconActivated = beacon != null ? beacon.IsActivated : beaconActivated,
                     encountersCompleted = encountersCompleted,
                     victoryAcknowledged = victoryAcknowledged,
-                    economy = AstralEconomySaveData.Capture(wallet, inventory)
+                    economy = AstralEconomySaveData.Capture(wallet, inventory),
+                    alloySold = wayfarerCommission.AlloySold,
+                    wayfarerCommissionComplete = wayfarerCommission.IsComplete
                 };
                 data.party.AddRange(party);
                 data.reserve.AddRange(reserve);
@@ -924,6 +952,8 @@ namespace AstralWilds
                     ? data.economy
                     : new AstralEconomySaveData { starshards = data.starshards };
                 economyState.TryRestore(wallet, inventory);
+                wayfarerCommission.TryRestore(data.version >= 6 ? data.alloySold : 0,
+                    data.version >= 6 && data.wayfarerCommissionComplete);
                 collectedCurrencyPickupIds.Clear();
                 if (data.collectedCurrencyPickupIds != null)
                     collectedCurrencyPickupIds.UnionWith(data.collectedCurrencyPickupIds);
@@ -956,9 +986,12 @@ namespace AstralWilds
 
         private static bool ValidateSave(SaveData data)
         {
-            if (data == null || data.version < 1 || data.version > 5 || data.party == null || data.reserve == null ||
+            if (data == null || data.version < 1 || data.version > 6 || data.party == null || data.reserve == null ||
                 data.party.Count < 1 || data.party.Count > AstralParty.PlayerCapacity || data.encountersCompleted < 0 ||
-                (data.version < 4 && data.starshards < 0) || (data.version >= 4 && (data.economy == null || !data.economy.IsValid)))
+                (data.version < 4 && data.starshards < 0) || (data.version >= 4 && (data.economy == null || !data.economy.IsValid)) ||
+                (data.version >= 6 && (data.alloySold < 0 ||
+                    (data.wayfarerCommissionComplete && (data.alloySold < AstralWayfarerCommission.RequiredAlloySales ||
+                        !data.victoryAcknowledged || data.encountersCompleted < 2 || !data.beaconActivated)))))
                 return false;
             var ids = new HashSet<string>(StringComparer.Ordinal);
             foreach (var list in new[] { data.party, data.reserve })

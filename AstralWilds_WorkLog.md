@@ -264,3 +264,12 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Full EditMode suite passed 44/44.
 - Play Mode verified opponents 30 -> 22 each, unguarded party slot 30 -> 24, guarded slot 30 -> 28, and the exact round-summary text.
 - No paid provider credits were spent.
+
+## Wayfarer Commission progression
+
+- Added a persistent post-expedition commission for selling two Salvaged Alloy.
+- The quest unlocks after the two-site/beacon Victory and pays 40 earned Starshards exactly once.
+- Advanced saves to schema v6 with legacy migration and impossible-state validation.
+- Full EditMode suite passed 48/48.
+- Play Mode verified the complete find -> sell -> two encounters -> beacon -> Victory -> commission path, final balance 170, one-time +40 payout, and objective-HUD completion text.
+- No real-money, premium-currency, advertising, or paid-provider integration was added.

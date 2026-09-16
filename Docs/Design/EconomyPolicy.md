@@ -10,6 +10,8 @@ The current earned currency is named **Starshards**.
 
 The first implemented sink is the in-world Wayfarer Supply Relay. Its Field Tonics are purchased only with earned Starshards; Salvaged Alloy obtained from encounter victories can be sold back for Starshards. Transactions are atomic, so rejected trades cannot consume currency or items.
 
+The first implemented quest payout is the Wayfarer Commission: after the main expedition, selling two Salvaged Alloy awards 40 Starshards exactly once. The reward is earned solely through exploration/encounter loot and in-world sales.
+
 ## Allowed currency sources
 
 - Defeating bosses and completing encounters.
