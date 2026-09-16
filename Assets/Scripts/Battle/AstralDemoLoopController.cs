@@ -169,9 +169,9 @@ namespace AstralWilds
 
         private void Start()
         {
-            playerController = FindFirstObjectByType<AstralPlayerController>();
-            orbitCamera = FindFirstObjectByType<AstralThirdPersonCamera>();
-            beacon = FindFirstObjectByType<CrashedBeaconObjective>();
+            playerController = FindAnyObjectByType<AstralPlayerController>();
+            orbitCamera = FindAnyObjectByType<AstralThirdPersonCamera>();
+            beacon = FindAnyObjectByType<CrashedBeaconObjective>();
             encounterZones = FindObjectsByType<AstralEncounterZone>();
             SetClearedEncounterZones(Array.Empty<string>());
             ApplyInputGate();
@@ -744,6 +744,7 @@ namespace AstralWilds
             return opponent[0] == null || (opponent[0].defeated && opponent[1].defeated);
         }
 
+#if UNITY_EDITOR || DEBUG
         private void OnGUI()
         {
             GUI.Box(new Rect(18, 18, 480, flow == Flow.Battle ? 430 : 230), "ASTRAL WILDS PROTOTYPE");
@@ -764,5 +765,6 @@ namespace AstralWilds
             GUILayout.Label("K save | L load | N new game");
             GUILayout.EndArea();
         }
+#endif
     }
 }

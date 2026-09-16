@@ -209,3 +209,12 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Added a manifest regression test rejecting purchasing and ad-monetization packages.
 - Full EditMode assembly passed 22/22 after the guard was added.
 - No paid provider credits were spent.
+
+## Release UI hardening
+
+- Restricted the legacy IMGUI overlay to Editor/debug managed variants and retained the uGUI as the release-facing interface.
+- Replaced obsolete ordered object lookups with `FindAnyObjectByType` in the controller and HUD.
+- Full EditMode suite passed 22/22.
+- Produced a non-development Windows x64 player and verified the emitted runtime assembly has no `OnGUI` method or prototype debug-title string while retaining the uGUI objective HUD.
+- The release build succeeded; its only final warning was from an optional package RuntimePipelineConfig, not first-party game code.
+- No paid provider credits were spent.

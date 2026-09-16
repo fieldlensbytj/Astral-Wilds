@@ -54,15 +54,15 @@ namespace AstralWilds
         {
             // Self-installing: no scene/prefab edit needed. Only attaches when a demo
             // loop controller is actually present in the loaded scene, and only once.
-            if (FindFirstObjectByType<AstralBattleHUD>() != null) return;
-            if (FindFirstObjectByType<AstralDemoLoopController>() == null) return;
+            if (FindAnyObjectByType<AstralBattleHUD>() != null) return;
+            if (FindAnyObjectByType<AstralDemoLoopController>() == null) return;
             var go = new GameObject("AstralBattleHUD");
             go.AddComponent<AstralBattleHUD>();
         }
 
         private void Awake()
         {
-            controller = FindFirstObjectByType<AstralDemoLoopController>();
+            controller = FindAnyObjectByType<AstralDemoLoopController>();
             LoadPortraits();
             BuildCanvas();
             BuildStatusPanel();
@@ -398,7 +398,7 @@ namespace AstralWilds
 
         private static void EnsureEventSystem()
         {
-            if (FindFirstObjectByType<EventSystem>() != null)
+            if (FindAnyObjectByType<EventSystem>() != null)
                 return;
             var go = new GameObject("EventSystem");
             go.AddComponent<EventSystem>();

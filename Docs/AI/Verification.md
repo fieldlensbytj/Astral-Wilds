@@ -1,5 +1,16 @@
 # Astral Wilds Verification
 
+## 2026-09-17 release UI hardening milestone
+
+- Legacy IMGUI diagnostics now compile only in Editor/debug managed-code variants; release players use the generated uGUI exclusively.
+- Replaced all seven obsolete `FindFirstObjectByType` calls in first-party runtime scripts with unordered `FindAnyObjectByType` lookups.
+- Full EditMode assembly: 22 passed, 0 failed, 0 skipped.
+- Built a Windows x64 player with `BuildOptions.None`: succeeded, Development flag false, 157,092,965 bytes.
+- Inspected the emitted `AstralWilds.Runtime.dll` with Mono.Cecil: `AstralDemoLoopController.OnGUI` absent; `ASTRAL WILDS PROTOTYPE` string absent; `AstralBattleHUD`'s `ObjectiveLine` string present.
+- Final build emitted no first-party script warnings. One package-level warning remained because no optional RuntimePipelineConfig asset is configured.
+- Active scene remained `Assets/Astral.unity`, clean, in Edit Mode.
+- No paid or generative provider calls were used.
+
 ## 2026-09-17 completion-state and economy-policy milestone
 
 - Completed objectives now enter the existing `Victory` flow and block exploration input.
