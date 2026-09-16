@@ -37,6 +37,7 @@ namespace AstralWilds
         private float yaw;
         private float pitch;
         public bool InputBlocked { get; set; }
+        public float SensitivityScale { get; set; } = 1f;
 
         private void Awake()
         {
@@ -85,7 +86,8 @@ namespace AstralWilds
 
             Vector2 lookInput = lookAction.ReadValue<Vector2>();
             bool isPointerInput = lookAction.activeControl != null && lookAction.activeControl.device is Pointer;
-            float scale = isPointerInput ? mouseSensitivity : stickSensitivity * Time.unscaledDeltaTime;
+            float scale = (isPointerInput ? mouseSensitivity : stickSensitivity * Time.unscaledDeltaTime) *
+                          Mathf.Max(0.1f, SensitivityScale);
 
             yaw += lookInput.x * scale;
             pitch = Mathf.Clamp(pitch - lookInput.y * scale, minPitch, maxPitch);

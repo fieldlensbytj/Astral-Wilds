@@ -31,6 +31,9 @@ namespace AstralWilds
         private Text messageText;
         private Text objectiveText;
         private GameObject completionBanner;
+        private GameObject shellPanel;
+        private Text shellTitle;
+        private Text shellBody;
         private Transform opponentRow;
         private readonly List<CreatureSlotView> opponentSlots = new List<CreatureSlotView>();
         private Transform partyRow;
@@ -69,6 +72,7 @@ namespace AstralWilds
             BuildCompletionBanner();
             opponentRow = BuildCreatureRow("OpponentRow", new Vector2(0.5f, 1f), new Vector2(0f, -170f), 2, opponentSlots, isOpponentRow: true);
             partyRow = BuildCreatureRow("PartyRow", new Vector2(0.5f, 0f), new Vector2(0f, 150f), 6, partySlots, isOpponentRow: false);
+            BuildShellPanel();
             actionBar = BuildActionBarRoot();
             EnsureEventSystem();
         }
@@ -93,9 +97,11 @@ namespace AstralWilds
         {
             RefreshStatusText();
             RefreshRow(controller.GetOpponentUiInfo(), opponentSlots, opponentRow.gameObject, controller.InBattle, isOpponentRow: true);
-            RefreshRow(controller.GetPartyUiInfo(), partySlots, partyRow.gameObject, true, isOpponentRow: false);
+            RefreshRow(controller.GetPartyUiInfo(), partySlots, partyRow.gameObject,
+                !controller.IsTitleScreen && !controller.IsSettings, isOpponentRow: false);
+            RefreshShellPanel();
             RefreshActionBar();
-            if (completionBanner != null) completionBanner.SetActive(controller.DemoObjectiveComplete);
+            if (completionBanner != null) completionBanner.SetActive(controller.DemoObjectiveComplete && !controller.IsTitleScreen && !controller.IsSettings);
         }
 
         private void RefreshStatusText()
@@ -104,6 +110,29 @@ namespace AstralWilds
                               $"Starshards {controller.Starshards}    Alloy {controller.SalvagedAlloy}    Tonics {controller.FieldTonics}";
             messageText.text = controller.StatusMessage;
             objectiveText.text = controller.ObjectiveGuidance;
+        }
+
+        private void RefreshShellPanel()
+        {
+            bool visible = controller.IsTitleScreen || controller.IsPaused || controller.IsSettings;
+            shellPanel.SetActive(visible);
+            if (!visible) return;
+
+            if (controller.IsTitleScreen)
+            {
+                shellTitle.text = "ASTRAL WILDS";
+                shellBody.text = "Explore. Bond. Endure.\n\nA complete expedition is playable with currency earned only through play.\nNo real-money purchases, premium currency, or advertisements.";
+            }
+            else if (controller.IsPaused)
+            {
+                shellTitle.text = "EXPEDITION PAUSED";
+                shellBody.text = "Your current battle or exploration state is preserved.\nSave is available at safe checkpoints.";
+            }
+            else
+            {
+                shellTitle.text = "SETTINGS";
+                shellBody.text = $"Master Volume    {controller.MasterVolumePercent}%\nLook Sensitivity    {controller.LookSensitivityPercent}%\n\nChanges are stored automatically on this device.";
+            }
         }
 
         private void RefreshRow(List<AstralDemoLoopController.AstralUiInfo> infos, List<CreatureSlotView> slots, GameObject rowRoot, bool visible, bool isOpponentRow)
@@ -147,16 +176,49 @@ namespace AstralWilds
         {
             string key = controller.CurrentState + "|" + controller.IsRestartPending + "|" + controller.CanBeginEncounter +
                          "|" + controller.CanUseVendor + "|" + controller.CanUseFieldTonic + "|" + controller.Starshards +
-                         "|" + controller.SalvagedAlloy + "|" + controller.FieldTonics;
+                         "|" + controller.SalvagedAlloy + "|" + controller.FieldTonics + "|" + controller.HasSaveGame +
+                         "|" + controller.MasterVolumePercent + "|" + controller.LookSensitivityPercent;
             if (key == lastLayoutKey) return;
             lastLayoutKey = key;
 
-            foreach (Transform child in actionBar) Destroy(child.gameObject);
+            while (actionBar.childCount > 0)
+            {
+                Transform child = actionBar.GetChild(0);
+                child.SetParent(null);
+                Destroy(child.gameObject);
+            }
+
+            if (controller.IsTitleScreen)
+            {
+                AddButton(actionBar, "New Expedition (Enter)", controller.UiStartNewExpedition);
+                AddButton(actionBar, "Continue (L)", controller.UiContinueGame, controller.HasSaveGame);
+                AddButton(actionBar, "Settings (O)", controller.UiOpenSettings);
+                FocusFirstActionButton();
+                return;
+            }
+            if (controller.IsSettings)
+            {
+                AddButton(actionBar, $"Master Volume: {controller.MasterVolumePercent}%", controller.UiCycleMasterVolume);
+                AddButton(actionBar, $"Look Sensitivity: {controller.LookSensitivityPercent}%", controller.UiCycleLookSensitivity);
+                AddButton(actionBar, "Back (Esc)", controller.UiCloseSettings);
+                FocusFirstActionButton();
+                return;
+            }
+            if (controller.IsPaused)
+            {
+                AddButton(actionBar, "Resume (Esc)", controller.UiResume);
+                AddButton(actionBar, "Save Checkpoint", controller.UiSave, controller.CanSaveNow);
+                AddButton(actionBar, "Settings (O)", controller.UiOpenSettings);
+                AddButton(actionBar, "Return to Title", controller.UiReturnToTitle);
+                FocusFirstActionButton();
+                return;
+            }
 
             if (controller.IsRestartPending)
             {
                 AddButton(actionBar, "Confirm Restart (Enter)", controller.UiConfirmRestart);
                 AddButton(actionBar, "Cancel (Esc)", controller.UiCancelRestart);
+                FocusFirstActionButton();
                 return;
             }
 
@@ -209,6 +271,24 @@ namespace AstralWilds
                 AddButton(actionBar, "Save Completion (K)", controller.UiSave);
                 AddButton(actionBar, "New Expedition (N)", controller.UiRequestRestart);
             }
+            AddButton(actionBar, "Pause (Esc)", controller.UiPause);
+            FocusFirstActionButton();
+        }
+
+        private void FocusFirstActionButton()
+        {
+            if (EventSystem.current == null)
+                return;
+
+            for (int i = 0; i < actionBar.childCount; i++)
+            {
+                Button button = actionBar.GetChild(i).GetComponent<Button>();
+                if (button == null || !button.interactable)
+                    continue;
+
+                EventSystem.current.SetSelectedGameObject(button.gameObject);
+                return;
+            }
         }
 
         // ---------------------------------------------------------------- build helpers
@@ -248,6 +328,21 @@ namespace AstralWilds
             text.color = new Color(1f, 0.9f, 0.5f, 1f);
             completionBanner.GetComponent<Image>().color = new Color(0.10f, 0.28f, 0.14f, 0.92f);
             completionBanner.SetActive(false);
+        }
+
+        private void BuildShellPanel()
+        {
+            shellPanel = CreatePanel(canvas.transform, "ShellPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(760f, 340f));
+            shellPanel.GetComponent<Image>().color = new Color(0.035f, 0.055f, 0.075f, 0.96f);
+
+            shellTitle = CreateText(shellPanel.transform, "ShellTitle", 48, TextAnchor.MiddleCenter, FontStyle.Bold);
+            SetRect(shellTitle.rectTransform, new Vector2(0f, 0.68f), new Vector2(1f, 1f), new Vector2(30f, 0f), new Vector2(-30f, -12f));
+            shellTitle.color = new Color(0.45f, 0.95f, 0.90f, 1f);
+
+            shellBody = CreateText(shellPanel.transform, "ShellBody", 21, TextAnchor.UpperCenter, FontStyle.Normal);
+            SetRect(shellBody.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 0.68f), new Vector2(38f, 24f), new Vector2(-38f, -8f));
+            shellPanel.SetActive(false);
         }
 
         private Transform BuildCreatureRow(string name, Vector2 anchor, Vector2 anchoredPos, int slotCount, List<CreatureSlotView> slots, bool isOpponentRow)

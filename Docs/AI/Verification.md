@@ -59,6 +59,18 @@
 - Play Mode verified the complete extended loop: two exploration finds -> two relay sales (30 Starshards) -> both encounter victories (+100) -> beacon/Victory -> Continue -> one 40-Starshard quest payout. Final balance was 170, repeated continuation did not pay again, and the live objective HUD read `Wayfarer Commission complete: earned 40 Starshards.`
 - No paid or generative provider calls were used.
 
+## 2026-09-17 title, pause, and settings shell milestone
+
+- Added a frozen title screen with New Expedition, Continue, Settings, and an explicit statement that Astral Wilds contains no real-money purchases, premium currency, or advertising.
+- Continue uses the existing validated/migrated save path. New Expedition resets runtime progression without deleting the disk checkpoint.
+- Added pause/resume from every gameplay flow, safe-checkpoint save from pause, settings access, and return to title. The active battle state remains intact across pause/settings/resume.
+- Added persistent five-step master volume (0-100%) and look sensitivity (50-150%) settings, applied to `AudioListener.volume` and the existing third-person camera.
+- Action-bar rebuilds detach obsolete buttons immediately and select the first interactable action, giving keyboard/controller navigation deterministic focus.
+- Full EditMode assembly: 52 passed, 0 failed, 0 skipped. Settings coverage includes defaults, wraparound, JSON roundtrip, and invalid-state rejection.
+- Play Mode verified: Title state, `Time.timeScale = 0`, world input blocked, title copy/actions rendered, New Expedition unfreezes gameplay, Battle -> Pause -> Settings -> Pause -> Battle preserves opponent HP, settings applied as `0.00` volume / `1.25` look scale and restored to 100/100, Return to Title re-freezes input, Continue loaded the existing checkpoint, and EventSystem selected `Btn_New Expedition (Enter)`.
+- Fresh Windows x64 release build (`BuildOptions.None`): succeeded, Development false, 157,132,009 bytes, 0 errors. Mono.Cecil confirmed `ASTRAL WILDS`, New Expedition, and the no-real-money copy are present while `OnGUI` remains absent. Build warnings came from package shader variants and the known optional RuntimePipelineConfig warning.
+- No paid or generative provider calls were used.
+
 ## 2026-09-17 release UI hardening milestone
 
 - Legacy IMGUI diagnostics now compile only in Editor/debug managed-code variants; release players use the generated uGUI exclusively.

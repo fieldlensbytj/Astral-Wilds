@@ -273,3 +273,13 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Full EditMode suite passed 48/48.
 - Play Mode verified the complete find -> sell -> two encounters -> beacon -> Victory -> commission path, final balance 170, one-time +40 payout, and objective-HUD completion text.
 - No real-money, premium-currency, advertising, or paid-provider integration was added.
+
+## Title, pause, settings, and release shell
+
+- Added a frozen title screen with New Expedition, Continue, Settings, and explicit no-real-money copy.
+- Added pause/resume/return-to-title while preserving the active battle or exploration state.
+- Added persistent master-volume and look-sensitivity settings applied to the AudioListener and third-person camera.
+- Added deterministic first-button focus for keyboard/controller menu navigation and immediate removal of obsolete action buttons.
+- Full EditMode suite passed 52/52. Play Mode verified title freeze, input blocking, pause/settings/battle preservation, applied/restored settings, return to title, Continue, and menu focus.
+- Fresh non-development Windows x64 build succeeded at 157,132,009 bytes with zero errors. Managed-assembly audit confirmed shell strings present and `OnGUI` absent.
+- No paid provider credits were spent.

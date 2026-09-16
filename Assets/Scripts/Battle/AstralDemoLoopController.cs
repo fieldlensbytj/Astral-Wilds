@@ -14,6 +14,7 @@ namespace AstralWilds
     public sealed class AstralDemoLoopController : MonoBehaviour
     {
         private enum Flow { Exploration, Encounter, Battle, Recruitment, PartyManagement, Vendor, Victory, Defeat }
+        private enum ShellState { Gameplay, Title, Paused, SettingsFromTitle, SettingsFromPause }
 
         [Serializable] private sealed class DemoMember
         {
@@ -51,6 +52,7 @@ namespace AstralWilds
         private readonly int[] activeParty = { 0, 1 };
         private readonly int[] activeOpponent = { 0, 1 };
         private Flow flow = Flow.Exploration;
+        private ShellState shellState = ShellState.Gameplay;
         private int selectedActiveSlot;
         private int selectedTargetSlot;
         private int encountersCompleted;
@@ -63,6 +65,7 @@ namespace AstralWilds
         private readonly AstralWallet wallet = new AstralWallet();
         private readonly AstralInventory inventory = new AstralInventory();
         private readonly AstralWayfarerCommission wayfarerCommission = new AstralWayfarerCommission();
+        private readonly AstralGameSettings gameSettings = new AstralGameSettings();
         private readonly HashSet<string> collectedCurrencyPickupIds = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> collectedItemPickupIds = new HashSet<string>(StringComparer.Ordinal);
         private AstralPlayerController playerController;
@@ -73,14 +76,21 @@ namespace AstralWilds
         private AstralItemPickup[] itemPickups = Array.Empty<AstralItemPickup>();
         private AstralVendorStation vendorStation;
         private AstralEncounterZone activeEncounterZone;
+        private bool hasSaveGame;
         private string message = "Explore the wilds and find the marked Astral activity. E remains reserved for the beacon objective.";
 
-        public bool InBattle => flow == Flow.Battle;
+        public bool InBattle => shellState == ShellState.Gameplay && flow == Flow.Battle;
         public int PartyCount => party.Count;
         public int ReserveCount => reserve.Count;
-        public string CurrentState => flow.ToString();
+        public string CurrentState => shellState switch
+        {
+            ShellState.Title => "Title",
+            ShellState.Paused => "Paused",
+            ShellState.SettingsFromTitle or ShellState.SettingsFromPause => "Settings",
+            _ => flow.ToString()
+        };
         public string StatusMessage => message;
-        public bool BlocksExplorationInput => flow != Flow.Exploration || restartPending;
+        public bool BlocksExplorationInput => shellState != ShellState.Gameplay || flow != Flow.Exploration || restartPending;
 
         // --- Public UI-facing state (additive; keyboard controls above are unchanged) ---
 
@@ -96,14 +106,22 @@ namespace AstralWilds
             public int activeSlot; // -1 when not active
         }
 
-        public bool IsExploration => flow == Flow.Exploration && !restartPending;
-        public bool IsEncounter => flow == Flow.Encounter;
-        public bool IsRecruitment => flow == Flow.Recruitment;
-        public bool IsPartyManagement => flow == Flow.PartyManagement;
-        public bool IsVendor => flow == Flow.Vendor;
-        public bool IsDefeat => flow == Flow.Defeat;
-        public bool IsVictory => flow == Flow.Victory;
+        public bool IsTitleScreen => shellState == ShellState.Title;
+        public bool IsPaused => shellState == ShellState.Paused;
+        public bool IsSettings => shellState == ShellState.SettingsFromTitle || shellState == ShellState.SettingsFromPause;
+        public bool IsExploration => shellState == ShellState.Gameplay && flow == Flow.Exploration && !restartPending;
+        public bool IsEncounter => shellState == ShellState.Gameplay && flow == Flow.Encounter;
+        public bool IsRecruitment => shellState == ShellState.Gameplay && flow == Flow.Recruitment;
+        public bool IsPartyManagement => shellState == ShellState.Gameplay && flow == Flow.PartyManagement;
+        public bool IsVendor => shellState == ShellState.Gameplay && flow == Flow.Vendor;
+        public bool IsDefeat => shellState == ShellState.Gameplay && flow == Flow.Defeat;
+        public bool IsVictory => shellState == ShellState.Gameplay && flow == Flow.Victory;
         public bool IsRestartPending => restartPending;
+        public bool HasSaveGame => hasSaveGame;
+        public bool CanSaveNow => (shellState == ShellState.Gameplay || shellState == ShellState.Paused) &&
+                                  (flow == Flow.Exploration || flow == Flow.PartyManagement || flow == Flow.Vendor || flow == Flow.Victory);
+        public int MasterVolumePercent => gameSettings.VolumePercent;
+        public int LookSensitivityPercent => gameSettings.LookSensitivityPercent;
         public bool CanBeginEncounter => IsExploration && TryGetEncounterZoneAtPlayer(out _);
         public string EncounterActionLabel => CanBeginEncounter ? "Encounter (B)" : "Find wild activity";
         public int SelectedActiveSlot => selectedActiveSlot;
@@ -167,29 +185,89 @@ namespace AstralWilds
 
         // --- Public UI action API; each mirrors the equivalent keyboard handler above ---
 
-        public void UiSelectActiveSlot(int slot) { if (flow == Flow.Battle && slot >= 0 && slot < 2) selectedActiveSlot = slot; }
-        public void UiSelectTargetSlot(int slot) { if (flow == Flow.Battle && slot >= 0 && slot < 2) selectedTargetSlot = slot; }
-        public void UiAttack() { if (flow == Flow.Battle) ResolvePlayerAction(); }
-        public void UiArcBurst() { if (flow == Flow.Battle) ResolveArcBurst(); }
-        public void UiGuard() { if (flow == Flow.Battle) GuardSelectedActive(); }
-        public void UiReplaceFainted() { if (flow == Flow.Battle) ReplaceFaintedFromReserve(); }
-        public void UiSwapBench() { if (flow == Flow.Battle) SwitchToBench(false); }
-        public void UiBeginEncounter() { if (flow == Flow.Exploration && !restartPending) TryBeginEncounter(); }
-        public void UiBeginBattle() { if (flow == Flow.Encounter) BeginBattle(); }
-        public void UiRecruit() { if (flow == Flow.Recruitment) RecruitReward(); }
-        public void UiOpenPartyManagement() { if (flow == Flow.Exploration && !restartPending) flow = Flow.PartyManagement; }
-        public void UiReorderParty() { if (flow == Flow.PartyManagement) ReorderParty(); }
-        public void UiConfirmDefeatRecovery() { if (flow == Flow.Defeat) ReturnToExploration(); }
-        public void UiReturnToExploration() { if (flow == Flow.PartyManagement) ReturnToExploration(); }
-        public void UiContinueAfterVictory() { if (flow == Flow.Victory) ContinueAfterVictory(); }
+        public void UiStartNewExpedition()
+        {
+            if (!IsTitleScreen) return;
+            NewGame();
+            EnterGameplay("New expedition begun. Explore for the marked wild activity.");
+        }
+        public void UiContinueGame()
+        {
+            if (!IsTitleScreen || !hasSaveGame) return;
+            if (LoadGame()) EnterGameplay("Checkpoint loaded. The expedition continues.");
+        }
+        public void UiPause()
+        {
+            if (shellState != ShellState.Gameplay || restartPending) return;
+            shellState = ShellState.Paused;
+            Time.timeScale = 0f;
+            message = "Expedition paused.";
+            ApplyInputGate();
+        }
+        public void UiResume()
+        {
+            if (!IsPaused) return;
+            EnterGameplay("Expedition resumed.");
+        }
+        public void UiOpenSettings()
+        {
+            if (IsTitleScreen) shellState = ShellState.SettingsFromTitle;
+            else if (IsPaused) shellState = ShellState.SettingsFromPause;
+            else return;
+            message = "Settings are saved automatically.";
+            ApplyInputGate();
+        }
+        public void UiCloseSettings()
+        {
+            if (shellState == ShellState.SettingsFromTitle) shellState = ShellState.Title;
+            else if (shellState == ShellState.SettingsFromPause) shellState = ShellState.Paused;
+            else return;
+            message = shellState == ShellState.Title ? "Choose an expedition." : "Expedition paused.";
+            ApplyInputGate();
+        }
+        public void UiCycleMasterVolume()
+        {
+            if (!IsSettings) return;
+            gameSettings.CycleVolume();
+            SaveAndApplySettings();
+        }
+        public void UiCycleLookSensitivity()
+        {
+            if (!IsSettings) return;
+            gameSettings.CycleLookSensitivity();
+            SaveAndApplySettings();
+        }
+        public void UiReturnToTitle()
+        {
+            if (!IsPaused && shellState != ShellState.SettingsFromPause) return;
+            shellState = ShellState.Title;
+            Time.timeScale = 0f;
+            message = "Returned to title. Current progress remains in memory; save before leaving to keep it on disk.";
+            ApplyInputGate();
+        }
+        public void UiSelectActiveSlot(int slot) { if (InBattle && slot >= 0 && slot < 2) selectedActiveSlot = slot; }
+        public void UiSelectTargetSlot(int slot) { if (InBattle && slot >= 0 && slot < 2) selectedTargetSlot = slot; }
+        public void UiAttack() { if (InBattle) ResolvePlayerAction(); }
+        public void UiArcBurst() { if (InBattle) ResolveArcBurst(); }
+        public void UiGuard() { if (InBattle) GuardSelectedActive(); }
+        public void UiReplaceFainted() { if (InBattle) ReplaceFaintedFromReserve(); }
+        public void UiSwapBench() { if (InBattle) SwitchToBench(false); }
+        public void UiBeginEncounter() { if (IsExploration) TryBeginEncounter(); }
+        public void UiBeginBattle() { if (IsEncounter) BeginBattle(); }
+        public void UiRecruit() { if (IsRecruitment) RecruitReward(); }
+        public void UiOpenPartyManagement() { if (IsExploration) flow = Flow.PartyManagement; }
+        public void UiReorderParty() { if (IsPartyManagement) ReorderParty(); }
+        public void UiConfirmDefeatRecovery() { if (IsDefeat) ReturnToExploration(); }
+        public void UiReturnToExploration() { if (IsPartyManagement) ReturnToExploration(); }
+        public void UiContinueAfterVictory() { if (IsVictory) ContinueAfterVictory(); }
         public void UiOpenVendor() { if (CanUseVendor) OpenVendor(); }
-        public void UiBuyFieldTonic() { if (flow == Flow.Vendor) BuyFieldTonic(); }
-        public void UiSellSalvagedAlloy() { if (flow == Flow.Vendor) SellSalvagedAlloy(); }
-        public void UiLeaveVendor() { if (flow == Flow.Vendor) LeaveVendor(); }
-        public void UiUseFieldTonic() { if (flow == Flow.Exploration) UseFieldTonic(); }
+        public void UiBuyFieldTonic() { if (IsVendor) BuyFieldTonic(); }
+        public void UiSellSalvagedAlloy() { if (IsVendor) SellSalvagedAlloy(); }
+        public void UiLeaveVendor() { if (IsVendor) LeaveVendor(); }
+        public void UiUseFieldTonic() { if (IsExploration) UseFieldTonic(); }
         public void UiSave() { SaveGame(); }
-        public void UiLoad() { LoadGame(); ApplyInputGate(); }
-        public void UiRequestRestart() { if (!restartPending) { restartPending = true; message = "Restart progress? Confirm or cancel below. Existing disk save is retained."; ApplyInputGate(); } }
+        public void UiLoad() { if (shellState == ShellState.Gameplay) LoadGame(); ApplyInputGate(); }
+        public void UiRequestRestart() { if (shellState == ShellState.Gameplay && !restartPending) { restartPending = true; message = "Restart progress? Confirm or cancel below. Existing disk save is retained."; ApplyInputGate(); } }
         public void UiConfirmRestart() { if (restartPending) { NewGame(); restartPending = false; ApplyInputGate(); } }
         public void UiCancelRestart() { if (restartPending) { restartPending = false; message = "Restart cancelled."; ApplyInputGate(); } }
 
@@ -230,9 +308,15 @@ namespace AstralWilds
             currencyPickups = FindObjectsByType<AstralCurrencyPickup>(FindObjectsInactive.Include);
             itemPickups = FindObjectsByType<AstralItemPickup>(FindObjectsInactive.Include);
             vendorStation = FindAnyObjectByType<AstralVendorStation>();
+            AstralGameSettingsStore.LoadInto(gameSettings);
+            SaveAndApplySettings(false);
+            hasSaveGame = File.Exists(Path.Combine(Application.persistentDataPath, SaveFileName));
             SetClearedEncounterZones(Array.Empty<string>());
             SetCollectedCurrencyPickups(Array.Empty<string>());
             SetCollectedItemPickups(Array.Empty<string>());
+            shellState = ShellState.Title;
+            Time.timeScale = 0f;
+            message = "Choose New Expedition or Continue. No real-money purchases exist in Astral Wilds.";
             ApplyInputGate();
         }
 
@@ -241,6 +325,7 @@ namespace AstralWilds
             if (playerController != null) playerController.InputBlocked = false;
             if (orbitCamera != null) orbitCamera.InputBlocked = false;
             if (beacon != null) beacon.InputBlocked = false;
+            Time.timeScale = 1f;
         }
 
         private void ApplyInputGate()
@@ -250,17 +335,62 @@ namespace AstralWilds
             if (beacon != null) beacon.InputBlocked = BlocksExplorationInput;
         }
 
+        private void EnterGameplay(string statusMessage)
+        {
+            shellState = ShellState.Gameplay;
+            Time.timeScale = 1f;
+            message = statusMessage;
+            ApplyInputGate();
+        }
+
+        private void SaveAndApplySettings(bool persist = true)
+        {
+            AudioListener.volume = gameSettings.Volume;
+            if (orbitCamera != null)
+                orbitCamera.SensitivityScale = gameSettings.LookSensitivityScale;
+            if (persist)
+                AstralGameSettingsStore.Save(gameSettings);
+            message = $"Settings saved: volume {gameSettings.VolumePercent}%, look sensitivity {gameSettings.LookSensitivityPercent}%.";
+        }
+
         private void Update()
         {
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
 
+            if (IsTitleScreen)
+            {
+                if (keyboard.enterKey.wasPressedThisFrame) UiStartNewExpedition();
+                else if (keyboard.lKey.wasPressedThisFrame) UiContinueGame();
+                else if (keyboard.oKey.wasPressedThisFrame) UiOpenSettings();
+                ApplyInputGate();
+                return;
+            }
+            if (IsSettings)
+            {
+                if (keyboard.escapeKey.wasPressedThisFrame || keyboard.oKey.wasPressedThisFrame) UiCloseSettings();
+                ApplyInputGate();
+                return;
+            }
+            if (IsPaused)
+            {
+                if (keyboard.escapeKey.wasPressedThisFrame) UiResume();
+                else if (keyboard.oKey.wasPressedThisFrame) UiOpenSettings();
+                ApplyInputGate();
+                return;
+            }
+
             if (restartPending)
             {
                 if (keyboard.enterKey.wasPressedThisFrame) { NewGame(); restartPending = false; }
                 else if (keyboard.escapeKey.wasPressedThisFrame) { restartPending = false; message = "Restart cancelled."; }
                 ApplyInputGate();
+                return;
+            }
+            if (keyboard.escapeKey.wasPressedThisFrame)
+            {
+                UiPause();
                 return;
             }
             if (keyboard.nKey.wasPressedThisFrame)
@@ -900,7 +1030,7 @@ namespace AstralWilds
 
         private void SaveGame()
         {
-            if (flow != Flow.Exploration && flow != Flow.PartyManagement && flow != Flow.Vendor && flow != Flow.Victory)
+            if (!CanSaveNow)
             { message = "Save between battles, after recruitment is resolved."; return; }
             try
             {
@@ -926,6 +1056,7 @@ namespace AstralWilds
                 File.WriteAllText(temp, JsonUtility.ToJson(data, true));
                 if (File.Exists(path)) File.Replace(temp, path, path + ".bak");
                 else File.Move(temp, path);
+                hasSaveGame = true;
                 message = "Game saved.";
             }
             catch (Exception exception)
@@ -934,14 +1065,14 @@ namespace AstralWilds
             }
         }
 
-        private void LoadGame()
+        private bool LoadGame()
         {
             try
             {
                 string path = Path.Combine(Application.persistentDataPath, SaveFileName);
-                if (!File.Exists(path)) { message = "No save found; new game retained."; return; }
+                if (!File.Exists(path)) { hasSaveGame = false; message = "No save found; new game retained."; return false; }
                 SaveData data = JsonUtility.FromJson<SaveData>(File.ReadAllText(path));
-                if (!ValidateSave(data)) { message = "Save invalid; current progress retained."; return; }
+                if (!ValidateSave(data)) { message = "Save invalid; current progress retained."; return false; }
                 party.Clear(); reserve.Clear();
                 if (data.party != null) party.AddRange(data.party);
                 if (data.reserve != null) reserve.AddRange(data.reserve);
@@ -976,11 +1107,14 @@ namespace AstralWilds
                 SetCollectedItemPickups(collectedItemPickupIds);
                 if (beacon != null) beacon.RestoreProgress(beaconActivated);
                 message = "Checkpoint loaded. Explore to the wild activity site to begin an encounter.";
+                hasSaveGame = true;
+                return true;
             }
             catch (Exception exception)
             {
                 Debug.LogError("Astral load failed: " + exception.Message, this);
                 message = "Save could not be loaded; current progress retained.";
+                return false;
             }
         }
 
