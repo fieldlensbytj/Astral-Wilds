@@ -177,6 +177,7 @@ namespace AstralWilds
             else if (controller.InBattle)
             {
                 AddButton(actionBar, "Attack (A)", controller.UiAttack);
+                AddButton(actionBar, "Guard (G)", controller.UiGuard);
                 AddButton(actionBar, "Replace Fainted (R)", controller.UiReplaceFainted);
                 AddButton(actionBar, "Swap (S)", controller.UiSwapBench);
             }

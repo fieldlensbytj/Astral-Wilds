@@ -27,6 +27,8 @@ Target scopes are data-only and intentionally do not implement ability balance o
 
 The final turn-based versus real-time combat model remains an owner decision. This layer preserves the 2v2 slot and targeting contract without choosing timing, ability effects, or balance.
 
+The current playable demo remains turn-based and intentionally provisional. Each conscious active slot currently chooses one action per round: Attack, Guard, or Switch. Guard protects only that field position for the current counterattack phase and reduces incoming damage to one-third, rounded up. Encounter zones may tune opponent damage and provide a tactical brief; this is demo balance, not a commitment to the final combat model.
+
 ## UI contract
 
 The future battle UI must show two active player positions, two active opponent positions, six player party slots, active indicators, the selected active slot during switching, and four distinct battlefield target positions. `AstralBattleUiSnapshot` provides the data boundary for those views.

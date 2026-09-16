@@ -247,3 +247,12 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Full EditMode suite passed 36/36.
 - Play Mode verified both finds, marker disappearance, duplicate rejection, HUD inventory, and selling both finds for 30 earned Starshards.
 - No paid provider credits were spent.
+
+## Guard action and Stormbreak battle profile
+
+- Added Guard as a real per-slot battle action on keyboard `G` and the clickable HUD.
+- Guard consumes the selected Astral's action and reduces its next incoming counterattack to one-third damage, rounded up.
+- Added encounter-owned opponent damage and tactical briefing data. Ember Hollow remains balanced at 6; Stormbreak Grove is a 10-damage Stormfront encounter.
+- Full EditMode suite passed 43/43.
+- Play Mode verified one Stormbreak round at exact HP deltas: unguarded 30 -> 20, guarded 30 -> 26.
+- No character art decisions or paid provider calls were involved.

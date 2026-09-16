@@ -22,6 +22,10 @@ namespace AstralWilds
         [SerializeField, Min(0.5f)] private float radius = 3.5f;
         [SerializeField, Min(1)] private int clearReward = 50;
 
+        [Header("Battle Profile")]
+        [SerializeField, Min(1)] private int opponentDamage = 6;
+        [SerializeField] private string tacticalBrief = "Balanced wild pair.";
+
         private SphereCollider zoneCollider;
 
         public string ZoneId => string.IsNullOrWhiteSpace(zoneId) ? name : zoneId;
@@ -32,6 +36,8 @@ namespace AstralWilds
         public string CompanionAstralName => companionAstralName;
         public float Radius => radius;
         public int ClearReward => clearReward;
+        public int OpponentDamage => opponentDamage;
+        public string TacticalBrief => string.IsNullOrWhiteSpace(tacticalBrief) ? "Wild encounter." : tacticalBrief;
         public bool IsCleared { get; private set; }
         public bool IsAvailable => isActiveAndEnabled && !IsCleared;
 
@@ -43,6 +49,7 @@ namespace AstralWilds
         private void OnValidate()
         {
             radius = Mathf.Max(0.5f, radius);
+            opponentDamage = Mathf.Max(1, opponentDamage);
             ApplyColliderSettings();
         }
 

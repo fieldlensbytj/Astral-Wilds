@@ -57,6 +57,7 @@ namespace AstralWilds
         private bool victoryAcknowledged;
         private AstralBattleState battle;
         private readonly bool[] acted = new bool[2];
+        private readonly bool[] guarded = new bool[2];
         private readonly AstralWallet wallet = new AstralWallet();
         private readonly AstralInventory inventory = new AstralInventory();
         private readonly HashSet<string> collectedCurrencyPickupIds = new HashSet<string>(StringComparer.Ordinal);
@@ -164,6 +165,7 @@ namespace AstralWilds
         public void UiSelectActiveSlot(int slot) { if (flow == Flow.Battle && slot >= 0 && slot < 2) selectedActiveSlot = slot; }
         public void UiSelectTargetSlot(int slot) { if (flow == Flow.Battle && slot >= 0 && slot < 2) selectedTargetSlot = slot; }
         public void UiAttack() { if (flow == Flow.Battle) ResolvePlayerAction(); }
+        public void UiGuard() { if (flow == Flow.Battle) GuardSelectedActive(); }
         public void UiReplaceFainted() { if (flow == Flow.Battle) ReplaceFaintedFromReserve(); }
         public void UiSwapBench() { if (flow == Flow.Battle) SwitchToBench(false); }
         public void UiBeginEncounter() { if (flow == Flow.Exploration && !restartPending) TryBeginEncounter(); }
@@ -326,6 +328,8 @@ namespace AstralWilds
             if (keyboard.wKey.wasPressedThisFrame) selectedTargetSlot = 1;
             if (keyboard.aKey.wasPressedThisFrame)
                 ResolvePlayerAction();
+            if (keyboard.gKey.wasPressedThisFrame)
+                GuardSelectedActive();
             if (keyboard.rKey.wasPressedThisFrame)
                 ReplaceFaintedFromReserve();
             if (keyboard.sKey.wasPressedThisFrame)
@@ -353,6 +357,7 @@ namespace AstralWilds
             activeParty[1] = 1;
             opponent[0] = opponent[1] = null;
             acted[0] = acted[1] = false;
+            guarded[0] = guarded[1] = false;
             battle = null;
             activeEncounterZone = null;
             SetClearedEncounterZones(Array.Empty<string>());
@@ -590,7 +595,9 @@ namespace AstralWilds
                 battle.TryActivate(BattleSide.Opponent, slot, slot);
             }
             acted[0] = acted[1] = false;
+            guarded[0] = guarded[1] = false;
             message = "2v2 battle: 1/2 select your active slot, Q/W select target, A attack, R reserve replacement.";
+            message += $" {activeEncounterZone.TacticalBrief} G guards the selected slot.";
         }
 
         private void ResolvePlayerAction()
@@ -622,6 +629,27 @@ namespace AstralWilds
             FinishRoundIfReady();
         }
 
+        private void GuardSelectedActive()
+        {
+            DemoMember actor = GetActiveParty(selectedActiveSlot);
+            if (flow != Flow.Battle || actor == null || actor.defeated)
+            {
+                message = "Invalid guard: choose a conscious active Astral.";
+                return;
+            }
+            if (acted[selectedActiveSlot] || !battle.TryQueueAction(BattleSide.Player, selectedActiveSlot,
+                new QueuedAstralAction("guard", TargetScope.Self, selectedActiveSlot)))
+            {
+                message = "That Astral already acted this round. Choose the other active slot.";
+                return;
+            }
+
+            acted[selectedActiveSlot] = true;
+            guarded[selectedActiveSlot] = true;
+            message = $"{actor.displayName} guards its position against the next counterattack.";
+            FinishRoundIfReady();
+        }
+
         private void FinishRoundIfReady()
         {
             for (int slot = 0; slot < 2; slot++)
@@ -642,17 +670,25 @@ namespace AstralWilds
             for (int i = 0; i < activeOpponent.Length; i++)
             {
                 DemoMember enemy = opponent[activeOpponent[i]];
-                DemoMember target = GetActiveParty(i % 2);
-                if (target == null || target.defeated) target = GetActiveParty((i + 1) % 2);
+                int targetSlot = i % 2;
+                DemoMember target = GetActiveParty(targetSlot);
+                if (target == null || target.defeated)
+                {
+                    targetSlot = (i + 1) % 2;
+                    target = GetActiveParty(targetSlot);
+                }
                 if (enemy == null || enemy.defeated || target == null || target.defeated)
                     continue;
-                target.hp = Mathf.Max(0, target.hp - 6);
+                int baseDamage = activeEncounterZone != null ? activeEncounterZone.OpponentDamage : 6;
+                int damage = AstralCombatRules.ResolveIncomingDamage(baseDamage, guarded[targetSlot]);
+                target.hp = Mathf.Max(0, target.hp - damage);
                 if (target.hp == 0)
                 {
                     target.defeated = true;
                     battle.PlayerParty.Astrals[party.IndexOf(target)].MarkDefeated();
                 }
             }
+            guarded[0] = guarded[1] = false;
         }
 
         private void ReplaceFaintedFromReserve()
@@ -699,6 +735,7 @@ namespace AstralWilds
         {
             if (flow != Flow.Battle)
                 return;
+            guarded[0] = guarded[1] = false;
             flow = playerWon ? Flow.Recruitment : Flow.Defeat;
             if (playerWon)
             {
@@ -847,6 +884,7 @@ namespace AstralWilds
                 activeParty[1] = FindFirstEligibleParty(activeParty[0] + 1);
                 opponent[0] = opponent[1] = null;
                 acted[0] = acted[1] = false;
+                guarded[0] = guarded[1] = false;
                 battle = null;
                 activeEncounterZone = null;
                 IReadOnlyCollection<string> clearedZoneIds = data.clearedEncounterZoneIds;

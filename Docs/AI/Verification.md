@@ -33,6 +33,15 @@
 - Play Mode verified two finds collected, both markers hidden, duplicate collection rejected, inventory reaching two alloy, and both sold at the relay for 30 Starshards. The HUD matched `Starshards 30 / Alloy 0 / Tonics 0`.
 - No paid or generative provider calls were used.
 
+## 2026-09-17 Guard and Stormbreak tactics milestone
+
+- Added a Guard action for either active player slot through keyboard `G` and the clickable battle HUD.
+- Guard consumes that slot's round action and reduces its next incoming counterattack to one-third, rounded up, with a minimum of one damage.
+- Encounter zones now own battle profiles. Ember Hollow remains at 6 counter-damage; Stormbreak Grove is a 10-damage Stormfront encounter and tells the player to guard or rotate injured Astrals.
+- Full EditMode assembly: 43 passed, 0 failed, 0 skipped. Pure combat-rule cases cover guarded, unguarded, zero, and negative damage inputs.
+- Play Mode verified a mixed Attack/Guard Stormbreak round: the unguarded active slot moved from 30 to 20 HP and the guarded slot from 30 to 26 HP. The state remained Battle and the Guard HUD action was present.
+- No paid or generative provider calls were used.
+
 ## 2026-09-17 release UI hardening milestone
 
 - Legacy IMGUI diagnostics now compile only in Editor/debug managed-code variants; release players use the generated uGUI exclusively.

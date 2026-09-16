@@ -639,6 +639,7 @@ GameObject:
   m_Component:
   - component: {fileID: 327193805}
   - component: {fileID: 327193806}
+  - component: {fileID: 327193807}
   m_Layer: 0
   m_Name: SalvageGlint
   m_TagString: Untagged
@@ -726,6 +727,35 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
+--- !u!114 &327193807
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 327193804}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalLightData
+  m_UsePipelineSettings: 1
+  m_AdditionalLightsShadowResolutionTier: 2
+  m_CustomShadowLayers: 0
+  m_LightCookieSize: {x: 1, y: 1}
+  m_LightCookieOffset: {x: 0, y: 0}
+  m_SoftShadowQuality: 0
+  m_RenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_ShadowRenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_Version: 4
+  m_LightLayerMask: 1
+  m_ShadowLayerMask: 1
+  m_RenderingLayers: 1
+  m_ShadowRenderingLayers: 1
 --- !u!1 &328038299
 GameObject:
   m_ObjectHideFlags: 0
@@ -2358,6 +2388,8 @@ MonoBehaviour:
   companionAstralName: Wild Frost Astral
   radius: 3.5
   clearReward: 50
+  opponentDamage: 6
+  tacticalBrief: 'Balanced pair: attack freely or guard an injured slot.'
 --- !u!135 &1222279097
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -3428,6 +3460,8 @@ MonoBehaviour:
   companionAstralName: Wild Gale Astral
   radius: 3.5
   clearReward: 50
+  opponentDamage: 10
+  tacticalBrief: 'Stormfront: counterattacks hit harder; guard or rotate injured Astrals.'
 --- !u!135 &1717558335
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -3929,6 +3963,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1915665208}
   - component: {fileID: 1915665209}
+  - component: {fileID: 1915665210}
   m_Layer: 0
   m_Name: SalvageGlint
   m_TagString: Untagged
@@ -4016,6 +4051,35 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
+--- !u!114 &1915665210
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1915665207}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalLightData
+  m_UsePipelineSettings: 1
+  m_AdditionalLightsShadowResolutionTier: 2
+  m_CustomShadowLayers: 0
+  m_LightCookieSize: {x: 1, y: 1}
+  m_LightCookieOffset: {x: 0, y: 0}
+  m_SoftShadowQuality: 0
+  m_RenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_ShadowRenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_Version: 4
+  m_LightLayerMask: 1
+  m_ShadowLayerMask: 1
+  m_RenderingLayers: 1
+  m_ShadowRenderingLayers: 1
 --- !u!1 &1943388433
 GameObject:
   m_ObjectHideFlags: 0
