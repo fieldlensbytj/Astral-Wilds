@@ -95,3 +95,15 @@ Per the vision doc's opening-demo proposal ("a second encounter should encourage
 - Added `DemoObjectiveComplete` (`BeaconActivated && encountersCompleted >= 2`) to `AstralDemoLoopController`, and a banner in `AstralBattleHUD` that appears once it's true. The existing `CrashedBeaconObjective`/`BeaconObjectiveUI` proximity-and-hold-to-activate system (already implemented, not modified) was reused as-is rather than rebuilt.
 - Verified the full short-demo loop live: encounter 1 -> battle -> recruit -> encounter 2 (different pair) -> battle -> recruit -> walked the player to the crashed corvette (held W) -> held E to activate the beacon -> both "BEACON ONLINE" (existing) and "DEMO OBJECTIVE COMPLETE" (new) banners displayed correctly together.
 - No spatial gating was added to encounter triggers (B still works from anywhere, unchanged) -- a location-gated encounter zone (mirroring the beacon's own interactionRadius pattern) is a reasonable next step but was left out this session to avoid touching verified movement/collision behavior without first inspecting the terrain collision layout carefully.
+
+## 2026-09-16 Cindrel production-mesh milestone
+
+- Preserved the original Meshy GLB byte-for-byte and created a deterministic Blender 5.2 normalization recipe at `ArtSource/Blender/normalize_cindrel.py`.
+- Reduced the source from 487,694 vertices / 975,404 triangles to 17,492 vertices / 35,000 triangles while retaining a closed manifold surface (0 boundary edges, 0 non-manifold edges, 0 loose vertices/edges).
+- Normalized to 1.25 m tall, grounded and centered the mesh, recalculated outward normals, generated one UV set, added a review material, and exported a Unity-axis FBX.
+- Re-imported the FBX into Blender and verified identical topology, dimensions, transform, UVs, material, and provenance properties.
+- Imported the FBX into Unity 6000.6.0f1 with normals imported, Mikk tangents calculated, mesh optimization enabled, read/write disabled, animation disabled, and no mesh compression.
+- Created `Cindrel_EmberClay.mat`, `Cindrel_Production_v01.prefab`, and the build-excluded `CindrelValidation.unity` scene. The prefab has one correctly assigned renderer and a bounds-derived capsule collider.
+- Rendered and visually inspected Cindrel through a real Unity camera/URP material. The fox-like head, oversized ears, layered fur, quadruped stance, and curled/flame-like rear silhouette remain recognizable after reduction.
+- Unity audit confirmed 35,000 triangles, required assets/references present, validation scene excluded from Build Settings, and `Assets/Astral.unity` active and clean afterward.
+- Limitations: placeholder single-color material, no deformation-ready quad retopology, rig, skin, animation, LOD chain, or gameplay placement. Provider license and the missing original generation prompt remain unresolved; no paid credits were spent.

@@ -159,3 +159,14 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - No Meshy credits were spent in this work.
 - No original source artwork, Meshy exports, Blender source scenes, Unity proof-of-concept archives, or reference images were overwritten.
 
+## Cindrel production mesh and Unity prefab
+
+- Audited the untracked Cindrel Meshy source and temporary Blender review scene instead of importing the raw asset directly.
+- The raw source was a watertight but production-inappropriate 487,694-vertex / 975,404-triangle GLB with no authored normals, UVs, materials, rig, or animation.
+- Added a fail-if-existing Blender normalization recipe and created a separate 35,000-triangle, 1.25 m production mesh with outward normals, smooth shading, one UV set, a grounded origin, and embedded provenance properties.
+- Preserved the original GLB and temporary review files without modification.
+- Exported and Blender-round-trip validated `Assets/Art/Astrals/Cindrel/Models/Cindrel_Production_v01.fbx`.
+- Imported the FBX through Unity's ModelImporter, created an external URP ember-clay review material, a reusable prefab with capsule collider, and a separate validation scene that is not included in Build Settings.
+- Captured a real Unity/URP validation render and restored `Assets/Astral.unity` as the active, clean scene without saving any gameplay-scene change.
+- Remaining: final reference-faithful texture, quad retopology for deformation, skeleton/skin, animation clips/controller, LODs, gameplay placement, source-prompt recovery, and provider-license confirmation.
+- No external generation, remesh, UV, texture, or rigging credits were spent in this pass.
