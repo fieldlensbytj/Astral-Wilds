@@ -100,7 +100,7 @@ namespace AstralWilds
 
         private void RefreshStatusText()
         {
-            statusText.text = $"{controller.CurrentState}    Party {controller.PartyCount}/6    Reserve {controller.ReserveCount}";
+            statusText.text = $"{controller.CurrentState}    Party {controller.PartyCount}/6    Reserve {controller.ReserveCount}    Starshards {controller.Starshards}";
             messageText.text = controller.StatusMessage;
             objectiveText.text = controller.ObjectiveGuidance;
         }

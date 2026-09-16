@@ -20,6 +20,7 @@ namespace AstralWilds
 
         [Header("Bounds")]
         [SerializeField, Min(0.5f)] private float radius = 3.5f;
+        [SerializeField, Min(1)] private int clearReward = 50;
 
         private SphereCollider zoneCollider;
 
@@ -30,6 +31,7 @@ namespace AstralWilds
         public string CompanionAstralId => companionAstralId;
         public string CompanionAstralName => companionAstralName;
         public float Radius => radius;
+        public int ClearReward => clearReward;
         public bool IsCleared { get; private set; }
         public bool IsAvailable => isActiveAndEnabled && !IsCleared;
 

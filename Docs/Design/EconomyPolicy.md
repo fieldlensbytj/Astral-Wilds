@@ -6,6 +6,8 @@ Astral Wilds has no real-money economy. The game must not contain real-money pur
 
 Every item, upgrade, service, and currency purchase must use value earned by playing the game.
 
+The current earned currency is named **Starshards**.
+
 ## Allowed currency sources
 
 - Defeating bosses and completing encounters.

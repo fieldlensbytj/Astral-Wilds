@@ -1,5 +1,18 @@
 # Astral Wilds Verification
 
+## 2026-09-17 earned-currency milestone
+
+- Added an earned-only currency named Starshards. `AstralWallet` supports gameplay rewards, affordable positive spending, item-sale proceeds, restore/reset, and overflow rejection; it contains no payment or premium-currency concepts.
+- Encounter-site victory awards the site's configured clear reward (currently 50 Starshards).
+- Added a gold exploration cache at `(-4, 0.7, -5)` worth 25 Starshards. Stable pickup IDs prevent duplicate collection and drive saved world state.
+- Save schema v3 adds `starshards` and `collectedCurrencyPickupIds`; v1/v2 remain accepted with zero balance/no collected caches.
+- Runtime HUD state line includes the live Starshard balance.
+- Full EditMode assembly: 27 passed, 0 failed, 0 skipped.
+- Live Play Mode verified: exploration cache 0 -> 25; second collection rejected; cache hidden; Ember Hollow victory 25 -> 75; reward message correct; generated HUD refreshed to `Starshards 75`.
+- Existing persistent-save bytes were deliberately not overwritten, so this pass did not perform a disk round-trip of schema v3. Domain restore and validation paths are covered and compiled.
+- Final audit: Edit Mode, one active uniquely identified cache, `Assets/Astral.unity` clean, 0 Console errors / 0 warnings.
+- No paid or generative provider calls were used.
+
 ## 2026-09-17 release UI hardening milestone
 
 - Legacy IMGUI diagnostics now compile only in Editor/debug managed-code variants; release players use the generated uGUI exclusively.

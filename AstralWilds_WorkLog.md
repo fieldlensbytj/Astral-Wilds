@@ -218,3 +218,14 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Produced a non-development Windows x64 player and verified the emitted runtime assembly has no `OnGUI` method or prototype debug-title string while retaining the uGUI objective HUD.
 - The release build succeeded; its only final warning was from an optional package RuntimePipelineConfig, not first-party game code.
 - No paid provider credits were spent.
+
+## Earned-only Starshard economy foundation
+
+- Added an `AstralWallet` domain model with gameplay reward sources, safe spending, item-sale proceeds, save restore, reset, and overflow protection.
+- Encounter victories award configured Starshards; Ember Hollow currently grants 50.
+- Added a visible gold exploration cache worth 25 Starshards with a stable one-time pickup ID.
+- Advanced saves to schema v3 with Starshard balance and collected-cache IDs while retaining v1/v2 compatibility.
+- Added the live Starshard balance to the uGUI status line.
+- Expanded EditMode coverage to 27/27 passing tests.
+- Verified live cache collection, duplicate rejection, encounter reward, final balance 75, reward message, and HUD display.
+- No real-money, advertising, premium-currency, or payment integration was added; no provider credits were spent.

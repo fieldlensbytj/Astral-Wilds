@@ -26,14 +26,16 @@ namespace AstralWilds
 
         [Serializable] private sealed class SaveData
         {
-            public int version = 2;
+            public int version = 3;
             public Flow flow;
             public bool beaconActivated;
             public int encountersCompleted;
             public bool victoryAcknowledged;
+            public long starshards;
             public List<DemoMember> party = new List<DemoMember>();
             public List<DemoMember> reserve = new List<DemoMember>();
             public List<string> clearedEncounterZoneIds = new List<string>();
+            public List<string> collectedCurrencyPickupIds = new List<string>();
         }
 
         private const string SaveFileName = "astralwilds-demo-save-v1.json";
@@ -52,10 +54,13 @@ namespace AstralWilds
         private bool victoryAcknowledged;
         private AstralBattleState battle;
         private readonly bool[] acted = new bool[2];
+        private readonly AstralWallet wallet = new AstralWallet();
+        private readonly HashSet<string> collectedCurrencyPickupIds = new HashSet<string>(StringComparer.Ordinal);
         private AstralPlayerController playerController;
         private AstralThirdPersonCamera orbitCamera;
         private CrashedBeaconObjective beacon;
         private AstralEncounterZone[] encounterZones = Array.Empty<AstralEncounterZone>();
+        private AstralCurrencyPickup[] currencyPickups = Array.Empty<AstralCurrencyPickup>();
         private AstralEncounterZone activeEncounterZone;
         private string message = "Explore the wilds and find the marked Astral activity. E remains reserved for the beacon objective.";
 
@@ -92,6 +97,7 @@ namespace AstralWilds
         public int SelectedActiveSlot => selectedActiveSlot;
         public int SelectedTargetSlot => selectedTargetSlot;
         public int EncountersCompleted => encountersCompleted;
+        public long Starshards => wallet.Balance;
         public bool BeaconActivated => beacon != null ? beacon.IsActivated : beaconActivated;
         public string ObjectiveGuidance => BuildObjectiveGuidance();
         // The vision doc's short demo objective: explore, clear two distinct encounters,
@@ -162,6 +168,17 @@ namespace AstralWilds
         public void UiConfirmRestart() { if (restartPending) { NewGame(); restartPending = false; ApplyInputGate(); } }
         public void UiCancelRestart() { if (restartPending) { restartPending = false; message = "Restart cancelled."; ApplyInputGate(); } }
 
+        public bool TryCollectExplorationCurrency(string pickupId, long amount)
+        {
+            if (!IsExploration || string.IsNullOrWhiteSpace(pickupId) || collectedCurrencyPickupIds.Contains(pickupId) ||
+                !wallet.TryEarn(amount, AstralCurrencySource.ExplorationFind))
+                return false;
+
+            collectedCurrencyPickupIds.Add(pickupId);
+            message = $"Found {amount} Starshards while exploring. Balance: {wallet.Balance}.";
+            return true;
+        }
+
         private void Awake()
         {
             NewGame();
@@ -173,7 +190,9 @@ namespace AstralWilds
             orbitCamera = FindAnyObjectByType<AstralThirdPersonCamera>();
             beacon = FindAnyObjectByType<CrashedBeaconObjective>();
             encounterZones = FindObjectsByType<AstralEncounterZone>();
+            currencyPickups = FindObjectsByType<AstralCurrencyPickup>(FindObjectsInactive.Include);
             SetClearedEncounterZones(Array.Empty<string>());
+            SetCollectedCurrencyPickups(Array.Empty<string>());
             ApplyInputGate();
         }
 
@@ -285,6 +304,8 @@ namespace AstralWilds
             encountersCompleted = 0;
             beaconActivated = false;
             victoryAcknowledged = false;
+            wallet.Reset();
+            collectedCurrencyPickupIds.Clear();
             activeParty[0] = 0;
             activeParty[1] = 1;
             opponent[0] = opponent[1] = null;
@@ -292,6 +313,7 @@ namespace AstralWilds
             battle = null;
             activeEncounterZone = null;
             SetClearedEncounterZones(Array.Empty<string>());
+            SetCollectedCurrencyPickups(Array.Empty<string>());
             message = "New game: explore for the marked wild activity. B starts an encounter there; E activates the beacon.";
         }
 
@@ -547,9 +569,14 @@ namespace AstralWilds
             flow = playerWon ? Flow.Recruitment : Flow.Defeat;
             if (playerWon)
             {
+                int reward = activeEncounterZone != null ? activeEncounterZone.ClearReward : 0;
+                if (reward > 0)
+                    wallet.TryEarn(reward, AstralCurrencySource.EncounterClear);
                 activeEncounterZone?.SetCleared(true);
                 encountersCompleted++;
-                message = "Victory. R: recruit exactly one Astral reward.";
+                message = reward > 0
+                    ? $"Victory. Earned {reward} Starshards. R: recruit exactly one Astral reward."
+                    : "Victory. R: recruit exactly one Astral reward.";
             }
             else
             {
@@ -634,13 +661,15 @@ namespace AstralWilds
                     flow = Flow.Exploration,
                     beaconActivated = beacon != null ? beacon.IsActivated : beaconActivated,
                     encountersCompleted = encountersCompleted,
-                    victoryAcknowledged = victoryAcknowledged
+                    victoryAcknowledged = victoryAcknowledged,
+                    starshards = wallet.Balance
                 };
                 data.party.AddRange(party);
                 data.reserve.AddRange(reserve);
                 for (int i = 0; i < encounterZones.Length; i++)
                     if (encounterZones[i] != null && encounterZones[i].IsCleared)
                         data.clearedEncounterZoneIds.Add(encounterZones[i].ZoneId);
+                data.collectedCurrencyPickupIds.AddRange(collectedCurrencyPickupIds);
                 string path = Path.Combine(Application.persistentDataPath, SaveFileName);
                 string temp = path + ".tmp";
                 File.WriteAllText(temp, JsonUtility.ToJson(data, true));
@@ -668,6 +697,10 @@ namespace AstralWilds
                 // Old v1 files can contain a battle mode without any battle state.
                 // Restore these as safe exploration checkpoints instead of inventing opponents.
                 flow = Flow.Exploration; beaconActivated = data.beaconActivated; encountersCompleted = data.encountersCompleted; victoryAcknowledged = data.victoryAcknowledged;
+                wallet.TryRestore(data.starshards);
+                collectedCurrencyPickupIds.Clear();
+                if (data.collectedCurrencyPickupIds != null)
+                    collectedCurrencyPickupIds.UnionWith(data.collectedCurrencyPickupIds);
                 if (AllPartyDefeated()) foreach (var member in party) { member.hp = member.maxHp; member.defeated = false; }
                 activeParty[0] = FindFirstEligibleParty(0);
                 activeParty[1] = FindFirstEligibleParty(activeParty[0] + 1);
@@ -679,6 +712,7 @@ namespace AstralWilds
                 if (clearedZoneIds == null)
                     clearedZoneIds = Array.Empty<string>();
                 SetClearedEncounterZones(clearedZoneIds);
+                SetCollectedCurrencyPickups(collectedCurrencyPickupIds);
                 if (beacon != null) beacon.RestoreProgress(beaconActivated);
                 message = "Checkpoint loaded. Explore to the wild activity site to begin an encounter.";
             }
@@ -691,8 +725,8 @@ namespace AstralWilds
 
         private static bool ValidateSave(SaveData data)
         {
-            if (data == null || (data.version != 1 && data.version != 2) || data.party == null || data.reserve == null ||
-                data.party.Count < 1 || data.party.Count > AstralParty.PlayerCapacity || data.encountersCompleted < 0)
+            if (data == null || (data.version != 1 && data.version != 2 && data.version != 3) || data.party == null || data.reserve == null ||
+                data.party.Count < 1 || data.party.Count > AstralParty.PlayerCapacity || data.encountersCompleted < 0 || data.starshards < 0)
                 return false;
             var ids = new HashSet<string>(StringComparer.Ordinal);
             foreach (var list in new[] { data.party, data.reserve })
@@ -707,6 +741,13 @@ namespace AstralWilds
                     if (string.IsNullOrWhiteSpace(zoneId) || !zoneIds.Add(zoneId))
                         return false;
             }
+            if (data.collectedCurrencyPickupIds != null)
+            {
+                var pickupIds = new HashSet<string>(StringComparer.Ordinal);
+                foreach (string pickupId in data.collectedCurrencyPickupIds)
+                    if (string.IsNullOrWhiteSpace(pickupId) || !pickupIds.Add(pickupId))
+                        return false;
+            }
             return true;
         }
 
@@ -716,6 +757,14 @@ namespace AstralWilds
             for (int i = 0; i < encounterZones.Length; i++)
                 if (encounterZones[i] != null)
                     encounterZones[i].SetCleared(cleared.Contains(encounterZones[i].ZoneId));
+        }
+
+        private void SetCollectedCurrencyPickups(IEnumerable<string> collectedIds)
+        {
+            var collected = new HashSet<string>(collectedIds ?? Array.Empty<string>(), StringComparer.Ordinal);
+            for (int i = 0; i < currencyPickups.Length; i++)
+                if (currencyPickups[i] != null)
+                    currencyPickups[i].SetCollected(collected.Contains(currencyPickups[i].PickupId));
         }
 
         private DemoMember GetActiveParty(int slot)
