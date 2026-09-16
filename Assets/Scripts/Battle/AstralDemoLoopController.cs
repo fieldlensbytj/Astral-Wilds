@@ -30,6 +30,7 @@ namespace AstralWilds
             public Flow flow;
             public bool beaconActivated;
             public int encountersCompleted;
+            public bool victoryAcknowledged;
             public List<DemoMember> party = new List<DemoMember>();
             public List<DemoMember> reserve = new List<DemoMember>();
             public List<string> clearedEncounterZoneIds = new List<string>();
@@ -48,6 +49,7 @@ namespace AstralWilds
         private int encountersCompleted;
         private bool beaconActivated;
         private bool restartPending;
+        private bool victoryAcknowledged;
         private AstralBattleState battle;
         private readonly bool[] acted = new bool[2];
         private AstralPlayerController playerController;
@@ -83,6 +85,7 @@ namespace AstralWilds
         public bool IsRecruitment => flow == Flow.Recruitment;
         public bool IsPartyManagement => flow == Flow.PartyManagement;
         public bool IsDefeat => flow == Flow.Defeat;
+        public bool IsVictory => flow == Flow.Victory;
         public bool IsRestartPending => restartPending;
         public bool CanBeginEncounter => IsExploration && TryGetEncounterZoneAtPlayer(out _);
         public string EncounterActionLabel => CanBeginEncounter ? "Encounter (B)" : "Find wild activity";
@@ -152,6 +155,7 @@ namespace AstralWilds
         public void UiReorderParty() { if (flow == Flow.PartyManagement) ReorderParty(); }
         public void UiConfirmDefeatRecovery() { if (flow == Flow.Defeat) ReturnToExploration(); }
         public void UiReturnToExploration() { if (flow == Flow.PartyManagement) ReturnToExploration(); }
+        public void UiContinueAfterVictory() { if (flow == Flow.Victory) ContinueAfterVictory(); }
         public void UiSave() { SaveGame(); }
         public void UiLoad() { LoadGame(); ApplyInputGate(); }
         public void UiRequestRestart() { if (!restartPending) { restartPending = true; message = "Restart progress? Confirm or cancel below. Existing disk save is retained."; ApplyInputGate(); } }
@@ -216,6 +220,9 @@ namespace AstralWilds
                 return;
             }
 
+            if (flow == Flow.Exploration && DemoObjectiveComplete && !victoryAcknowledged)
+                EnterVictory();
+
             switch (flow)
             {
                 case Flow.Exploration:
@@ -243,6 +250,9 @@ namespace AstralWilds
                     break;
                 case Flow.Defeat:
                     if (keyboard.enterKey.wasPressedThisFrame) ReturnToExploration();
+                    break;
+                case Flow.Victory:
+                    if (keyboard.enterKey.wasPressedThisFrame) ContinueAfterVictory();
                     break;
             }
             ApplyInputGate();
@@ -274,6 +284,7 @@ namespace AstralWilds
             flow = Flow.Exploration;
             encountersCompleted = 0;
             beaconActivated = false;
+            victoryAcknowledged = false;
             activeParty[0] = 0;
             activeParty[1] = 1;
             opponent[0] = opponent[1] = null;
@@ -598,13 +609,33 @@ namespace AstralWilds
             activeEncounterZone = null;
         }
 
+        private void EnterVictory()
+        {
+            flow = Flow.Victory;
+            message = "Expedition complete: two wild sites cleared and the crashed beacon restored.";
+        }
+
+        private void ContinueAfterVictory()
+        {
+            victoryAcknowledged = true;
+            flow = Flow.Exploration;
+            message = "Expedition complete. Free exploration continues; save or begin a new expedition when ready.";
+            ApplyInputGate();
+        }
+
         private void SaveGame()
         {
-            if (flow != Flow.Exploration && flow != Flow.PartyManagement)
+            if (flow != Flow.Exploration && flow != Flow.PartyManagement && flow != Flow.Victory)
             { message = "Save between battles, after recruitment is resolved."; return; }
             try
             {
-                SaveData data = new SaveData { flow = Flow.Exploration, beaconActivated = beacon != null ? beacon.IsActivated : beaconActivated, encountersCompleted = encountersCompleted };
+                SaveData data = new SaveData
+                {
+                    flow = Flow.Exploration,
+                    beaconActivated = beacon != null ? beacon.IsActivated : beaconActivated,
+                    encountersCompleted = encountersCompleted,
+                    victoryAcknowledged = victoryAcknowledged
+                };
                 data.party.AddRange(party);
                 data.reserve.AddRange(reserve);
                 for (int i = 0; i < encounterZones.Length; i++)
@@ -636,7 +667,7 @@ namespace AstralWilds
                 if (data.reserve != null) reserve.AddRange(data.reserve);
                 // Old v1 files can contain a battle mode without any battle state.
                 // Restore these as safe exploration checkpoints instead of inventing opponents.
-                flow = Flow.Exploration; beaconActivated = data.beaconActivated; encountersCompleted = data.encountersCompleted;
+                flow = Flow.Exploration; beaconActivated = data.beaconActivated; encountersCompleted = data.encountersCompleted; victoryAcknowledged = data.victoryAcknowledged;
                 if (AllPartyDefeated()) foreach (var member in party) { member.hp = member.maxHp; member.defeated = false; }
                 activeParty[0] = FindFirstEligibleParty(0);
                 activeParty[1] = FindFirstEligibleParty(activeParty[0] + 1);

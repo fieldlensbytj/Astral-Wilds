@@ -199,3 +199,13 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Added six focused direction cases; the complete EditMode assembly passed 21/21.
 - Verified the full guidance sequence in Play Mode and confirmed the generated HUD text matches controller state.
 - No paid provider credits were spent.
+
+## Demo completion state and economy rule
+
+- Activated the controller's existing `Victory` state when the two-site plus beacon objective completes.
+- Added player-facing Continue Exploring, Save Completion, and protected New Expedition choices.
+- Continuing acknowledges the completion, unblocks exploration, and prevents the completion state from reopening every frame.
+- Codified a hard no-real-money policy in `Docs/Design/EconomyPolicy.md`: every purchase must use currency earned through bosses, item sales, discoveries, quests, or other play rewards.
+- Added a manifest regression test rejecting purchasing and ad-monetization packages.
+- Full EditMode assembly passed 22/22 after the guard was added.
+- No paid provider credits were spent.

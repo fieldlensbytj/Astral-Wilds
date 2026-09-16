@@ -1,5 +1,17 @@
 # Astral Wilds Verification
 
+## 2026-09-17 completion-state and economy-policy milestone
+
+- Completed objectives now enter the existing `Victory` flow and block exploration input.
+- Runtime HUD exposes Continue Exploring, Save Completion, and New Expedition. New Expedition uses the existing confirm/cancel restart gate.
+- Continue acknowledges the completion, returns to free exploration, unblocks the player, and does not reopen Victory on the next frame.
+- Save payloads retain the completion acknowledgement so a continued completed save can remain in free exploration after load.
+- Added `Docs/Design/EconomyPolicy.md`: no real-money purchase, premium currency, paywall, paid progression, paid loot box, paid energy, pay-to-skip, rewarded-ad currency, or checkout integration is allowed.
+- Added an EditMode guard against purchasing and ad-monetization packages in `Packages/manifest.json`.
+- Full EditMode assembly after adding the guard: 22 passed, 0 failed, 0 skipped.
+- Live Play Mode verification confirmed Victory entry, input blocking, all three choice labels, protected restart/cancel, Continue, and stable post-Continue exploration.
+- No paid or generative provider calls were used.
+
 ## 2026-09-17 exploration-guidance milestone
 
 - Added a cyan objective line to the runtime HUD status panel.

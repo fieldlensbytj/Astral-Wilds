@@ -188,6 +188,12 @@ namespace AstralWilds
             {
                 AddButton(actionBar, "Recover (Enter)", controller.UiConfirmDefeatRecovery);
             }
+            else if (controller.IsVictory)
+            {
+                AddButton(actionBar, "Continue Exploring (Enter)", controller.UiContinueAfterVictory);
+                AddButton(actionBar, "Save Completion (K)", controller.UiSave);
+                AddButton(actionBar, "New Expedition (N)", controller.UiRequestRestart);
+            }
         }
 
         // ---------------------------------------------------------------- build helpers
