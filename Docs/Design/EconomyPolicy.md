@@ -8,6 +8,8 @@ Every item, upgrade, service, and currency purchase must use value earned by pla
 
 The current earned currency is named **Starshards**.
 
+The first implemented sink is the in-world Wayfarer Supply Relay. Its Field Tonics are purchased only with earned Starshards; Salvaged Alloy obtained from encounter victories can be sold back for Starshards. Transactions are atomic, so rejected trades cannot consume currency or items.
+
 ## Allowed currency sources
 
 - Defeating bosses and completing encounters.

@@ -100,7 +100,8 @@ namespace AstralWilds
 
         private void RefreshStatusText()
         {
-            statusText.text = $"{controller.CurrentState}    Party {controller.PartyCount}/6    Reserve {controller.ReserveCount}    Starshards {controller.Starshards}";
+            statusText.text = $"{controller.CurrentState}    Party {controller.PartyCount}/6    Reserve {controller.ReserveCount}    " +
+                              $"Starshards {controller.Starshards}    Alloy {controller.SalvagedAlloy}    Tonics {controller.FieldTonics}";
             messageText.text = controller.StatusMessage;
             objectiveText.text = controller.ObjectiveGuidance;
         }
@@ -144,7 +145,9 @@ namespace AstralWilds
 
         private void RefreshActionBar()
         {
-            string key = controller.CurrentState + "|" + controller.IsRestartPending + "|" + controller.CanBeginEncounter;
+            string key = controller.CurrentState + "|" + controller.IsRestartPending + "|" + controller.CanBeginEncounter +
+                         "|" + controller.CanUseVendor + "|" + controller.CanUseFieldTonic + "|" + controller.Starshards +
+                         "|" + controller.SalvagedAlloy + "|" + controller.FieldTonics;
             if (key == lastLayoutKey) return;
             lastLayoutKey = key;
 
@@ -160,6 +163,8 @@ namespace AstralWilds
             if (controller.IsExploration)
             {
                 AddButton(actionBar, controller.EncounterActionLabel, controller.UiBeginEncounter, controller.CanBeginEncounter);
+                AddButton(actionBar, "Supply Relay (V)", controller.UiOpenVendor, controller.CanUseVendor);
+                AddButton(actionBar, "Use Field Tonic (T)", controller.UiUseFieldTonic, controller.CanUseFieldTonic);
                 AddButton(actionBar, "Party (P)", controller.UiOpenPartyManagement);
                 AddButton(actionBar, "Save (K)", controller.UiSave);
                 AddButton(actionBar, "Load (L)", controller.UiLoad);
@@ -183,6 +188,14 @@ namespace AstralWilds
             {
                 AddButton(actionBar, "Reorder (P)", controller.UiReorderParty);
                 AddButton(actionBar, "Exploration (Enter)", controller.UiReturnToExploration);
+            }
+            else if (controller.IsVendor)
+            {
+                AddButton(actionBar, $"Buy Field Tonic ({AstralVendorService.FieldTonicPrice})", controller.UiBuyFieldTonic,
+                    controller.Starshards >= AstralVendorService.FieldTonicPrice);
+                AddButton(actionBar, $"Sell Salvaged Alloy (+{AstralVendorService.SalvagedAlloySaleValue})", controller.UiSellSalvagedAlloy,
+                    controller.SalvagedAlloy > 0);
+                AddButton(actionBar, "Leave Relay (Enter)", controller.UiLeaveVendor);
             }
             else if (controller.IsDefeat)
             {
@@ -214,7 +227,7 @@ namespace AstralWilds
 
         private void BuildStatusPanel()
         {
-            var panel = CreatePanel(canvas.transform, "StatusPanel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -20f), new Vector2(680f, 132f));
+            var panel = CreatePanel(canvas.transform, "StatusPanel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -20f), new Vector2(1060f, 132f));
             statusText = CreateText(panel.transform, "StateLine", 22, TextAnchor.UpperLeft, FontStyle.Bold);
             SetRect(statusText.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(14f, -6f), new Vector2(-14f, -34f));
             messageText = CreateText(panel.transform, "MessageLine", 17, TextAnchor.UpperLeft, FontStyle.Normal);

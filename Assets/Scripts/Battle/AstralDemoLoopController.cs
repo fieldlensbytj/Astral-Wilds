@@ -13,7 +13,7 @@ namespace AstralWilds
     [DefaultExecutionOrder(-100)]
     public sealed class AstralDemoLoopController : MonoBehaviour
     {
-        private enum Flow { Exploration, Encounter, Battle, Recruitment, PartyManagement, Victory, Defeat }
+        private enum Flow { Exploration, Encounter, Battle, Recruitment, PartyManagement, Vendor, Victory, Defeat }
 
         [Serializable] private sealed class DemoMember
         {
@@ -26,12 +26,14 @@ namespace AstralWilds
 
         [Serializable] private sealed class SaveData
         {
-            public int version = 3;
+            public int version = 4;
             public Flow flow;
             public bool beaconActivated;
             public int encountersCompleted;
             public bool victoryAcknowledged;
+            // Retained solely so v1-v3 files migrate their Starshards into economy.
             public long starshards;
+            public AstralEconomySaveData economy;
             public List<DemoMember> party = new List<DemoMember>();
             public List<DemoMember> reserve = new List<DemoMember>();
             public List<string> clearedEncounterZoneIds = new List<string>();
@@ -55,12 +57,14 @@ namespace AstralWilds
         private AstralBattleState battle;
         private readonly bool[] acted = new bool[2];
         private readonly AstralWallet wallet = new AstralWallet();
+        private readonly AstralInventory inventory = new AstralInventory();
         private readonly HashSet<string> collectedCurrencyPickupIds = new HashSet<string>(StringComparer.Ordinal);
         private AstralPlayerController playerController;
         private AstralThirdPersonCamera orbitCamera;
         private CrashedBeaconObjective beacon;
         private AstralEncounterZone[] encounterZones = Array.Empty<AstralEncounterZone>();
         private AstralCurrencyPickup[] currencyPickups = Array.Empty<AstralCurrencyPickup>();
+        private AstralVendorStation vendorStation;
         private AstralEncounterZone activeEncounterZone;
         private string message = "Explore the wilds and find the marked Astral activity. E remains reserved for the beacon objective.";
 
@@ -89,6 +93,7 @@ namespace AstralWilds
         public bool IsEncounter => flow == Flow.Encounter;
         public bool IsRecruitment => flow == Flow.Recruitment;
         public bool IsPartyManagement => flow == Flow.PartyManagement;
+        public bool IsVendor => flow == Flow.Vendor;
         public bool IsDefeat => flow == Flow.Defeat;
         public bool IsVictory => flow == Flow.Victory;
         public bool IsRestartPending => restartPending;
@@ -98,6 +103,10 @@ namespace AstralWilds
         public int SelectedTargetSlot => selectedTargetSlot;
         public int EncountersCompleted => encountersCompleted;
         public long Starshards => wallet.Balance;
+        public int SalvagedAlloy => inventory.GetCount(AstralItemId.SalvagedAlloy);
+        public int FieldTonics => inventory.GetCount(AstralItemId.FieldTonic);
+        public bool CanUseVendor => IsExploration && TryGetVendorAtPlayer();
+        public bool CanUseFieldTonic => IsExploration && FieldTonics > 0 && FindTonicTarget() != null;
         public bool BeaconActivated => beacon != null ? beacon.IsActivated : beaconActivated;
         public string ObjectiveGuidance => BuildObjectiveGuidance();
         // The vision doc's short demo objective: explore, clear two distinct encounters,
@@ -162,6 +171,11 @@ namespace AstralWilds
         public void UiConfirmDefeatRecovery() { if (flow == Flow.Defeat) ReturnToExploration(); }
         public void UiReturnToExploration() { if (flow == Flow.PartyManagement) ReturnToExploration(); }
         public void UiContinueAfterVictory() { if (flow == Flow.Victory) ContinueAfterVictory(); }
+        public void UiOpenVendor() { if (CanUseVendor) OpenVendor(); }
+        public void UiBuyFieldTonic() { if (flow == Flow.Vendor) BuyFieldTonic(); }
+        public void UiSellSalvagedAlloy() { if (flow == Flow.Vendor) SellSalvagedAlloy(); }
+        public void UiLeaveVendor() { if (flow == Flow.Vendor) LeaveVendor(); }
+        public void UiUseFieldTonic() { if (flow == Flow.Exploration) UseFieldTonic(); }
         public void UiSave() { SaveGame(); }
         public void UiLoad() { LoadGame(); ApplyInputGate(); }
         public void UiRequestRestart() { if (!restartPending) { restartPending = true; message = "Restart progress? Confirm or cancel below. Existing disk save is retained."; ApplyInputGate(); } }
@@ -191,6 +205,7 @@ namespace AstralWilds
             beacon = FindAnyObjectByType<CrashedBeaconObjective>();
             encounterZones = FindObjectsByType<AstralEncounterZone>();
             currencyPickups = FindObjectsByType<AstralCurrencyPickup>(FindObjectsInactive.Include);
+            vendorStation = FindAnyObjectByType<AstralVendorStation>();
             SetClearedEncounterZones(Array.Empty<string>());
             SetCollectedCurrencyPickups(Array.Empty<string>());
             ApplyInputGate();
@@ -247,6 +262,10 @@ namespace AstralWilds
                 case Flow.Exploration:
                     if (keyboard.bKey.wasPressedThisFrame)
                         TryBeginEncounter();
+                    else if (keyboard.vKey.wasPressedThisFrame)
+                        OpenVendor();
+                    else if (keyboard.tKey.wasPressedThisFrame)
+                        UseFieldTonic();
                     else if (keyboard.pKey.wasPressedThisFrame)
                         flow = Flow.PartyManagement;
                     break;
@@ -266,6 +285,11 @@ namespace AstralWilds
                         ReorderParty();
                     if (keyboard.enterKey.wasPressedThisFrame || keyboard.eKey.wasPressedThisFrame)
                         ReturnToExploration();
+                    break;
+                case Flow.Vendor:
+                    if (keyboard.digit1Key.wasPressedThisFrame) BuyFieldTonic();
+                    else if (keyboard.digit2Key.wasPressedThisFrame) SellSalvagedAlloy();
+                    else if (keyboard.enterKey.wasPressedThisFrame || keyboard.escapeKey.wasPressedThisFrame) LeaveVendor();
                     break;
                 case Flow.Defeat:
                     if (keyboard.enterKey.wasPressedThisFrame) ReturnToExploration();
@@ -305,6 +329,7 @@ namespace AstralWilds
             beaconActivated = false;
             victoryAcknowledged = false;
             wallet.Reset();
+            inventory.Reset();
             collectedCurrencyPickupIds.Clear();
             activeParty[0] = 0;
             activeParty[1] = 1;
@@ -357,6 +382,95 @@ namespace AstralWilds
             }
 
             return false;
+        }
+
+        private bool TryGetVendorAtPlayer()
+        {
+            return playerController != null && vendorStation != null &&
+                   vendorStation.Contains(playerController.transform.position);
+        }
+
+        private void OpenVendor()
+        {
+            if (flow != Flow.Exploration)
+                return;
+
+            if (!TryGetVendorAtPlayer())
+            {
+                message = "No supply relay in range. Find the cyan field terminal, then press V.";
+                return;
+            }
+
+            flow = Flow.Vendor;
+            message = $"{vendorStation.DisplayName}: 1 buys a Field Tonic for {AstralVendorService.FieldTonicPrice} Starshards; " +
+                      $"2 sells one Salvaged Alloy for {AstralVendorService.SalvagedAlloySaleValue}.";
+        }
+
+        private void BuyFieldTonic()
+        {
+            if (flow != Flow.Vendor)
+                return;
+
+            if (AstralVendorService.TryBuyFieldTonic(wallet, inventory))
+                message = $"Purchased one Field Tonic with earned Starshards. Balance: {wallet.Balance}.";
+            else
+                message = $"Trade declined. A Field Tonic costs {AstralVendorService.FieldTonicPrice} Starshards; no currency or items changed.";
+        }
+
+        private void SellSalvagedAlloy()
+        {
+            if (flow != Flow.Vendor)
+                return;
+
+            if (AstralVendorService.TrySellSalvagedAlloy(wallet, inventory))
+                message = $"Sold one Salvaged Alloy for {AstralVendorService.SalvagedAlloySaleValue} Starshards. Balance: {wallet.Balance}.";
+            else
+                message = "Trade declined. No Salvaged Alloy is available, or the wallet is full; no currency or items changed.";
+        }
+
+        private void LeaveVendor()
+        {
+            if (flow != Flow.Vendor)
+                return;
+
+            flow = Flow.Exploration;
+            message = "Left the supply relay. T uses a Field Tonic on the most injured conscious party member.";
+        }
+
+        private void UseFieldTonic()
+        {
+            if (flow != Flow.Exploration)
+                return;
+
+            DemoMember target = FindTonicTarget();
+            if (target == null || !inventory.TryRemove(AstralItemId.FieldTonic, 1))
+            {
+                message = FieldTonics == 0
+                    ? "No Field Tonics available. Earn Starshards through play and visit the supply relay."
+                    : "The party has no conscious injured Astral; no tonic was consumed.";
+                return;
+            }
+
+            int healed = Mathf.Min(12, target.maxHp - target.hp);
+            target.hp += healed;
+            message = $"{target.displayName} recovered {healed} HP using one Field Tonic.";
+        }
+
+        private DemoMember FindTonicTarget()
+        {
+            DemoMember best = null;
+            int mostMissingHp = 0;
+            for (int i = 0; i < party.Count; i++)
+            {
+                DemoMember candidate = party[i];
+                int missingHp = candidate.maxHp - candidate.hp;
+                if (candidate.defeated || missingHp <= mostMissingHp)
+                    continue;
+
+                best = candidate;
+                mostMissingHp = missingHp;
+            }
+            return best;
         }
 
         private string BuildObjectiveGuidance()
@@ -572,11 +686,12 @@ namespace AstralWilds
                 int reward = activeEncounterZone != null ? activeEncounterZone.ClearReward : 0;
                 if (reward > 0)
                     wallet.TryEarn(reward, AstralCurrencySource.EncounterClear);
+                bool gainedAlloy = inventory.TryAdd(AstralItemId.SalvagedAlloy, 1);
                 activeEncounterZone?.SetCleared(true);
                 encountersCompleted++;
                 message = reward > 0
-                    ? $"Victory. Earned {reward} Starshards. R: recruit exactly one Astral reward."
-                    : "Victory. R: recruit exactly one Astral reward.";
+                    ? $"Victory. Earned {reward} Starshards{(gainedAlloy ? " and 1 Salvaged Alloy" : "")}. R: recruit exactly one Astral reward."
+                    : $"Victory{(gainedAlloy ? ". Recovered 1 Salvaged Alloy" : "")}. R: recruit exactly one Astral reward.";
             }
             else
             {
@@ -652,7 +767,7 @@ namespace AstralWilds
 
         private void SaveGame()
         {
-            if (flow != Flow.Exploration && flow != Flow.PartyManagement && flow != Flow.Victory)
+            if (flow != Flow.Exploration && flow != Flow.PartyManagement && flow != Flow.Vendor && flow != Flow.Victory)
             { message = "Save between battles, after recruitment is resolved."; return; }
             try
             {
@@ -662,7 +777,7 @@ namespace AstralWilds
                     beaconActivated = beacon != null ? beacon.IsActivated : beaconActivated,
                     encountersCompleted = encountersCompleted,
                     victoryAcknowledged = victoryAcknowledged,
-                    starshards = wallet.Balance
+                    economy = AstralEconomySaveData.Capture(wallet, inventory)
                 };
                 data.party.AddRange(party);
                 data.reserve.AddRange(reserve);
@@ -697,7 +812,10 @@ namespace AstralWilds
                 // Old v1 files can contain a battle mode without any battle state.
                 // Restore these as safe exploration checkpoints instead of inventing opponents.
                 flow = Flow.Exploration; beaconActivated = data.beaconActivated; encountersCompleted = data.encountersCompleted; victoryAcknowledged = data.victoryAcknowledged;
-                wallet.TryRestore(data.starshards);
+                AstralEconomySaveData economyState = data.version >= 4
+                    ? data.economy
+                    : new AstralEconomySaveData { starshards = data.starshards };
+                economyState.TryRestore(wallet, inventory);
                 collectedCurrencyPickupIds.Clear();
                 if (data.collectedCurrencyPickupIds != null)
                     collectedCurrencyPickupIds.UnionWith(data.collectedCurrencyPickupIds);
@@ -725,8 +843,9 @@ namespace AstralWilds
 
         private static bool ValidateSave(SaveData data)
         {
-            if (data == null || (data.version != 1 && data.version != 2 && data.version != 3) || data.party == null || data.reserve == null ||
-                data.party.Count < 1 || data.party.Count > AstralParty.PlayerCapacity || data.encountersCompleted < 0 || data.starshards < 0)
+            if (data == null || (data.version != 1 && data.version != 2 && data.version != 3 && data.version != 4) || data.party == null || data.reserve == null ||
+                data.party.Count < 1 || data.party.Count > AstralParty.PlayerCapacity || data.encountersCompleted < 0 ||
+                (data.version < 4 && data.starshards < 0) || (data.version >= 4 && (data.economy == null || !data.economy.IsValid)))
                 return false;
             var ids = new HashSet<string>(StringComparer.Ordinal);
             foreach (var list in new[] { data.party, data.reserve })

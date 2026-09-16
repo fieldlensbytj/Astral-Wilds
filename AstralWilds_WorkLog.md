@@ -229,3 +229,13 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Expanded EditMode coverage to 27/27 passing tests.
 - Verified live cache collection, duplicate rejection, encounter reward, final balance 75, reward message, and HUD display.
 - No real-money, advertising, premium-currency, or payment integration was added; no provider credits were spent.
+
+## Earned-only inventory and supply relay
+
+- Added Salvaged Alloy and Field Tonics through a bounded `AstralInventory` domain model.
+- Added atomic field-vendor transactions: tonics cost 30 earned Starshards and alloy sells for 15; rejected trades leave both wallet and inventory unchanged.
+- Encounter victories now yield one alloy. Field Tonics restore 12 HP to the most injured conscious party member and are not consumed when nobody can be healed.
+- Added a visible cyan Wayfarer Supply Relay near the crashed beacon with spatial gating, keyboard controls, and clickable HUD actions.
+- Advanced saves to schema v4 with an explicit earned-economy snapshot and v1-v3 migration.
+- Full EditMode suite passed 34/34. Play Mode verified reward, sale, rejected repeat sale, purchase, healing, and HUD state.
+- No real-money, advertising, premium-currency, payment, or paid-provider integration was added.

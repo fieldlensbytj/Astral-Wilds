@@ -13,6 +13,17 @@
 - Final audit: Edit Mode, one active uniquely identified cache, `Assets/Astral.unity` clean, 0 Console errors / 0 warnings.
 - No paid or generative provider calls were used.
 
+## 2026-09-17 earned-only vendor and inventory milestone
+
+- Added `AstralInventory` for Salvaged Alloy and Field Tonics plus `AstralVendorService` with preflighted, atomic transactions.
+- Encounter victories now grant one Salvaged Alloy alongside the configured Starshard reward.
+- Added the cyan Wayfarer Supply Relay at `(-2, 0, 5)`. It buys Field Tonics for 30 earned Starshards and buys Salvaged Alloy from the player for 15 Starshards.
+- Field Tonics heal 12 HP on the most injured conscious party member and are consumed only when healing is possible.
+- Advanced saves to schema v4 using `AstralEconomySaveData`; v1-v3 saves explicitly migrate their legacy Starshard balance and begin with zero inventory.
+- Full EditMode assembly: 34 passed, 0 failed, 0 skipped. Coverage includes successful and failed atomic trades, overflow rejection, inventory validation, and JSON economy roundtrip.
+- Play Mode verified an actual encounter award (50 Starshards + 1 alloy), relay proximity, sale to 65 Starshards, rejected duplicate sale with no mutation, tonic purchase to 35 Starshards, HUD vendor actions/counts, and tonic healing on an injured party member.
+- No real-money, premium-currency, advertising, checkout, or payment system exists. No paid or generative provider calls were used.
+
 ## 2026-09-17 release UI hardening milestone
 
 - Legacy IMGUI diagnostics now compile only in Editor/debug managed-code variants; release players use the generated uGUI exclusively.
