@@ -83,6 +83,10 @@ namespace AstralWilds
         public int SelectedActiveSlot => selectedActiveSlot;
         public int SelectedTargetSlot => selectedTargetSlot;
         public int EncountersCompleted => encountersCompleted;
+        public bool BeaconActivated => beacon != null ? beacon.IsActivated : beaconActivated;
+        // The vision doc's short demo objective: explore, clear two distinct encounters,
+        // and return to (activate) the crashed corvette's beacon.
+        public bool DemoObjectiveComplete => BeaconActivated && encountersCompleted >= 2;
 
         public List<AstralUiInfo> GetPartyUiInfo()
         {
@@ -279,15 +283,26 @@ namespace AstralWilds
             if (flow != Flow.Exploration)
                 return;
             flow = Flow.Encounter;
-            message = "Wild Astrals detected. Enter/B: begin the 2v2 battle.";
+            string preview = EncounterPresets[encountersCompleted % EncounterPresets.Length].nameA;
+            message = $"Wild Astrals detected ({preview} and a companion). Enter/B: begin the 2v2 battle.";
         }
+
+        // Each completed encounter reveals a different wild pair, so exploring for a
+        // second encounter is a genuinely different discovery, not a repeat of the first.
+        private static readonly (string idA, string nameA, string idB, string nameB)[] EncounterPresets =
+        {
+            ("wild-ember", "Wild Ember Astral", "wild-frost", "Wild Frost Astral"),
+            ("wild-stone", "Wild Stone Astral", "wild-gale", "Wild Gale Astral"),
+            ("wild-tide", "Wild Tide Astral", "wild-verdant", "Wild Verdant Astral"),
+        };
 
         private void BeginBattle()
         {
             if (flow != Flow.Encounter)
                 return;
-            opponent[0] = new DemoMember { id = "wild-ember", displayName = "Wild Ember Astral" };
-            opponent[1] = new DemoMember { id = "wild-frost", displayName = "Wild Frost Astral" };
+            var preset = EncounterPresets[encountersCompleted % EncounterPresets.Length];
+            opponent[0] = new DemoMember { id = preset.idA, displayName = preset.nameA };
+            opponent[1] = new DemoMember { id = preset.idB, displayName = preset.nameB };
             activeParty[0] = FindFirstEligibleParty(0);
             activeParty[1] = FindFirstEligibleParty(activeParty[0] + 1);
             if (activeParty[0] < 0) { flow = Flow.Defeat; message = "No healthy Astrals. Enter to recover."; return; }

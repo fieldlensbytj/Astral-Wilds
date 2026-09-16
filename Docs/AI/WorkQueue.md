@@ -10,7 +10,7 @@ Checkpoint: 2026-09-16 07:39:48 Asia/Qatar (UTC+3). Deadline: stabilize/verify a
 4. DONE (2026-09-16 Cowork): Built-player smoke test. Also found and fixed a real build-breaking bug in the process (see Status below) -- N restart was not separately re-tested this session (already covered by the two-encounter loop in the prior run).
 5. DONE (2026-09-16 Cowork): Replaced keyboard-only shortcuts with a real clickable battle/party UI using the approved creature portraits (see Status below). Keyboard shortcuts still work unchanged alongside it.
 6. DONE (2026-09-16 Cowork): Rebuilt the standalone player -- the new UI renders and is fully clickable outside the Editor (verified: clicked Encounter, state advanced correctly).
-7. Remaining: add a second reachable encounter area and confirm the "return to corvette checkpoint" short-demo loop from the vision doc.
+7. DONE (2026-09-16 Cowork): Encounters now rotate through different wild pairs (verified encounter 1 = Ember/Frost, encounter 2 = Stone/Gale); added a DemoObjectiveComplete banner (beacon activated + 2 encounters cleared) verified live. Encounter trigger itself is still global (B from anywhere), not spatially gated -- a good next step but not done this session.
 8. Remaining: Re-enable the "Astral Wilds daily check-in" scheduled task (disabled 2026-09-16 as a precaution, later ruled unnecessary; safe to re-enable).
 
 ## Status

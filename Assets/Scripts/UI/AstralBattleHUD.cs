@@ -29,6 +29,7 @@ namespace AstralWilds
         private Canvas canvas;
         private Text statusText;
         private Text messageText;
+        private GameObject completionBanner;
         private Transform opponentRow;
         private readonly List<CreatureSlotView> opponentSlots = new List<CreatureSlotView>();
         private Transform partyRow;
@@ -64,6 +65,7 @@ namespace AstralWilds
             LoadPortraits();
             BuildCanvas();
             BuildStatusPanel();
+            BuildCompletionBanner();
             opponentRow = BuildCreatureRow("OpponentRow", new Vector2(0.5f, 1f), new Vector2(0f, -170f), 2, opponentSlots, isOpponentRow: true);
             partyRow = BuildCreatureRow("PartyRow", new Vector2(0.5f, 0f), new Vector2(0f, 150f), 6, partySlots, isOpponentRow: false);
             actionBar = BuildActionBarRoot();
@@ -92,6 +94,7 @@ namespace AstralWilds
             RefreshRow(controller.GetOpponentUiInfo(), opponentSlots, opponentRow.gameObject, controller.InBattle, isOpponentRow: true);
             RefreshRow(controller.GetPartyUiInfo(), partySlots, partyRow.gameObject, true, isOpponentRow: false);
             RefreshActionBar();
+            if (completionBanner != null) completionBanner.SetActive(controller.DemoObjectiveComplete);
         }
 
         private void RefreshStatusText()
@@ -208,6 +211,17 @@ namespace AstralWilds
             SetRect(statusText.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(14f, -6f), new Vector2(-14f, -34f));
             messageText = CreateText(panel.transform, "MessageLine", 17, TextAnchor.UpperLeft, FontStyle.Normal);
             SetRect(messageText.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(14f, 8f), new Vector2(-14f, -34f));
+        }
+
+        private void BuildCompletionBanner()
+        {
+            completionBanner = CreatePanel(canvas.transform, "CompletionBanner", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(640f, 64f));
+            var text = CreateText(completionBanner.transform, "Label", 22, TextAnchor.MiddleCenter, FontStyle.Bold);
+            SetRect(text.rectTransform, Vector2.zero, Vector2.one, new Vector2(10f, 0f), new Vector2(-10f, 0f));
+            text.text = "DEMO OBJECTIVE COMPLETE -- beacon activated, two encounters cleared";
+            text.color = new Color(1f, 0.9f, 0.5f, 1f);
+            completionBanner.GetComponent<Image>().color = new Color(0.10f, 0.28f, 0.14f, 0.92f);
+            completionBanner.SetActive(false);
         }
 
         private Transform BuildCreatureRow(string name, Vector2 anchor, Vector2 anchoredPos, int slotCount, List<CreatureSlotView> slots, bool isOpponentRow)
