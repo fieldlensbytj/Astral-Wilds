@@ -26,12 +26,13 @@ namespace AstralWilds
 
         [Serializable] private sealed class SaveData
         {
-            public int version = 1;
+            public int version = 2;
             public Flow flow;
             public bool beaconActivated;
             public int encountersCompleted;
             public List<DemoMember> party = new List<DemoMember>();
             public List<DemoMember> reserve = new List<DemoMember>();
+            public List<string> clearedEncounterZoneIds = new List<string>();
         }
 
         private const string SaveFileName = "astralwilds-demo-save-v1.json";
@@ -51,7 +52,8 @@ namespace AstralWilds
         private AstralPlayerController playerController;
         private AstralThirdPersonCamera orbitCamera;
         private CrashedBeaconObjective beacon;
-        private AstralEncounterZone encounterZone;
+        private AstralEncounterZone[] encounterZones = Array.Empty<AstralEncounterZone>();
+        private AstralEncounterZone activeEncounterZone;
         private string message = "Explore the wilds and find the marked Astral activity. E remains reserved for the beacon objective.";
 
         public bool InBattle => flow == Flow.Battle;
@@ -81,7 +83,7 @@ namespace AstralWilds
         public bool IsPartyManagement => flow == Flow.PartyManagement;
         public bool IsDefeat => flow == Flow.Defeat;
         public bool IsRestartPending => restartPending;
-        public bool CanBeginEncounter => IsExploration && playerController != null && encounterZone != null && encounterZone.Contains(playerController.transform.position);
+        public bool CanBeginEncounter => IsExploration && TryGetEncounterZoneAtPlayer(out _);
         public string EncounterActionLabel => CanBeginEncounter ? "Encounter (B)" : "Find wild activity";
         public int SelectedActiveSlot => selectedActiveSlot;
         public int SelectedTargetSlot => selectedTargetSlot;
@@ -164,7 +166,8 @@ namespace AstralWilds
             playerController = FindFirstObjectByType<AstralPlayerController>();
             orbitCamera = FindFirstObjectByType<AstralThirdPersonCamera>();
             beacon = FindFirstObjectByType<CrashedBeaconObjective>();
-            encounterZone = FindFirstObjectByType<AstralEncounterZone>();
+            encounterZones = FindObjectsByType<AstralEncounterZone>();
+            SetClearedEncounterZones(Array.Empty<string>());
             ApplyInputGate();
         }
 
@@ -274,6 +277,8 @@ namespace AstralWilds
             opponent[0] = opponent[1] = null;
             acted[0] = acted[1] = false;
             battle = null;
+            activeEncounterZone = null;
+            SetClearedEncounterZones(Array.Empty<string>());
             message = "New game: explore for the marked wild activity. B starts an encounter there; E activates the beacon.";
         }
 
@@ -287,33 +292,51 @@ namespace AstralWilds
             if (flow != Flow.Exploration)
                 return;
 
-            if (!CanBeginEncounter)
+            if (!TryGetEncounterZoneAtPlayer(out AstralEncounterZone encounterZone))
             {
                 message = "No wild Astral activity here. Explore to the glowing encounter site, then press B.";
                 return;
             }
 
+            activeEncounterZone = encounterZone;
             flow = Flow.Encounter;
-            string preview = EncounterPresets[encountersCompleted % EncounterPresets.Length].nameA;
+            string preview = encounterZone.PrimaryAstralName;
             message = $"{encounterZone.DisplayName}: {preview} and a companion detected. Enter/B begins the 2v2 battle.";
         }
 
-        // Each completed encounter reveals a different wild pair, so exploring for a
-        // second encounter is a genuinely different discovery, not a repeat of the first.
-        private static readonly (string idA, string nameA, string idB, string nameB)[] EncounterPresets =
+        private bool TryGetEncounterZoneAtPlayer(out AstralEncounterZone encounterZone)
         {
-            ("wild-ember", "Wild Ember Astral", "wild-frost", "Wild Frost Astral"),
-            ("wild-stone", "Wild Stone Astral", "wild-gale", "Wild Gale Astral"),
-            ("wild-tide", "Wild Tide Astral", "wild-verdant", "Wild Verdant Astral"),
-        };
+            encounterZone = null;
+            if (playerController == null)
+                return false;
+
+            Vector3 playerPosition = playerController.transform.position;
+            for (int i = 0; i < encounterZones.Length; i++)
+            {
+                AstralEncounterZone candidate = encounterZones[i];
+                if (candidate == null || !candidate.IsAvailable || !candidate.Contains(playerPosition))
+                    continue;
+
+                encounterZone = candidate;
+                return true;
+            }
+
+            return false;
+        }
 
         private void BeginBattle()
         {
             if (flow != Flow.Encounter)
                 return;
-            var preset = EncounterPresets[encountersCompleted % EncounterPresets.Length];
-            opponent[0] = new DemoMember { id = preset.idA, displayName = preset.nameA };
-            opponent[1] = new DemoMember { id = preset.idB, displayName = preset.nameB };
+            if (activeEncounterZone == null)
+            {
+                flow = Flow.Exploration;
+                message = "The wild activity faded. Explore for another encounter site.";
+                return;
+            }
+
+            opponent[0] = new DemoMember { id = activeEncounterZone.PrimaryAstralId, displayName = activeEncounterZone.PrimaryAstralName };
+            opponent[1] = new DemoMember { id = activeEncounterZone.CompanionAstralId, displayName = activeEncounterZone.CompanionAstralName };
             activeParty[0] = FindFirstEligibleParty(0);
             activeParty[1] = FindFirstEligibleParty(activeParty[0] + 1);
             if (activeParty[0] < 0) { flow = Flow.Defeat; message = "No healthy Astrals. Enter to recover."; return; }
@@ -450,6 +473,7 @@ namespace AstralWilds
             flow = playerWon ? Flow.Recruitment : Flow.Defeat;
             if (playerWon)
             {
+                activeEncounterZone?.SetCleared(true);
                 encountersCompleted++;
                 message = "Victory. R: recruit exactly one Astral reward.";
             }
@@ -508,6 +532,7 @@ namespace AstralWilds
             message = "Returned to exploration. Visit the wild activity site for another encounter; E: beacon; K: save.";
             flow = Flow.Exploration;
             battle = null;
+            activeEncounterZone = null;
         }
 
         private void SaveGame()
@@ -519,6 +544,9 @@ namespace AstralWilds
                 SaveData data = new SaveData { flow = Flow.Exploration, beaconActivated = beacon != null ? beacon.IsActivated : beaconActivated, encountersCompleted = encountersCompleted };
                 data.party.AddRange(party);
                 data.reserve.AddRange(reserve);
+                for (int i = 0; i < encounterZones.Length; i++)
+                    if (encounterZones[i] != null && encounterZones[i].IsCleared)
+                        data.clearedEncounterZoneIds.Add(encounterZones[i].ZoneId);
                 string path = Path.Combine(Application.persistentDataPath, SaveFileName);
                 string temp = path + ".tmp";
                 File.WriteAllText(temp, JsonUtility.ToJson(data, true));
@@ -552,6 +580,11 @@ namespace AstralWilds
                 opponent[0] = opponent[1] = null;
                 acted[0] = acted[1] = false;
                 battle = null;
+                activeEncounterZone = null;
+                IReadOnlyCollection<string> clearedZoneIds = data.clearedEncounterZoneIds;
+                if (clearedZoneIds == null)
+                    clearedZoneIds = Array.Empty<string>();
+                SetClearedEncounterZones(clearedZoneIds);
                 if (beacon != null) beacon.RestoreProgress(beaconActivated);
                 message = "Checkpoint loaded. Explore to the wild activity site to begin an encounter.";
             }
@@ -564,7 +597,7 @@ namespace AstralWilds
 
         private static bool ValidateSave(SaveData data)
         {
-            if (data == null || data.version != 1 || data.party == null || data.reserve == null ||
+            if (data == null || (data.version != 1 && data.version != 2) || data.party == null || data.reserve == null ||
                 data.party.Count < 1 || data.party.Count > AstralParty.PlayerCapacity || data.encountersCompleted < 0)
                 return false;
             var ids = new HashSet<string>(StringComparer.Ordinal);
@@ -573,7 +606,22 @@ namespace AstralWilds
                     if (member == null || string.IsNullOrWhiteSpace(member.id) || !ids.Add(member.id) ||
                         string.IsNullOrWhiteSpace(member.displayName) || member.maxHp <= 0 ||
                         member.hp < 0 || member.hp > member.maxHp || member.defeated != (member.hp == 0)) return false;
+            if (data.clearedEncounterZoneIds != null)
+            {
+                var zoneIds = new HashSet<string>(StringComparer.Ordinal);
+                foreach (string zoneId in data.clearedEncounterZoneIds)
+                    if (string.IsNullOrWhiteSpace(zoneId) || !zoneIds.Add(zoneId))
+                        return false;
+            }
             return true;
+        }
+
+        private void SetClearedEncounterZones(IReadOnlyCollection<string> clearedZoneIds)
+        {
+            var cleared = new HashSet<string>(clearedZoneIds ?? Array.Empty<string>(), StringComparer.Ordinal);
+            for (int i = 0; i < encounterZones.Length; i++)
+                if (encounterZones[i] != null)
+                    encounterZones[i].SetCleared(cleared.Contains(encounterZones[i].ZoneId));
         }
 
         private DemoMember GetActiveParty(int slot)

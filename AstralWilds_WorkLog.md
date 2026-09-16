@@ -180,3 +180,13 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Added three EditMode tests; the full test assembly passed 14/14.
 - Verified the rejection, eligibility, Encounter transition, and Battle transition in Play Mode; returned to a clean saved scene with zero Console errors/warnings.
 - No paid provider credits were spent.
+
+## Distinct encounter sites and clear state
+
+- Moved wild-pair identity into `AstralEncounterZone` with stable zone IDs.
+- Configured Ember Hollow for Wild Ember/Wild Frost and added a second violet site, Stormbreak Grove, for Wild Stone/Wild Gale.
+- Winning a battle now clears the originating site, hides its marker/light, and blocks immediate reuse, requiring travel to another available site.
+- Advanced save payloads to v2 with cleared-zone IDs while keeping v1 load compatibility and the existing filename.
+- Added clear/reset coverage; the full EditMode assembly passed 15/15.
+- Verified a two-site runtime path through the first victory/recruit/return, rejected the cleared site, and began the correct second-site battle. Existing persistent save bytes were left untouched.
+- No paid provider credits were spent.

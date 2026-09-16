@@ -44,5 +44,18 @@ namespace AstralWilds.Tests
             Assert.IsTrue(collider.isTrigger);
             Assert.AreEqual(zone.Radius, collider.radius);
         }
+
+        [Test]
+        public void ClearedZoneIsUnavailableUntilReset()
+        {
+            Assert.IsTrue(zone.IsAvailable);
+            zone.SetCleared(true);
+            Assert.IsTrue(zone.IsCleared);
+            Assert.IsFalse(zone.IsAvailable);
+
+            zone.SetCleared(false);
+            Assert.IsFalse(zone.IsCleared);
+            Assert.IsTrue(zone.IsAvailable);
+        }
     }
 }

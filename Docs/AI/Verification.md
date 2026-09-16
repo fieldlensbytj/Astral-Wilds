@@ -1,5 +1,17 @@
 # Astral Wilds Verification
 
+## 2026-09-17 multi-site encounter milestone
+
+- Encounter zones now own stable IDs plus their two wild Astral IDs/names; the battle controller no longer rotates a global preset list.
+- Configured Ember Hollow at `(-8, 0, 6)` with Wild Ember/Wild Frost and Stormbreak Grove at `(9, 0, -7)` with Wild Stone/Wild Gale.
+- A victory marks the active site cleared, disables its renderers/light, and prevents another encounter there. New game resets all sites.
+- Save schema advanced to v2 with `clearedEncounterZoneIds`; v1 saves remain accepted and load with no sites cleared. The persistent filename is unchanged for backward compatibility.
+- Full EditMode assembly: 15 passed, 0 failed, 0 skipped.
+- Live Play Mode sequence verified: enter Ember Hollow; confirm Ember/Frost; win; confirm site and visuals cleared; recruit; return to Exploration; confirm cleared site rejected; travel to Stormbreak Grove; confirm Stone/Gale; begin second Battle.
+- The live probe deliberately did not overwrite the existing persistent save file. Save/load code compiled and the new field is validated, but this pass did not perform a disk round-trip of v2 progress.
+- Final Unity audit: Edit Mode, two unique available scene-authored sites, clean active scene, 0 Console errors / 0 warnings.
+- No paid or generative provider calls were used.
+
 ## 2026-09-17 spatial encounter milestone
 
 - Added a reusable `AstralEncounterZone` whose eligibility is calculated from its world-space sphere, independent of trigger-callback timing.
