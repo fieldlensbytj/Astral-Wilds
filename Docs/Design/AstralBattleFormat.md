@@ -27,7 +27,7 @@ Target scopes are data-only and intentionally do not implement ability balance o
 
 The final turn-based versus real-time combat model remains an owner decision. This layer preserves the 2v2 slot and targeting contract without choosing timing, ability effects, or balance.
 
-The current playable demo remains turn-based and intentionally provisional. Each conscious active slot currently chooses one action per round: Attack, Guard, or Switch. Guard protects only that field position for the current counterattack phase and reduces incoming damage to one-third, rounded up. Encounter zones may tune opponent damage and provide a tactical brief; this is demo balance, not a commitment to the final combat model.
+The current playable demo remains turn-based and intentionally provisional. Each conscious active slot currently chooses one action per round: Attack, Arc Burst, Guard, or Switch. Attack deals 12 damage to one chosen opponent; Arc Burst deals 8 to both living opponents, trading focused damage for higher total pressure. Guard protects only that field position for the current counterattack phase and reduces incoming damage to one-third, rounded up. Encounter zones may tune opponent damage and provide a tactical brief; this is demo balance, not a commitment to the final combat model.
 
 ## UI contract
 

@@ -4,6 +4,13 @@ namespace AstralWilds.Tests
 {
     public sealed class AstralCombatRulesTests
     {
+        [Test]
+        public void ArcBurst_TradesFocusedDamageForTwoTargetPressure()
+        {
+            Assert.That(AstralCombatRules.ArcBurstDamagePerTarget, Is.LessThan(AstralCombatRules.BasicAttackDamage));
+            Assert.That(AstralCombatRules.ArcBurstDamagePerTarget * 2, Is.GreaterThan(AstralCombatRules.BasicAttackDamage));
+        }
+
         [TestCase(6, 6)]
         [TestCase(10, 10)]
         public void IncomingDamage_WhenUnguarded_UsesFullValue(int baseDamage, int expected)

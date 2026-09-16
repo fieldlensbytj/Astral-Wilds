@@ -256,3 +256,11 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Full EditMode suite passed 43/43.
 - Play Mode verified one Stormbreak round at exact HP deltas: unguarded 30 -> 20, guarded 30 -> 26.
 - No character art decisions or paid provider calls were involved.
+
+## Arc Burst and readable round results
+
+- Added Arc Burst on `F` and the battle HUD: 8 damage to both opponents versus Attack's focused 12.
+- Added explicit counterattack summaries naming each affected party member, actual damage, Guard reduction, and fainting.
+- Full EditMode suite passed 44/44.
+- Play Mode verified opponents 30 -> 22 each, unguarded party slot 30 -> 24, guarded slot 30 -> 28, and the exact round-summary text.
+- No paid provider credits were spent.

@@ -42,6 +42,14 @@
 - Play Mode verified a mixed Attack/Guard Stormbreak round: the unguarded active slot moved from 30 to 20 HP and the guarded slot from 30 to 26 HP. The state remained Battle and the Guard HUD action was present.
 - No paid or generative provider calls were used.
 
+## 2026-09-17 Arc Burst and round-feedback milestone
+
+- Added Arc Burst on keyboard `F` and the clickable battle HUD. It deals 8 damage to every living opponent, trading Attack's 12 focused damage for greater two-target pressure.
+- Counterattack resolution now reports each party member hit, actual damage, whether Guard reduced it, and whether the member fainted.
+- Full EditMode assembly: 44 passed, 0 failed, 0 skipped. The action-value test locks the intended target tradeoff: per-target Burst damage is lower than Attack while its two-target total is higher.
+- Play Mode verified an Ember Hollow Burst/Guard round: both opponents 30 -> 22; unguarded Cindrel 30 -> 24; guarded Mossling 30 -> 28. The exact round summary rendered in controller state and the Arc Burst HUD action was present.
+- No paid or generative provider calls were used.
+
 ## 2026-09-17 release UI hardening milestone
 
 - Legacy IMGUI diagnostics now compile only in Editor/debug managed-code variants; release players use the generated uGUI exclusively.

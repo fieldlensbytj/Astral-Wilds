@@ -165,6 +165,7 @@ namespace AstralWilds
         public void UiSelectActiveSlot(int slot) { if (flow == Flow.Battle && slot >= 0 && slot < 2) selectedActiveSlot = slot; }
         public void UiSelectTargetSlot(int slot) { if (flow == Flow.Battle && slot >= 0 && slot < 2) selectedTargetSlot = slot; }
         public void UiAttack() { if (flow == Flow.Battle) ResolvePlayerAction(); }
+        public void UiArcBurst() { if (flow == Flow.Battle) ResolveArcBurst(); }
         public void UiGuard() { if (flow == Flow.Battle) GuardSelectedActive(); }
         public void UiReplaceFainted() { if (flow == Flow.Battle) ReplaceFaintedFromReserve(); }
         public void UiSwapBench() { if (flow == Flow.Battle) SwitchToBench(false); }
@@ -328,6 +329,8 @@ namespace AstralWilds
             if (keyboard.wKey.wasPressedThisFrame) selectedTargetSlot = 1;
             if (keyboard.aKey.wasPressedThisFrame)
                 ResolvePlayerAction();
+            if (keyboard.fKey.wasPressedThisFrame)
+                ResolveArcBurst();
             if (keyboard.gKey.wasPressedThisFrame)
                 GuardSelectedActive();
             if (keyboard.rKey.wasPressedThisFrame)
@@ -596,7 +599,7 @@ namespace AstralWilds
             }
             acted[0] = acted[1] = false;
             guarded[0] = guarded[1] = false;
-            message = "2v2 battle: 1/2 select your active slot, Q/W select target, A attack, R reserve replacement.";
+            message = "2v2 battle: 1/2 selects your active slot; Q/W target; A attacks; F bursts both opponents.";
             message += $" {activeEncounterZone.TacticalBrief} G guards the selected slot.";
         }
 
@@ -614,12 +617,7 @@ namespace AstralWilds
             { message = "That Astral already acted this round. Choose the other active slot."; return; }
             acted[selectedActiveSlot] = true;
 
-            target.hp = Mathf.Max(0, target.hp - 12);
-            if (target.hp == 0)
-            {
-                target.defeated = true;
-                battle.OpponentParty.Astrals[selectedTargetSlot].MarkDefeated();
-            }
+            DamageOpponent(selectedTargetSlot, AstralCombatRules.BasicAttackDamage);
             if (AllOpponentsDefeated())
             {
                 CompleteBattle(true);
@@ -627,6 +625,55 @@ namespace AstralWilds
             }
 
             FinishRoundIfReady();
+        }
+
+        private void ResolveArcBurst()
+        {
+            DemoMember actor = GetActiveParty(selectedActiveSlot);
+            if (flow != Flow.Battle || actor == null || actor.defeated)
+            {
+                message = "Invalid Arc Burst: choose a conscious active Astral.";
+                return;
+            }
+            if (acted[selectedActiveSlot] || !battle.TryQueueAction(BattleSide.Player, selectedActiveSlot,
+                new QueuedAstralAction("arc-burst", TargetScope.BothEnemies)))
+            {
+                message = "That Astral already acted this round. Choose the other active slot.";
+                return;
+            }
+
+            acted[selectedActiveSlot] = true;
+            int targetsHit = 0;
+            for (int slot = 0; slot < opponent.Length; slot++)
+            {
+                if (opponent[slot] == null || opponent[slot].defeated)
+                    continue;
+                DamageOpponent(slot, AstralCombatRules.ArcBurstDamagePerTarget);
+                targetsHit++;
+            }
+
+            if (AllOpponentsDefeated())
+            {
+                CompleteBattle(true);
+                return;
+            }
+
+            message = $"{actor.displayName}'s Arc Burst dealt {AstralCombatRules.ArcBurstDamagePerTarget} damage to {targetsHit} opponent{(targetsHit == 1 ? "" : "s")}.";
+            FinishRoundIfReady();
+        }
+
+        private void DamageOpponent(int slot, int damage)
+        {
+            DemoMember target = opponent[slot];
+            if (target == null || target.defeated || damage <= 0)
+                return;
+
+            target.hp = Mathf.Max(0, target.hp - damage);
+            if (target.hp == 0)
+            {
+                target.defeated = true;
+                battle.OpponentParty.Astrals[slot].MarkDefeated();
+            }
         }
 
         private void GuardSelectedActive()
@@ -658,15 +705,16 @@ namespace AstralWilds
                 if (member != null && !member.defeated && !acted[slot])
                 { selectedActiveSlot = slot; message = "Choose an action for the remaining active Astral."; return; }
             }
-            ResolveOpponentActions();
+            string roundResult = ResolveOpponentActions();
             acted[0] = acted[1] = false;
             battle.ClearQueuedActions();
             if (AllPartyDefeated()) CompleteBattle(false);
-            else message = "Round resolved. A: attack, R: replace fainted slot, S: swap to next healthy bench member.";
+            else message = $"Round resolved: {roundResult} A attacks, F bursts both, G guards, S swaps.";
         }
 
-        private void ResolveOpponentActions()
+        private string ResolveOpponentActions()
         {
+            var results = new List<string>(2);
             for (int i = 0; i < activeOpponent.Length; i++)
             {
                 DemoMember enemy = opponent[activeOpponent[i]];
@@ -680,15 +728,18 @@ namespace AstralWilds
                 if (enemy == null || enemy.defeated || target == null || target.defeated)
                     continue;
                 int baseDamage = activeEncounterZone != null ? activeEncounterZone.OpponentDamage : 6;
-                int damage = AstralCombatRules.ResolveIncomingDamage(baseDamage, guarded[targetSlot]);
+                bool wasGuarded = guarded[targetSlot];
+                int damage = AstralCombatRules.ResolveIncomingDamage(baseDamage, wasGuarded);
                 target.hp = Mathf.Max(0, target.hp - damage);
                 if (target.hp == 0)
                 {
                     target.defeated = true;
                     battle.PlayerParty.Astrals[party.IndexOf(target)].MarkDefeated();
                 }
+                results.Add($"{target.displayName}{(wasGuarded ? " guarded and" : "")} took {damage}{(target.defeated ? " and fainted" : "")}");
             }
             guarded[0] = guarded[1] = false;
+            return results.Count == 0 ? "no counterattacks landed." : string.Join("; ", results) + ".";
         }
 
         private void ReplaceFaintedFromReserve()
