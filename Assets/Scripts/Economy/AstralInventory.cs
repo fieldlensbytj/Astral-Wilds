@@ -60,7 +60,7 @@ namespace AstralWilds
 
         public bool CanAdd(AstralItemId item, int quantity)
         {
-            if (quantity <= 0)
+            if ((item != AstralItemId.SalvagedAlloy && item != AstralItemId.FieldTonic) || quantity <= 0)
                 return false;
 
             return GetCount(item) <= int.MaxValue - quantity;

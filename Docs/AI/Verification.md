@@ -24,6 +24,15 @@
 - Play Mode verified an actual encounter award (50 Starshards + 1 alloy), relay proximity, sale to 65 Starshards, rejected duplicate sale with no mutation, tonic purchase to 35 Starshards, HUD vendor actions/counts, and tonic healing on an injured party member.
 - No real-money, premium-currency, advertising, checkout, or payment system exists. No paid or generative provider calls were used.
 
+## 2026-09-17 exploration salvage milestone
+
+- Added reusable `AstralItemPickup` world finds with stable IDs, proximity collection, inventory-capacity checks, and one-time disappearance.
+- Added two glowing Salvaged Alloy scatters at `(-5, 0.35, 2)` and `(6, 0.35, -3)`.
+- Advanced saves to schema v5 with collected-item pickup IDs while retaining v1-v4 compatibility.
+- Full EditMode assembly: 36 passed, 0 failed, 0 skipped.
+- Play Mode verified two finds collected, both markers hidden, duplicate collection rejected, inventory reaching two alloy, and both sold at the relay for 30 Starshards. The HUD matched `Starshards 30 / Alloy 0 / Tonics 0`.
+- No paid or generative provider calls were used.
+
 ## 2026-09-17 release UI hardening milestone
 
 - Legacy IMGUI diagnostics now compile only in Editor/debug managed-code variants; release players use the generated uGUI exclusively.

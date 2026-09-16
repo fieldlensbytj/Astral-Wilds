@@ -239,3 +239,11 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Advanced saves to schema v4 with an explicit earned-economy snapshot and v1-v3 migration.
 - Full EditMode suite passed 34/34. Play Mode verified reward, sale, rejected repeat sale, purchase, healing, and HUD state.
 - No real-money, advertising, premium-currency, payment, or paid-provider integration was added.
+
+## Exploration salvage finds
+
+- Added reusable one-time item pickups and two visible Salvaged Alloy scatters in the exploration map.
+- Added stable-ID duplicate protection and schema-v5 persistence for collected item finds.
+- Full EditMode suite passed 36/36.
+- Play Mode verified both finds, marker disappearance, duplicate rejection, HUD inventory, and selling both finds for 30 earned Starshards.
+- No paid provider credits were spent.
