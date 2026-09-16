@@ -51,7 +51,8 @@ namespace AstralWilds
         private AstralPlayerController playerController;
         private AstralThirdPersonCamera orbitCamera;
         private CrashedBeaconObjective beacon;
-        private string message = "Explore the wilds. Press B to encounter Astrals. E remains reserved for the beacon objective.";
+        private AstralEncounterZone encounterZone;
+        private string message = "Explore the wilds and find the marked Astral activity. E remains reserved for the beacon objective.";
 
         public bool InBattle => flow == Flow.Battle;
         public int PartyCount => party.Count;
@@ -80,6 +81,8 @@ namespace AstralWilds
         public bool IsPartyManagement => flow == Flow.PartyManagement;
         public bool IsDefeat => flow == Flow.Defeat;
         public bool IsRestartPending => restartPending;
+        public bool CanBeginEncounter => IsExploration && playerController != null && encounterZone != null && encounterZone.Contains(playerController.transform.position);
+        public string EncounterActionLabel => CanBeginEncounter ? "Encounter (B)" : "Find wild activity";
         public int SelectedActiveSlot => selectedActiveSlot;
         public int SelectedTargetSlot => selectedTargetSlot;
         public int EncountersCompleted => encountersCompleted;
@@ -138,7 +141,7 @@ namespace AstralWilds
         public void UiAttack() { if (flow == Flow.Battle) ResolvePlayerAction(); }
         public void UiReplaceFainted() { if (flow == Flow.Battle) ReplaceFaintedFromReserve(); }
         public void UiSwapBench() { if (flow == Flow.Battle) SwitchToBench(false); }
-        public void UiBeginEncounter() { if (flow == Flow.Exploration && !restartPending) BeginEncounter(); }
+        public void UiBeginEncounter() { if (flow == Flow.Exploration && !restartPending) TryBeginEncounter(); }
         public void UiBeginBattle() { if (flow == Flow.Encounter) BeginBattle(); }
         public void UiRecruit() { if (flow == Flow.Recruitment) RecruitReward(); }
         public void UiOpenPartyManagement() { if (flow == Flow.Exploration && !restartPending) flow = Flow.PartyManagement; }
@@ -161,6 +164,7 @@ namespace AstralWilds
             playerController = FindFirstObjectByType<AstralPlayerController>();
             orbitCamera = FindFirstObjectByType<AstralThirdPersonCamera>();
             beacon = FindFirstObjectByType<CrashedBeaconObjective>();
+            encounterZone = FindFirstObjectByType<AstralEncounterZone>();
             ApplyInputGate();
         }
 
@@ -211,7 +215,7 @@ namespace AstralWilds
             {
                 case Flow.Exploration:
                     if (keyboard.bKey.wasPressedThisFrame)
-                        BeginEncounter();
+                        TryBeginEncounter();
                     else if (keyboard.pKey.wasPressedThisFrame)
                         flow = Flow.PartyManagement;
                     break;
@@ -270,7 +274,7 @@ namespace AstralWilds
             opponent[0] = opponent[1] = null;
             acted[0] = acted[1] = false;
             battle = null;
-            message = "New game: explore the wilds. B: encounter, E: beacon, K: save, L: load, N: restart.";
+            message = "New game: explore for the marked wild activity. B starts an encounter there; E activates the beacon.";
         }
 
         private void AddParty(string id, string displayName)
@@ -278,13 +282,20 @@ namespace AstralWilds
             party.Add(new DemoMember { id = id, displayName = displayName });
         }
 
-        private void BeginEncounter()
+        private void TryBeginEncounter()
         {
             if (flow != Flow.Exploration)
                 return;
+
+            if (!CanBeginEncounter)
+            {
+                message = "No wild Astral activity here. Explore to the glowing encounter site, then press B.";
+                return;
+            }
+
             flow = Flow.Encounter;
             string preview = EncounterPresets[encountersCompleted % EncounterPresets.Length].nameA;
-            message = $"Wild Astrals detected ({preview} and a companion). Enter/B: begin the 2v2 battle.";
+            message = $"{encounterZone.DisplayName}: {preview} and a companion detected. Enter/B begins the 2v2 battle.";
         }
 
         // Each completed encounter reveals a different wild pair, so exploring for a
@@ -491,10 +502,10 @@ namespace AstralWilds
             if (flow == Flow.Defeat)
             {
                 foreach (var member in party) { member.hp = member.maxHp; member.defeated = false; }
-                message = "Party recovered. B: start another encounter.";
+                message = "Party recovered. Return to the wild activity site for another encounter.";
             }
             else
-            message = "Returned to exploration. B: start another encounter; E: beacon; K: save.";
+            message = "Returned to exploration. Visit the wild activity site for another encounter; E: beacon; K: save.";
             flow = Flow.Exploration;
             battle = null;
         }
@@ -542,7 +553,7 @@ namespace AstralWilds
                 acted[0] = acted[1] = false;
                 battle = null;
                 if (beacon != null) beacon.RestoreProgress(beaconActivated);
-                message = "Checkpoint loaded into exploration. B: encounter.";
+                message = "Checkpoint loaded. Explore to the wild activity site to begin an encounter.";
             }
             catch (Exception exception)
             {

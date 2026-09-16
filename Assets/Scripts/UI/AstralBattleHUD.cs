@@ -142,7 +142,7 @@ namespace AstralWilds
 
         private void RefreshActionBar()
         {
-            string key = controller.CurrentState + "|" + controller.IsRestartPending;
+            string key = controller.CurrentState + "|" + controller.IsRestartPending + "|" + controller.CanBeginEncounter;
             if (key == lastLayoutKey) return;
             lastLayoutKey = key;
 
@@ -157,7 +157,7 @@ namespace AstralWilds
 
             if (controller.IsExploration)
             {
-                AddButton(actionBar, "Encounter (B)", controller.UiBeginEncounter);
+                AddButton(actionBar, controller.EncounterActionLabel, controller.UiBeginEncounter, controller.CanBeginEncounter);
                 AddButton(actionBar, "Party (P)", controller.UiOpenPartyManagement);
                 AddButton(actionBar, "Save (K)", controller.UiSave);
                 AddButton(actionBar, "Load (L)", controller.UiLoad);
@@ -329,7 +329,7 @@ namespace AstralWilds
             return go.transform;
         }
 
-        private void AddButton(Transform parent, string label, UnityEngine.Events.UnityAction onClick)
+        private void AddButton(Transform parent, string label, UnityEngine.Events.UnityAction onClick, bool interactable = true)
         {
             var go = new GameObject("Btn_" + label, typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -339,6 +339,7 @@ namespace AstralWilds
             image.color = ButtonIdle;
             var button = go.AddComponent<Button>();
             button.onClick.AddListener(onClick);
+            button.interactable = interactable;
             var layoutElement = go.AddComponent<LayoutElement>();
             layoutElement.preferredHeight = 44f;
             var text = CreateText(go.transform, "Label", 16, TextAnchor.MiddleCenter, FontStyle.Bold);

@@ -170,3 +170,13 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Captured a real Unity/URP validation render and restored `Assets/Astral.unity` as the active, clean scene without saving any gameplay-scene change.
 - Remaining: final reference-faithful texture, quad retopology for deformation, skeleton/skin, animation clips/controller, LODs, gameplay placement, source-prompt recovery, and provider-license confirmation.
 - No external generation, remesh, UV, texture, or rigging credits were spent in this pass.
+
+## Spatial wild-encounter site
+
+- Added `Assets/Scripts/Exploration/AstralEncounterZone.cs`, backed by a trigger sphere but using deterministic world-space containment for encounter eligibility.
+- Added a visible teal activity marker, four pylons, and a local glow at `(-8, 0, 6)` in `Assets/Astral.unity`, opposite the beacon from the player spawn.
+- Replaced the global exploration encounter request with a location gate while keeping both `B` and the clickable HUD action wired to the same battle flow.
+- Outside the site, encounter requests stay in Exploration and show guidance. Inside the site, the HUD enables and the existing Encounter -> Battle path proceeds unchanged.
+- Added three EditMode tests; the full test assembly passed 14/14.
+- Verified the rejection, eligibility, Encounter transition, and Battle transition in Play Mode; returned to a clean saved scene with zero Console errors/warnings.
+- No paid provider credits were spent.

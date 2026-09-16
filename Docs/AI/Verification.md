@@ -1,5 +1,16 @@
 # Astral Wilds Verification
 
+## 2026-09-17 spatial encounter milestone
+
+- Added a reusable `AstralEncounterZone` whose eligibility is calculated from its world-space sphere, independent of trigger-callback timing.
+- Added a visible teal activity marker and trigger volume at `(-8, 0, 6)` in `Assets/Astral.unity`; the player spawn at `(0, 0, 0)` is outside the radius.
+- Preserved both encounter entry points: keyboard `B` and the clickable HUD action. The HUD action is disabled and labelled `Find wild activity` outside the site, then becomes `Encounter (B)` inside it.
+- Outside-site requests remain in Exploration and provide navigation guidance. Inside-site requests advance through the existing Encounter and Battle states without changing the verified 2v2 rules.
+- Ran the complete EditMode assembly synchronously: 14 passed, 0 failed, 0 skipped. Three new tests cover inside/outside bounds, world scale, and trigger configuration.
+- Play Mode probe verified: rejected at spawn, eligible after entering the site, Encounter started, then 2v2 Battle started.
+- Final Unity audit: Editor returned to Edit Mode, `Assets/Astral.unity` active and clean, site present, no temporary validation camera, and Console at 0 errors / 0 warnings.
+- No paid or generative provider calls were used.
+
 ## 2026-09-16 checkpoint
 
 ### Verified by executed Unity MCP domain smoke test
