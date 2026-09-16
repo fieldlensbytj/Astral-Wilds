@@ -40,3 +40,6 @@ crashlytics-build.properties
 .DS_Store*
 Thumbs.db
 Desktop.ini
+
+# Local standalone player build output (from Build Profiles "New folder" target)
+/New folder/

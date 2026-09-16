@@ -57,3 +57,21 @@ Ground truth for this run was the component's Debug Inspector (`flow`, `message`
 - A true Editor exit/re-entry save reload (this run verified save/load within one continuous Play Mode session).
 
 See `Docs/AI/CoworkReview-20260916-PlayModeVerified.md` for full narrative detail.
+
+## 2026-09-16 Fainted-slot replacement and built-player verification (Cowork)
+
+- `R` as a fainted-slot replacement in battle: verified with a genuine forced faint (not the unreachable `ForceSelectedFaintForPrototypeTesting()`). Left an active party member at partial HP after one battle (HP persists across encounters -- confirmed via Debug Inspector), then a second battle's opponent counter-fire (6 HP/round) fainted that active slot. Pressing `R` correctly invoked `ReplaceFaintedFromReserve() -> SwitchToBench(true)`, pulling a healthy reserve member into the empty active slot. Confirmed via Debug Inspector.
+- Built-player (non-Editor) smoke test: completed successfully, after fixing a real build-breaking bug found in the process.
+  - Root cause: the project had no `.asmdef` files, so the NUnit-based EditMode test file (`Assets/Tests/EditMode/AstralBattleFormatTests.cs`) compiled into the default player-included `Assembly-CSharp`, and the Unity CIL Linker failed to resolve `nunit.framework` for the player build.
+  - Fix: added `Assets/Scripts/AstralWilds.Runtime.asmdef` (runtime code; included in player builds, references `Unity.InputSystem` and `UnityEngine.UI`) and `Assets/Tests/EditMode/AstralWilds.Tests.EditMode.asmdef` (`includePlatforms: ["Editor"]`, references the Runtime asmdef plus `UnityEngine.TestRunner`/`UnityEditor.TestRunner`/`nunit.framework.dll`).
+  - That split broke the test file's access to `internal` members of `AstralReserveCollection` (CS1061 on `TryAdd`); fixed with `Assets/Scripts/AssemblyInfo.cs` adding `[assembly: InternalsVisibleTo("AstralWilds.Tests.EditMode")]`. No behavior changed; this only restores cross-assembly visibility that existed implicitly when everything compiled into one assembly.
+  - Rebuilt (Windows Build Profile, Local Machine, "Build And Run"): succeeded in 42 seconds. Confirmed via `find` that `Astral Wilds.exe` and its `_Data` folder exist on disk.
+  - Launched the standalone `.exe` directly (outside the Editor): started cleanly, rendered the exploration scene (crashed corvette, terrain, lighting) matching the Editor's Play Mode view, and the on-screen debug overlay showed correct state (`Party: 5/6  Reserve: 0`, five Astrals each at full HP). Mouse-look input was confirmed to move the camera, i.e. the build is genuinely interactive, not a frozen frame.
+  - The player process was left running rather than force-closing it via a system-level shortcut (Alt+F4 requires an OS-level permission grant this session didn't have); it's safe to close manually.
+- Console: 0 errors after the asmdef fix and Assets > Refresh (was showing compile errors immediately after the split, before `AssemblyInfo.cs` was added).
+
+### Still unverified or blocked
+
+- `N` restart (not separately re-tested this session; not expected to be affected by any change made).
+- A true Editor exit/re-entry save reload (still only verified within a continuous Play Mode session).
+- Performance/frame-rate characteristics of the built player (not measured; only startup and basic responsiveness were checked).
