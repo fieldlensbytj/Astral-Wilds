@@ -190,3 +190,12 @@ The following Unity MCP domain smoke checks compiled and executed successfully:
 - Added clear/reset coverage; the full EditMode assembly passed 15/15.
 - Verified a two-site runtime path through the first victory/recruit/return, rejected the cleared site, and began the correct second-site battle. Existing persistent save bytes were left untouched.
 - No paid provider credits were spent.
+
+## Exploration objective guidance
+
+- Added a dedicated objective line to the runtime HUD rather than relying on the legacy debug overlay.
+- Guidance chooses the nearest uncleared site and reports its name, rounded distance, and eight-way direction.
+- The objective automatically advances from Ember Hollow to Stormbreak Grove, then to the crashed beacon, then to a completion message.
+- Added six focused direction cases; the complete EditMode assembly passed 21/21.
+- Verified the full guidance sequence in Play Mode and confirmed the generated HUD text matches controller state.
+- No paid provider credits were spent.

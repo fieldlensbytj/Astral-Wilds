@@ -29,6 +29,7 @@ namespace AstralWilds
         private Canvas canvas;
         private Text statusText;
         private Text messageText;
+        private Text objectiveText;
         private GameObject completionBanner;
         private Transform opponentRow;
         private readonly List<CreatureSlotView> opponentSlots = new List<CreatureSlotView>();
@@ -101,6 +102,7 @@ namespace AstralWilds
         {
             statusText.text = $"{controller.CurrentState}    Party {controller.PartyCount}/6    Reserve {controller.ReserveCount}";
             messageText.text = controller.StatusMessage;
+            objectiveText.text = controller.ObjectiveGuidance;
         }
 
         private void RefreshRow(List<AstralDemoLoopController.AstralUiInfo> infos, List<CreatureSlotView> slots, GameObject rowRoot, bool visible, bool isOpponentRow)
@@ -206,11 +208,14 @@ namespace AstralWilds
 
         private void BuildStatusPanel()
         {
-            var panel = CreatePanel(canvas.transform, "StatusPanel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -20f), new Vector2(620f, 92f));
+            var panel = CreatePanel(canvas.transform, "StatusPanel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -20f), new Vector2(680f, 132f));
             statusText = CreateText(panel.transform, "StateLine", 22, TextAnchor.UpperLeft, FontStyle.Bold);
             SetRect(statusText.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(14f, -6f), new Vector2(-14f, -34f));
             messageText = CreateText(panel.transform, "MessageLine", 17, TextAnchor.UpperLeft, FontStyle.Normal);
-            SetRect(messageText.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(14f, 8f), new Vector2(-14f, -34f));
+            SetRect(messageText.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(14f, 36f), new Vector2(-14f, -34f));
+            objectiveText = CreateText(panel.transform, "ObjectiveLine", 15, TextAnchor.MiddleLeft, FontStyle.Bold);
+            SetRect(objectiveText.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(14f, 6f), new Vector2(-14f, 32f));
+            objectiveText.color = new Color(0.45f, 0.95f, 0.90f, 1f);
         }
 
         private void BuildCompletionBanner()

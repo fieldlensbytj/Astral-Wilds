@@ -1,5 +1,15 @@
 # Astral Wilds Verification
 
+## 2026-09-17 exploration-guidance milestone
+
+- Added a cyan objective line to the runtime HUD status panel.
+- While encounters remain, guidance selects the nearest available site and shows its name, rounded horizontal distance, and eight-way world direction.
+- After the first site clear, the line switches from Ember Hollow to Stormbreak Grove. After two clears, it points to the crashed beacon and reminds the player to hold Interact. Beacon activation changes it to an objective-complete message.
+- Added direction-mapping tests for cardinal, diagonal, and near-target cases. Full EditMode assembly: 21 passed, 0 failed, 0 skipped.
+- Live Play Mode progression produced: `Ember Hollow: 10 m northwest` -> `Stormbreak Grove: 21 m southeast` -> `crashed beacon: 15 m northwest` -> objective complete. The generated uGUI `ObjectiveLine` matched the controller's initial guidance exactly.
+- Final Unity audit: Edit Mode, `Assets/Astral.unity` active and clean, 0 Console errors / 0 warnings.
+- No paid or generative provider calls were used.
+
 ## 2026-09-17 multi-site encounter milestone
 
 - Encounter zones now own stable IDs plus their two wild Astral IDs/names; the battle controller no longer rotates a global preset list.

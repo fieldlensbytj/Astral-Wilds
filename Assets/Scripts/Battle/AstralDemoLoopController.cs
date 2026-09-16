@@ -36,6 +36,7 @@ namespace AstralWilds
         }
 
         private const string SaveFileName = "astralwilds-demo-save-v1.json";
+        private static readonly string[] DirectionNames = { "north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest" };
         private readonly List<DemoMember> party = new List<DemoMember>();
         private readonly List<DemoMember> reserve = new List<DemoMember>();
         private readonly DemoMember[] opponent = new DemoMember[2];
@@ -89,6 +90,7 @@ namespace AstralWilds
         public int SelectedTargetSlot => selectedTargetSlot;
         public int EncountersCompleted => encountersCompleted;
         public bool BeaconActivated => beacon != null ? beacon.IsActivated : beaconActivated;
+        public string ObjectiveGuidance => BuildObjectiveGuidance();
         // The vision doc's short demo objective: explore, clear two distinct encounters,
         // and return to (activate) the crashed corvette's beacon.
         public bool DemoObjectiveComplete => BeaconActivated && encountersCompleted >= 2;
@@ -322,6 +324,67 @@ namespace AstralWilds
             }
 
             return false;
+        }
+
+        private string BuildObjectiveGuidance()
+        {
+            if (DemoObjectiveComplete)
+                return "Objective complete: two wild sites cleared and the beacon is online.";
+
+            if (playerController == null)
+                return "Objective: explore the wilds.";
+
+            if (encountersCompleted < 2)
+            {
+                AstralEncounterZone nearest = null;
+                float nearestSqrDistance = float.PositiveInfinity;
+                Vector3 playerPosition = playerController.transform.position;
+                for (int i = 0; i < encounterZones.Length; i++)
+                {
+                    AstralEncounterZone candidate = encounterZones[i];
+                    if (candidate == null || !candidate.IsAvailable)
+                        continue;
+
+                    Vector3 delta = candidate.transform.position - playerPosition;
+                    delta.y = 0f;
+                    if (delta.sqrMagnitude >= nearestSqrDistance)
+                        continue;
+
+                    nearest = candidate;
+                    nearestSqrDistance = delta.sqrMagnitude;
+                }
+
+                if (nearest == null)
+                    return "Objective: no uncleared wild activity remains in this area.";
+
+                Vector3 direction = nearest.transform.position - playerPosition;
+                direction.y = 0f;
+                int remaining = 2 - encountersCompleted;
+                string siteWord = remaining == 1 ? "site" : "sites";
+                return $"Objective: clear {remaining} wild {siteWord}. {nearest.DisplayName}: {Mathf.Sqrt(nearestSqrDistance):0} m {DescribeDirection(direction)}.";
+            }
+
+            if (!BeaconActivated && beacon != null)
+            {
+                Vector3 direction = beacon.transform.position - playerController.transform.position;
+                direction.y = 0f;
+                return $"Objective: return to the crashed beacon: {direction.magnitude:0} m {DescribeDirection(direction)}; hold Interact to activate.";
+            }
+
+            return "Objective: return to the crashed beacon and activate it.";
+        }
+
+        internal static string DescribeDirection(Vector3 delta)
+        {
+            delta.y = 0f;
+            if (delta.sqrMagnitude < 0.25f)
+                return "here";
+
+            float angle = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
+            int index = Mathf.RoundToInt(angle / 45f);
+            if (index < 0)
+                index += DirectionNames.Length;
+            return DirectionNames[index % DirectionNames.Length];
         }
 
         private void BeginBattle()
