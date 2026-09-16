@@ -60,6 +60,93 @@ namespace AstralWilds
         public string StatusMessage => message;
         public bool BlocksExplorationInput => flow != Flow.Exploration || restartPending;
 
+        // --- Public UI-facing state (additive; keyboard controls above are unchanged) ---
+
+        [Serializable]
+        public struct AstralUiInfo
+        {
+            public string id;
+            public string displayName;
+            public int hp;
+            public int maxHp;
+            public bool defeated;
+            public bool isActive;
+            public int activeSlot; // -1 when not active
+        }
+
+        public bool IsExploration => flow == Flow.Exploration && !restartPending;
+        public bool IsEncounter => flow == Flow.Encounter;
+        public bool IsRecruitment => flow == Flow.Recruitment;
+        public bool IsPartyManagement => flow == Flow.PartyManagement;
+        public bool IsDefeat => flow == Flow.Defeat;
+        public bool IsRestartPending => restartPending;
+        public int SelectedActiveSlot => selectedActiveSlot;
+        public int SelectedTargetSlot => selectedTargetSlot;
+        public int EncountersCompleted => encountersCompleted;
+
+        public List<AstralUiInfo> GetPartyUiInfo()
+        {
+            var list = new List<AstralUiInfo>(party.Count);
+            for (int i = 0; i < party.Count; i++)
+            {
+                int activeSlot = (i == activeParty[0]) ? 0 : (i == activeParty[1]) ? 1 : -1;
+                list.Add(ToUiInfo(party[i], activeSlot >= 0, activeSlot));
+            }
+            return list;
+        }
+
+        public List<AstralUiInfo> GetReserveUiInfo()
+        {
+            var list = new List<AstralUiInfo>(reserve.Count);
+            foreach (var member in reserve)
+                list.Add(ToUiInfo(member, false, -1));
+            return list;
+        }
+
+        public List<AstralUiInfo> GetOpponentUiInfo()
+        {
+            var list = new List<AstralUiInfo>(2);
+            if (flow != Flow.Battle || opponent[0] == null)
+                return list;
+            for (int i = 0; i < opponent.Length; i++)
+                list.Add(ToUiInfo(opponent[i], true, i));
+            return list;
+        }
+
+        private static AstralUiInfo ToUiInfo(DemoMember member, bool isActive, int activeSlot)
+        {
+            return new AstralUiInfo
+            {
+                id = member.id,
+                displayName = member.displayName,
+                hp = member.hp,
+                maxHp = member.maxHp,
+                defeated = member.defeated,
+                isActive = isActive,
+                activeSlot = activeSlot
+            };
+        }
+
+        // --- Public UI action API; each mirrors the equivalent keyboard handler above ---
+
+        public void UiSelectActiveSlot(int slot) { if (flow == Flow.Battle && slot >= 0 && slot < 2) selectedActiveSlot = slot; }
+        public void UiSelectTargetSlot(int slot) { if (flow == Flow.Battle && slot >= 0 && slot < 2) selectedTargetSlot = slot; }
+        public void UiAttack() { if (flow == Flow.Battle) ResolvePlayerAction(); }
+        public void UiReplaceFainted() { if (flow == Flow.Battle) ReplaceFaintedFromReserve(); }
+        public void UiSwapBench() { if (flow == Flow.Battle) SwitchToBench(false); }
+        public void UiBeginEncounter() { if (flow == Flow.Exploration && !restartPending) BeginEncounter(); }
+        public void UiBeginBattle() { if (flow == Flow.Encounter) BeginBattle(); }
+        public void UiRecruit() { if (flow == Flow.Recruitment) RecruitReward(); }
+        public void UiOpenPartyManagement() { if (flow == Flow.Exploration && !restartPending) flow = Flow.PartyManagement; }
+        public void UiReorderParty() { if (flow == Flow.PartyManagement) ReorderParty(); }
+        public void UiConfirmDefeatRecovery() { if (flow == Flow.Defeat) ReturnToExploration(); }
+        public void UiReturnToExploration() { if (flow == Flow.PartyManagement) ReturnToExploration(); }
+        public void UiSave() { SaveGame(); }
+        public void UiLoad() { LoadGame(); ApplyInputGate(); }
+        public void UiRequestRestart() { if (!restartPending) { restartPending = true; message = "Restart progress? Confirm or cancel below. Existing disk save is retained."; ApplyInputGate(); } }
+        public void UiConfirmRestart() { if (restartPending) { NewGame(); restartPending = false; ApplyInputGate(); } }
+        public void UiCancelRestart() { if (restartPending) { restartPending = false; message = "Restart cancelled."; ApplyInputGate(); } }
+
         private void Awake()
         {
             NewGame();
