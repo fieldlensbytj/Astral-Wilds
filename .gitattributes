@@ -1,3 +1,4 @@
-/ArtSource/Blender/Astral_Cindrel_Production_v01.blend filter=lfs diff=lfs merge=lfs -text
+/ArtSource/Blender/**/*.blend filter=lfs diff=lfs merge=lfs -text
 /ArtSource/Meshy/Astrals/**/*.glb filter=lfs diff=lfs merge=lfs -text
 /Assets/Art/Astrals/**/*.fbx filter=lfs diff=lfs merge=lfs -text
+/Docs/ProofOfConcept/**/*.pptx filter=lfs diff=lfs merge=lfs -text
