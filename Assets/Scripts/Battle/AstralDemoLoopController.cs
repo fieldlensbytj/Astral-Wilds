@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace AstralWilds
 {
@@ -76,6 +75,8 @@ namespace AstralWilds
         private AstralItemPickup[] itemPickups = Array.Empty<AstralItemPickup>();
         private AstralVendorStation vendorStation;
         private AstralEncounterZone activeEncounterZone;
+        private AstralCommandInput commandInput;
+        private AstralFeedbackAudio feedbackAudio;
         private bool hasSaveGame;
         private string message = "Explore the wilds and find the marked Astral activity. E remains reserved for the beacon objective.";
 
@@ -122,8 +123,12 @@ namespace AstralWilds
                                   (flow == Flow.Exploration || flow == Flow.PartyManagement || flow == Flow.Vendor || flow == Flow.Victory);
         public int MasterVolumePercent => gameSettings.VolumePercent;
         public int LookSensitivityPercent => gameSettings.LookSensitivityPercent;
+        public string InputDeviceLabel => commandInput?.PromptDeviceLabel ?? "Keyboard & Mouse";
+        public bool IsRebinding => commandInput != null && commandInput.IsRebinding;
+        public string RebindStatus => commandInput?.RebindStatus ?? "Input bindings unavailable.";
+        public int InputPresentationVersion => commandInput?.PresentationVersion ?? 0;
         public bool CanBeginEncounter => IsExploration && TryGetEncounterZoneAtPlayer(out _);
-        public string EncounterActionLabel => CanBeginEncounter ? "Encounter (B)" : "Find wild activity";
+        public string EncounterActionLabel => CanBeginEncounter ? $"Encounter ({Prompt(AstralCommand.Encounter)})" : "Find wild activity";
         public int SelectedActiveSlot => selectedActiveSlot;
         public int SelectedTargetSlot => selectedTargetSlot;
         public int EncountersCompleted => encountersCompleted;
@@ -139,6 +144,8 @@ namespace AstralWilds
         // The vision doc's short demo objective: explore, clear two distinct encounters,
         // and return to (activate) the crashed corvette's beacon.
         public bool DemoObjectiveComplete => BeaconActivated && encountersCompleted >= 2;
+
+        public string Prompt(AstralCommand command) => commandInput?.GetPrompt(command) ?? "Unbound";
 
         public List<AstralUiInfo> GetPartyUiInfo()
         {
@@ -190,11 +197,15 @@ namespace AstralWilds
             if (!IsTitleScreen) return;
             NewGame();
             EnterGameplay("New expedition begun. Explore for the marked wild activity.");
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
         public void UiContinueGame()
         {
             if (!IsTitleScreen || !hasSaveGame) return;
-            if (LoadGame()) EnterGameplay("Checkpoint loaded. The expedition continues.");
+            if (LoadGame())
+            {
+                EnterGameplay("Checkpoint loaded. The expedition continues.");
+            }
         }
         public void UiPause()
         {
@@ -203,11 +214,13 @@ namespace AstralWilds
             Time.timeScale = 0f;
             message = "Expedition paused.";
             ApplyInputGate();
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
         public void UiResume()
         {
             if (!IsPaused) return;
             EnterGameplay("Expedition resumed.");
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
         public void UiOpenSettings()
         {
@@ -216,6 +229,7 @@ namespace AstralWilds
             else return;
             message = "Settings are saved automatically.";
             ApplyInputGate();
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
         public void UiCloseSettings()
         {
@@ -224,18 +238,21 @@ namespace AstralWilds
             else return;
             message = shellState == ShellState.Title ? "Choose an expedition." : "Expedition paused.";
             ApplyInputGate();
+            PlayFeedback(AstralFeedbackCue.Cancel);
         }
         public void UiCycleMasterVolume()
         {
             if (!IsSettings) return;
             gameSettings.CycleVolume();
             SaveAndApplySettings();
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
         public void UiCycleLookSensitivity()
         {
             if (!IsSettings) return;
             gameSettings.CycleLookSensitivity();
             SaveAndApplySettings();
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
         public void UiReturnToTitle()
         {
@@ -244,9 +261,10 @@ namespace AstralWilds
             Time.timeScale = 0f;
             message = "Returned to title. Current progress remains in memory; save before leaving to keep it on disk.";
             ApplyInputGate();
+            PlayFeedback(AstralFeedbackCue.Cancel);
         }
-        public void UiSelectActiveSlot(int slot) { if (InBattle && slot >= 0 && slot < 2) selectedActiveSlot = slot; }
-        public void UiSelectTargetSlot(int slot) { if (InBattle && slot >= 0 && slot < 2) selectedTargetSlot = slot; }
+        public void UiSelectActiveSlot(int slot) { if (InBattle && slot >= 0 && slot < 2) { selectedActiveSlot = slot; PlayFeedback(AstralFeedbackCue.Confirm); } }
+        public void UiSelectTargetSlot(int slot) { if (InBattle && slot >= 0 && slot < 2) { selectedTargetSlot = slot; PlayFeedback(AstralFeedbackCue.Confirm); } }
         public void UiAttack() { if (InBattle) ResolvePlayerAction(); }
         public void UiArcBurst() { if (InBattle) ResolveArcBurst(); }
         public void UiGuard() { if (InBattle) GuardSelectedActive(); }
@@ -267,9 +285,24 @@ namespace AstralWilds
         public void UiUseFieldTonic() { if (IsExploration) UseFieldTonic(); }
         public void UiSave() { SaveGame(); }
         public void UiLoad() { if (shellState == ShellState.Gameplay) LoadGame(); ApplyInputGate(); }
-        public void UiRequestRestart() { if (shellState == ShellState.Gameplay && !restartPending) { restartPending = true; message = "Restart progress? Confirm or cancel below. Existing disk save is retained."; ApplyInputGate(); } }
-        public void UiConfirmRestart() { if (restartPending) { NewGame(); restartPending = false; ApplyInputGate(); } }
-        public void UiCancelRestart() { if (restartPending) { restartPending = false; message = "Restart cancelled."; ApplyInputGate(); } }
+        public void UiRequestRestart() { if (shellState == ShellState.Gameplay && !restartPending) { restartPending = true; message = "Restart progress? Confirm or cancel below. Existing disk save is retained."; ApplyInputGate(); PlayFeedback(AstralFeedbackCue.Confirm); } }
+        public void UiConfirmRestart() { if (restartPending) { NewGame(); restartPending = false; ApplyInputGate(); PlayFeedback(AstralFeedbackCue.Confirm); } }
+        public void UiCancelRestart() { if (restartPending) { restartPending = false; message = "Restart cancelled."; ApplyInputGate(); PlayFeedback(AstralFeedbackCue.Cancel); } }
+        public void UiBeginRebind(AstralCommand command)
+        {
+            if (!IsSettings || commandInput == null)
+                return;
+            if (commandInput.BeginKeyboardRebind(command))
+                PlayFeedback(AstralFeedbackCue.Confirm);
+        }
+        public void UiCancelRebind() => commandInput?.CancelRebind();
+        public void UiResetBindings()
+        {
+            if (!IsSettings || commandInput == null)
+                return;
+            commandInput.ResetKeyboardBindings();
+            PlayFeedback(AstralFeedbackCue.Confirm);
+        }
 
         public bool TryCollectExplorationCurrency(string pickupId, long amount)
         {
@@ -279,6 +312,7 @@ namespace AstralWilds
 
             collectedCurrencyPickupIds.Add(pickupId);
             message = $"Found {amount} Starshards while exploring. Balance: {wallet.Balance}.";
+            PlayFeedback(AstralFeedbackCue.Pickup);
             return true;
         }
 
@@ -291,12 +325,22 @@ namespace AstralWilds
             collectedItemPickupIds.Add(pickupId);
             string itemName = item == AstralItemId.SalvagedAlloy ? "Salvaged Alloy" : "Field Tonic";
             message = $"Exploration find: {quantity} {itemName}{(quantity == 1 ? "" : "s")}.";
+            PlayFeedback(AstralFeedbackCue.Pickup);
             return true;
         }
 
         private void Awake()
         {
+            commandInput = new AstralCommandInput();
+            feedbackAudio = GetComponent<AstralFeedbackAudio>();
+            if (feedbackAudio == null)
+                feedbackAudio = gameObject.AddComponent<AstralFeedbackAudio>();
             NewGame();
+        }
+
+        private void OnEnable()
+        {
+            commandInput?.Enable();
         }
 
         private void Start()
@@ -322,10 +366,16 @@ namespace AstralWilds
 
         private void OnDisable()
         {
+            commandInput?.Disable();
             if (playerController != null) playerController.InputBlocked = false;
             if (orbitCamera != null) orbitCamera.InputBlocked = false;
             if (beacon != null) beacon.InputBlocked = false;
             Time.timeScale = 1f;
+        }
+
+        private void OnDestroy()
+        {
+            commandInput?.Dispose();
         }
 
         private void ApplyInputGate()
@@ -353,56 +403,63 @@ namespace AstralWilds
             message = $"Settings saved: volume {gameSettings.VolumePercent}%, look sensitivity {gameSettings.LookSensitivityPercent}%.";
         }
 
+        private void PlayFeedback(AstralFeedbackCue cue) => feedbackAudio?.Play(cue);
+
         private void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard == null)
+            if (commandInput == null)
                 return;
+            commandInput.PollPromptDevice();
+            if (commandInput.IsRebinding)
+            {
+                ApplyInputGate();
+                return;
+            }
 
             if (IsTitleScreen)
             {
-                if (keyboard.enterKey.wasPressedThisFrame) UiStartNewExpedition();
-                else if (keyboard.lKey.wasPressedThisFrame) UiContinueGame();
-                else if (keyboard.oKey.wasPressedThisFrame) UiOpenSettings();
+                if (Pressed(AstralCommand.Confirm)) UiStartNewExpedition();
+                else if (Pressed(AstralCommand.Load)) UiContinueGame();
+                else if (Pressed(AstralCommand.OpenSettings)) UiOpenSettings();
                 ApplyInputGate();
                 return;
             }
             if (IsSettings)
             {
-                if (keyboard.escapeKey.wasPressedThisFrame || keyboard.oKey.wasPressedThisFrame) UiCloseSettings();
+                if (Pressed(AstralCommand.Cancel) || Pressed(AstralCommand.OpenSettings)) UiCloseSettings();
                 ApplyInputGate();
                 return;
             }
             if (IsPaused)
             {
-                if (keyboard.escapeKey.wasPressedThisFrame) UiResume();
-                else if (keyboard.oKey.wasPressedThisFrame) UiOpenSettings();
+                if (Pressed(AstralCommand.Cancel)) UiResume();
+                else if (Pressed(AstralCommand.OpenSettings)) UiOpenSettings();
                 ApplyInputGate();
                 return;
             }
 
             if (restartPending)
             {
-                if (keyboard.enterKey.wasPressedThisFrame) { NewGame(); restartPending = false; }
-                else if (keyboard.escapeKey.wasPressedThisFrame) { restartPending = false; message = "Restart cancelled."; }
+                if (Pressed(AstralCommand.Confirm)) { NewGame(); restartPending = false; PlayFeedback(AstralFeedbackCue.Confirm); }
+                else if (Pressed(AstralCommand.Cancel)) { restartPending = false; message = "Restart cancelled."; PlayFeedback(AstralFeedbackCue.Cancel); }
                 ApplyInputGate();
                 return;
             }
-            if (keyboard.escapeKey.wasPressedThisFrame)
+            if (Pressed(AstralCommand.Cancel))
             {
                 UiPause();
                 return;
             }
-            if (keyboard.nKey.wasPressedThisFrame)
+            if (Pressed(AstralCommand.Restart))
             {
                 restartPending = true;
-                message = "Restart progress? Enter confirms; Escape cancels. Existing disk save is retained.";
+                message = $"Restart progress? {Prompt(AstralCommand.Confirm)} confirms; {Prompt(AstralCommand.Cancel)} cancels. Existing disk save is retained.";
                 ApplyInputGate();
                 return;
             }
-            if (keyboard.kKey.wasPressedThisFrame)
+            if (Pressed(AstralCommand.Save))
                 SaveGame();
-            if (keyboard.lKey.wasPressedThisFrame)
+            if (Pressed(AstralCommand.Load))
             {
                 LoadGame();
                 ApplyInputGate();
@@ -415,64 +472,66 @@ namespace AstralWilds
             switch (flow)
             {
                 case Flow.Exploration:
-                    if (keyboard.bKey.wasPressedThisFrame)
+                    if (Pressed(AstralCommand.Encounter))
                         TryBeginEncounter();
-                    else if (keyboard.vKey.wasPressedThisFrame)
+                    else if (Pressed(AstralCommand.Vendor))
                         OpenVendor();
-                    else if (keyboard.tKey.wasPressedThisFrame)
+                    else if (Pressed(AstralCommand.Tonic))
                         UseFieldTonic();
-                    else if (keyboard.pKey.wasPressedThisFrame)
+                    else if (Pressed(AstralCommand.Party))
                         flow = Flow.PartyManagement;
                     break;
                 case Flow.Encounter:
-                    if (keyboard.enterKey.wasPressedThisFrame || keyboard.bKey.wasPressedThisFrame)
+                    if (Pressed(AstralCommand.Confirm) || Pressed(AstralCommand.Encounter))
                         BeginBattle();
                     break;
                 case Flow.Battle:
-                    UpdateBattleInput(keyboard);
+                    UpdateBattleInput();
                     break;
                 case Flow.Recruitment:
-                    if (keyboard.rKey.wasPressedThisFrame)
+                    if (Pressed(AstralCommand.Replace))
                         RecruitReward();
                     break;
                 case Flow.PartyManagement:
-                    if (keyboard.pKey.wasPressedThisFrame)
+                    if (Pressed(AstralCommand.Party))
                         ReorderParty();
-                    if (keyboard.enterKey.wasPressedThisFrame || keyboard.eKey.wasPressedThisFrame)
+                    if (Pressed(AstralCommand.Confirm) || Pressed(AstralCommand.Cancel))
                         ReturnToExploration();
                     break;
                 case Flow.Vendor:
-                    if (keyboard.digit1Key.wasPressedThisFrame) BuyFieldTonic();
-                    else if (keyboard.digit2Key.wasPressedThisFrame) SellSalvagedAlloy();
-                    else if (keyboard.enterKey.wasPressedThisFrame || keyboard.escapeKey.wasPressedThisFrame) LeaveVendor();
+                    if (Pressed(AstralCommand.SelectActiveOne)) BuyFieldTonic();
+                    else if (Pressed(AstralCommand.SelectActiveTwo)) SellSalvagedAlloy();
+                    else if (Pressed(AstralCommand.Confirm) || Pressed(AstralCommand.Cancel)) LeaveVendor();
                     break;
                 case Flow.Defeat:
-                    if (keyboard.enterKey.wasPressedThisFrame) ReturnToExploration();
+                    if (Pressed(AstralCommand.Confirm)) ReturnToExploration();
                     break;
                 case Flow.Victory:
-                    if (keyboard.enterKey.wasPressedThisFrame) ContinueAfterVictory();
+                    if (Pressed(AstralCommand.Confirm)) ContinueAfterVictory();
                     break;
             }
             ApplyInputGate();
         }
 
-        private void UpdateBattleInput(Keyboard keyboard)
+        private void UpdateBattleInput()
         {
-            if (keyboard.digit1Key.wasPressedThisFrame) selectedActiveSlot = 0;
-            if (keyboard.digit2Key.wasPressedThisFrame) selectedActiveSlot = 1;
-            if (keyboard.qKey.wasPressedThisFrame) selectedTargetSlot = 0;
-            if (keyboard.wKey.wasPressedThisFrame) selectedTargetSlot = 1;
-            if (keyboard.aKey.wasPressedThisFrame)
+            if (Pressed(AstralCommand.SelectActiveOne)) UiSelectActiveSlot(0);
+            if (Pressed(AstralCommand.SelectActiveTwo)) UiSelectActiveSlot(1);
+            if (Pressed(AstralCommand.TargetOne)) UiSelectTargetSlot(0);
+            if (Pressed(AstralCommand.TargetTwo)) UiSelectTargetSlot(1);
+            if (Pressed(AstralCommand.Attack))
                 ResolvePlayerAction();
-            if (keyboard.fKey.wasPressedThisFrame)
+            if (Pressed(AstralCommand.ArcBurst))
                 ResolveArcBurst();
-            if (keyboard.gKey.wasPressedThisFrame)
+            if (Pressed(AstralCommand.Guard))
                 GuardSelectedActive();
-            if (keyboard.rKey.wasPressedThisFrame)
+            if (Pressed(AstralCommand.Replace))
                 ReplaceFaintedFromReserve();
-            if (keyboard.sKey.wasPressedThisFrame)
+            if (Pressed(AstralCommand.Swap))
                 SwitchToBench(false);
         }
+
+        private bool Pressed(AstralCommand command) => commandInput != null && commandInput.WasPressed(command);
 
         private void NewGame()
         {
@@ -502,7 +561,7 @@ namespace AstralWilds
             SetClearedEncounterZones(Array.Empty<string>());
             SetCollectedCurrencyPickups(Array.Empty<string>());
             SetCollectedItemPickups(Array.Empty<string>());
-            message = "New game: explore for the marked wild activity. B starts an encounter there; E activates the beacon.";
+            message = $"New game: explore for the marked wild activity. {Prompt(AstralCommand.Encounter)} starts an encounter there; {Prompt(AstralCommand.Interact)} activates the beacon.";
         }
 
         private void AddParty(string id, string displayName)
@@ -517,14 +576,16 @@ namespace AstralWilds
 
             if (!TryGetEncounterZoneAtPlayer(out AstralEncounterZone encounterZone))
             {
-                message = "No wild Astral activity here. Explore to the glowing encounter site, then press B.";
+                message = $"No wild Astral activity here. Explore to the glowing encounter site, then press {Prompt(AstralCommand.Encounter)}.";
+                PlayFeedback(AstralFeedbackCue.Denied);
                 return;
             }
 
             activeEncounterZone = encounterZone;
             flow = Flow.Encounter;
             string preview = encounterZone.PrimaryAstralName;
-            message = $"{encounterZone.DisplayName}: {preview} and a companion detected. Enter/B begins the 2v2 battle.";
+            message = $"{encounterZone.DisplayName}: {preview} and a companion detected. {Prompt(AstralCommand.Confirm)} begins the 2v2 battle.";
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
 
         private bool TryGetEncounterZoneAtPlayer(out AstralEncounterZone encounterZone)
@@ -560,13 +621,15 @@ namespace AstralWilds
 
             if (!TryGetVendorAtPlayer())
             {
-                message = "No supply relay in range. Find the cyan field terminal, then press V.";
+                message = $"No supply relay in range. Find the cyan field terminal, then press {Prompt(AstralCommand.Vendor)}.";
+                PlayFeedback(AstralFeedbackCue.Denied);
                 return;
             }
 
             flow = Flow.Vendor;
             message = $"{vendorStation.DisplayName}: 1 buys a Field Tonic for {AstralVendorService.FieldTonicPrice} Starshards; " +
                       $"2 sells one Salvaged Alloy for {AstralVendorService.SalvagedAlloySaleValue}.";
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
 
         private void BuyFieldTonic()
@@ -575,9 +638,15 @@ namespace AstralWilds
                 return;
 
             if (AstralVendorService.TryBuyFieldTonic(wallet, inventory))
+            {
                 message = $"Purchased one Field Tonic with earned Starshards. Balance: {wallet.Balance}.";
+                PlayFeedback(AstralFeedbackCue.Confirm);
+            }
             else
+            {
                 message = $"Trade declined. A Field Tonic costs {AstralVendorService.FieldTonicPrice} Starshards; no currency or items changed.";
+                PlayFeedback(AstralFeedbackCue.Denied);
+            }
         }
 
         private void SellSalvagedAlloy()
@@ -592,9 +661,13 @@ namespace AstralWilds
                 message = commissionCompleted
                     ? $"Commission complete. Sold the alloy and earned {AstralWayfarerCommission.CompletionReward} bonus Starshards. Balance: {wallet.Balance}."
                     : $"Sold one Salvaged Alloy for {AstralVendorService.SalvagedAlloySaleValue} Starshards. Balance: {wallet.Balance}.";
+                PlayFeedback(commissionCompleted ? AstralFeedbackCue.Reward : AstralFeedbackCue.Confirm);
             }
             else
+            {
                 message = "Trade declined. No Salvaged Alloy is available, or the wallet is full; no currency or items changed.";
+                PlayFeedback(AstralFeedbackCue.Denied);
+            }
         }
 
         private void LeaveVendor()
@@ -603,7 +676,8 @@ namespace AstralWilds
                 return;
 
             flow = Flow.Exploration;
-            message = "Left the supply relay. T uses a Field Tonic on the most injured conscious party member.";
+            message = $"Left the supply relay. {Prompt(AstralCommand.Tonic)} uses a Field Tonic on the most injured conscious party member.";
+            PlayFeedback(AstralFeedbackCue.Cancel);
         }
 
         private void UseFieldTonic()
@@ -617,12 +691,14 @@ namespace AstralWilds
                 message = FieldTonics == 0
                     ? "No Field Tonics available. Earn Starshards through play and visit the supply relay."
                     : "The party has no conscious injured Astral; no tonic was consumed.";
+                PlayFeedback(AstralFeedbackCue.Denied);
                 return;
             }
 
             int healed = Mathf.Min(12, target.maxHp - target.hp);
             target.hp += healed;
             message = $"{target.displayName} recovered {healed} HP using one Field Tonic.";
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
 
         private DemoMember FindTonicTarget()
@@ -724,7 +800,7 @@ namespace AstralWilds
             opponent[1] = new DemoMember { id = activeEncounterZone.CompanionAstralId, displayName = activeEncounterZone.CompanionAstralName };
             activeParty[0] = FindFirstEligibleParty(0);
             activeParty[1] = FindFirstEligibleParty(activeParty[0] + 1);
-            if (activeParty[0] < 0) { flow = Flow.Defeat; message = "No healthy Astrals. Enter to recover."; return; }
+            if (activeParty[0] < 0) { flow = Flow.Defeat; message = $"No healthy Astrals. {Prompt(AstralCommand.Confirm)} recovers."; return; }
             activeOpponent[0] = 0;
             activeOpponent[1] = 1;
             selectedActiveSlot = 0;
@@ -747,8 +823,11 @@ namespace AstralWilds
             }
             acted[0] = acted[1] = false;
             guarded[0] = guarded[1] = false;
-            message = "2v2 battle: 1/2 selects your active slot; Q/W target; A attacks; F bursts both opponents.";
-            message += $" {activeEncounterZone.TacticalBrief} G guards the selected slot.";
+            message = $"2v2 battle: {Prompt(AstralCommand.SelectActiveOne)}/{Prompt(AstralCommand.SelectActiveTwo)} selects your active slot; " +
+                      $"{Prompt(AstralCommand.TargetOne)}/{Prompt(AstralCommand.TargetTwo)} targets; {Prompt(AstralCommand.Attack)} attacks; " +
+                      $"{Prompt(AstralCommand.ArcBurst)} bursts both opponents. {activeEncounterZone.TacticalBrief} " +
+                      $"{Prompt(AstralCommand.Guard)} guards the selected slot.";
+            PlayFeedback(AstralFeedbackCue.Combat);
         }
 
         private void ResolvePlayerAction()
@@ -766,6 +845,7 @@ namespace AstralWilds
             acted[selectedActiveSlot] = true;
 
             DamageOpponent(selectedTargetSlot, AstralCombatRules.BasicAttackDamage);
+            PlayFeedback(AstralFeedbackCue.Combat);
             if (AllOpponentsDefeated())
             {
                 CompleteBattle(true);
@@ -807,6 +887,7 @@ namespace AstralWilds
             }
 
             message = $"{actor.displayName}'s Arc Burst dealt {AstralCombatRules.ArcBurstDamagePerTarget} damage to {targetsHit} opponent{(targetsHit == 1 ? "" : "s")}.";
+            PlayFeedback(AstralFeedbackCue.Combat);
             FinishRoundIfReady();
         }
 
@@ -842,6 +923,7 @@ namespace AstralWilds
             acted[selectedActiveSlot] = true;
             guarded[selectedActiveSlot] = true;
             message = $"{actor.displayName} guards its position against the next counterattack.";
+            PlayFeedback(AstralFeedbackCue.Guard);
             FinishRoundIfReady();
         }
 
@@ -857,7 +939,8 @@ namespace AstralWilds
             acted[0] = acted[1] = false;
             battle.ClearQueuedActions();
             if (AllPartyDefeated()) CompleteBattle(false);
-            else message = $"Round resolved: {roundResult} A attacks, F bursts both, G guards, S swaps.";
+            else message = $"Round resolved: {roundResult} {Prompt(AstralCommand.Attack)} attacks, {Prompt(AstralCommand.ArcBurst)} bursts both, " +
+                           $"{Prompt(AstralCommand.Guard)} guards, {Prompt(AstralCommand.Swap)} swaps.";
         }
 
         private string ResolveOpponentActions()
@@ -914,6 +997,7 @@ namespace AstralWilds
                 bool voluntary = !current.defeated;
                 activeParty[selectedActiveSlot] = i;
                 message = "Healthy bench Astral deployed. Party size unchanged.";
+                PlayFeedback(AstralFeedbackCue.Confirm);
                 if (voluntary) { acted[selectedActiveSlot] = true; FinishRoundIfReady(); }
                 return;
             }
@@ -927,7 +1011,7 @@ namespace AstralWilds
                 current.hp = 0;
             if (current != null)
                 current.defeated = true;
-            message = "Prototype test: selected active Astral fainted. R: replace from reserve.";
+            message = $"Prototype test: selected active Astral fainted. {Prompt(AstralCommand.Replace)} replaces from reserve.";
         }
 
         private void CompleteBattle(bool playerWon)
@@ -945,12 +1029,14 @@ namespace AstralWilds
                 activeEncounterZone?.SetCleared(true);
                 encountersCompleted++;
                 message = reward > 0
-                    ? $"Victory. Earned {reward} Starshards{(gainedAlloy ? " and 1 Salvaged Alloy" : "")}. R: recruit exactly one Astral reward."
-                    : $"Victory{(gainedAlloy ? ". Recovered 1 Salvaged Alloy" : "")}. R: recruit exactly one Astral reward.";
+                    ? $"Victory. Earned {reward} Starshards{(gainedAlloy ? " and 1 Salvaged Alloy" : "")}. {Prompt(AstralCommand.Replace)} recruits exactly one Astral reward."
+                    : $"Victory{(gainedAlloy ? ". Recovered 1 Salvaged Alloy" : "")}. {Prompt(AstralCommand.Replace)} recruits exactly one Astral reward.";
+                PlayFeedback(AstralFeedbackCue.Reward);
             }
             else
             {
-                message = "Defeat. Enter: return to exploration; no reward was granted.";
+                message = $"Defeat. {Prompt(AstralCommand.Confirm)} returns to exploration; no reward was granted.";
+                PlayFeedback(AstralFeedbackCue.Denied);
             }
         }
 
@@ -969,14 +1055,15 @@ namespace AstralWilds
             if (party.Count < AstralCampaignState.PartyCapacity)
             {
                 party.Add(reward);
-                message = "Astral recruited to party. P: party management, Enter: exploration.";
+                message = $"Astral recruited to party. {Prompt(AstralCommand.Party)} manages the party; {Prompt(AstralCommand.Confirm)} returns to exploration.";
             }
             else
             {
                 reserve.Add(reward);
-                message = "Party full: Astral safely stored in reserve. P: party management, Enter: exploration.";
+                message = $"Party full: Astral safely stored in reserve. {Prompt(AstralCommand.Party)} manages the party; {Prompt(AstralCommand.Confirm)} returns to exploration.";
             }
             flow = Flow.PartyManagement;
+            PlayFeedback(AstralFeedbackCue.Reward);
         }
 
         private void ReorderParty()
@@ -989,7 +1076,8 @@ namespace AstralWilds
                 activeParty[0] = 0;
                 activeParty[1] = Mathf.Min(1, party.Count - 1);
             }
-            message = "Party reordered; the next encounter uses the current active pair. Enter: exploration.";
+            message = $"Party reordered; the next encounter uses the current active pair. {Prompt(AstralCommand.Confirm)} returns to exploration.";
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
 
         private void ReturnToExploration()
@@ -1000,10 +1088,11 @@ namespace AstralWilds
                 message = "Party recovered. Return to the wild activity site for another encounter.";
             }
             else
-            message = "Returned to exploration. Visit the wild activity site for another encounter; E: beacon; K: save.";
+            message = $"Returned to exploration. Visit the wild activity site for another encounter; {Prompt(AstralCommand.Interact)} activates the beacon; {Prompt(AstralCommand.Save)} saves.";
             flow = Flow.Exploration;
             battle = null;
             activeEncounterZone = null;
+            PlayFeedback(AstralFeedbackCue.Confirm);
         }
 
         private void EnterVictory()
@@ -1021,6 +1110,7 @@ namespace AstralWilds
                 ? $"Expedition and Wayfarer Commission complete. Earned {AstralWayfarerCommission.CompletionReward} bonus Starshards."
                 : "Expedition complete. Wayfarer Commission available: sell two Salvaged Alloy at the relay.";
             ApplyInputGate();
+            PlayFeedback(commissionCompleted ? AstralFeedbackCue.Reward : AstralFeedbackCue.Confirm);
         }
 
         private bool TryCompleteWayfarerCommission()
@@ -1058,6 +1148,7 @@ namespace AstralWilds
                 else File.Move(temp, path);
                 hasSaveGame = true;
                 message = "Game saved.";
+                PlayFeedback(AstralFeedbackCue.Confirm);
             }
             catch (Exception exception)
             {
@@ -1108,6 +1199,7 @@ namespace AstralWilds
                 if (beacon != null) beacon.RestoreProgress(beaconActivated);
                 message = "Checkpoint loaded. Explore to the wild activity site to begin an encounter.";
                 hasSaveGame = true;
+                PlayFeedback(AstralFeedbackCue.Confirm);
                 return true;
             }
             catch (Exception exception)

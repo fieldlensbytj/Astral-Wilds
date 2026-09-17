@@ -1,5 +1,17 @@
 # Astral Wilds Verification
 
+## 2026-09-17 input, controller prompts, and feedback-audio milestone
+
+- Replaced all raw gameplay `Keyboard.current` polling in `AstralDemoLoopController` with one controller-owned Input System command map. Keyboard and gamepad now reach the same authoritative commands in title, settings, exploration, vendor, battle, recruitment, party, Victory, and restart-confirm flows.
+- HUD action labels derive from the active device's effective bindings. The last active keyboard/gamepad device changes prompts without changing gameplay state.
+- Settings exposes persistent keyboard rebinding for Encounter, Attack, Arc Burst, and Guard. Overrides use a stable validated command/path DTO, reject invalid or duplicate keys, support Escape cancellation, and can be reset to defaults.
+- Added one reusable non-spatial `AstralFeedbackAudio` source and seven procedural cues cached at initialization. Shell actions, pickups, trade results, combat, Guard, saves, and rewards reuse those clips without per-trigger clip allocation or external assets.
+- Audio inventory found 0 AudioMixer assets and 0 pre-existing AudioSources. The runtime feedback source therefore routes to Unity's Master output and respects the existing `AudioListener.volume`; no unsupported reflection or hand-authored mixer YAML was used.
+- Full EditMode assembly: 59 passed, 0 failed, 0 skipped. New coverage includes keyboard/gamepad prompt availability, validated override roundtrip, conflict rejection, invalid-path rejection, and idempotent one-source audio setup.
+- Play Mode verified: frozen Title at `Time.timeScale = 0`; one configured AudioSource with seven cached cues; settings-confirm audio playing while time remained frozen; gamepad prompts `Confirm=A`, `Attack=RT`, `Guard=B`, `Arc Burst=X`; interactive Attack rebind `A -> Z`; reset back to `A`; scene clean on exit; `AudioListener.volume = 1`; 0 Console errors.
+- Fresh Windows x64 release build (`BuildOptions.None`): succeeded, Development false, 157,147,369 bytes, 0 errors. The only build warning was the known optional Pipeline runtime-config warning. Mono.Cecil confirmed `AstralCommandInput` and `AstralFeedbackAudio` are present in `AstralWilds.Runtime.dll` and `OnGUI` remains absent.
+- No real-money, premium-currency, advertising, or paid-provider path was added. No provider credits were spent.
+
 ## 2026-09-17 earned-currency milestone
 
 - Added an earned-only currency named Starshards. `AstralWallet` supports gameplay rewards, affordable positive spending, item-sale proceeds, restore/reset, and overflow rejection; it contains no payment or premium-currency concepts.

@@ -50,7 +50,8 @@
 | Pattern | Finding | Confidence | Evidence |
 | --- | --- | --- | --- |
 | Runtime components | MonoBehaviour composition is the current approach | Likely | no first-party gameplay architecture existed before this feature |
-| Input | Serialized InputActionAsset references with named action lookup | Confirmed | `Assets/InputSystem_Actions.inputactions`, new player/camera scripts |
+| Input | Serialized movement/camera action maps plus a controller-owned runtime command map with persistent overrides | Confirmed | `Assets/InputSystem_Actions.inputactions`, `AstralCommandInput.cs`, player/camera scripts |
+| Audio | One cached procedural 2D feedback source; no AudioMixer asset currently exists | Confirmed | `AstralFeedbackAudio.cs`, live mixer/source inventory |
 | Objective flow | Component-owned runtime state with a separate uGUI presenter | Confirmed | `CrashedBeaconObjective.cs`, `BeaconObjectiveUI.cs` |
 | Networking | No networking package or code identified | Confirmed | package and asset inspection |
 

@@ -9,8 +9,8 @@ namespace AstralWilds
     /// <summary>
     /// Real (clickable) battle + party interface, built entirely in code so it needs
     /// no scene/prefab editing. Reads AstralDemoLoopController's public Ui* state and
-    /// drives it through its public Ui* action methods; the keyboard shortcuts on
-    /// AstralDemoLoopController itself keep working unchanged alongside this.
+    /// drives it through its public Ui* action methods. Labels come from the same
+    /// authoritative command bindings used by keyboard and gamepad input.
     /// </summary>
     [DefaultExecutionOrder(-50)]
     public sealed class AstralBattleHUD : MonoBehaviour
@@ -131,7 +131,8 @@ namespace AstralWilds
             else
             {
                 shellTitle.text = "SETTINGS";
-                shellBody.text = $"Master Volume    {controller.MasterVolumePercent}%\nLook Sensitivity    {controller.LookSensitivityPercent}%\n\nChanges are stored automatically on this device.";
+                shellBody.text = $"Master Volume    {controller.MasterVolumePercent}%\nLook Sensitivity    {controller.LookSensitivityPercent}%\n" +
+                                 $"Prompts    {controller.InputDeviceLabel}\n\n{controller.RebindStatus}\nChanges are stored automatically on this device.";
             }
         }
 
@@ -177,7 +178,8 @@ namespace AstralWilds
             string key = controller.CurrentState + "|" + controller.IsRestartPending + "|" + controller.CanBeginEncounter +
                          "|" + controller.CanUseVendor + "|" + controller.CanUseFieldTonic + "|" + controller.Starshards +
                          "|" + controller.SalvagedAlloy + "|" + controller.FieldTonics + "|" + controller.HasSaveGame +
-                         "|" + controller.MasterVolumePercent + "|" + controller.LookSensitivityPercent;
+                         "|" + controller.MasterVolumePercent + "|" + controller.LookSensitivityPercent +
+                         "|" + controller.InputPresentationVersion + "|" + controller.IsRebinding;
             if (key == lastLayoutKey) return;
             lastLayoutKey = key;
 
@@ -190,25 +192,36 @@ namespace AstralWilds
 
             if (controller.IsTitleScreen)
             {
-                AddButton(actionBar, "New Expedition (Enter)", controller.UiStartNewExpedition);
-                AddButton(actionBar, "Continue (L)", controller.UiContinueGame, controller.HasSaveGame);
-                AddButton(actionBar, "Settings (O)", controller.UiOpenSettings);
+                AddButton(actionBar, $"New Expedition ({controller.Prompt(AstralCommand.Confirm)})", controller.UiStartNewExpedition);
+                AddButton(actionBar, $"Continue ({controller.Prompt(AstralCommand.Load)})", controller.UiContinueGame, controller.HasSaveGame);
+                AddButton(actionBar, $"Settings ({controller.Prompt(AstralCommand.OpenSettings)})", controller.UiOpenSettings);
                 FocusFirstActionButton();
                 return;
             }
             if (controller.IsSettings)
             {
+                if (controller.IsRebinding)
+                {
+                    AddButton(actionBar, "Cancel Rebind (Escape)", controller.UiCancelRebind);
+                    FocusFirstActionButton();
+                    return;
+                }
                 AddButton(actionBar, $"Master Volume: {controller.MasterVolumePercent}%", controller.UiCycleMasterVolume);
                 AddButton(actionBar, $"Look Sensitivity: {controller.LookSensitivityPercent}%", controller.UiCycleLookSensitivity);
-                AddButton(actionBar, "Back (Esc)", controller.UiCloseSettings);
+                AddButton(actionBar, $"Rebind Encounter: {controller.Prompt(AstralCommand.Encounter)}", () => controller.UiBeginRebind(AstralCommand.Encounter));
+                AddButton(actionBar, $"Rebind Attack: {controller.Prompt(AstralCommand.Attack)}", () => controller.UiBeginRebind(AstralCommand.Attack));
+                AddButton(actionBar, $"Rebind Arc Burst: {controller.Prompt(AstralCommand.ArcBurst)}", () => controller.UiBeginRebind(AstralCommand.ArcBurst));
+                AddButton(actionBar, $"Rebind Guard: {controller.Prompt(AstralCommand.Guard)}", () => controller.UiBeginRebind(AstralCommand.Guard));
+                AddButton(actionBar, "Reset Keyboard Bindings", controller.UiResetBindings);
+                AddButton(actionBar, $"Back ({controller.Prompt(AstralCommand.Cancel)})", controller.UiCloseSettings);
                 FocusFirstActionButton();
                 return;
             }
             if (controller.IsPaused)
             {
-                AddButton(actionBar, "Resume (Esc)", controller.UiResume);
+                AddButton(actionBar, $"Resume ({controller.Prompt(AstralCommand.Cancel)})", controller.UiResume);
                 AddButton(actionBar, "Save Checkpoint", controller.UiSave, controller.CanSaveNow);
-                AddButton(actionBar, "Settings (O)", controller.UiOpenSettings);
+                AddButton(actionBar, $"Settings ({controller.Prompt(AstralCommand.OpenSettings)})", controller.UiOpenSettings);
                 AddButton(actionBar, "Return to Title", controller.UiReturnToTitle);
                 FocusFirstActionButton();
                 return;
@@ -216,8 +229,8 @@ namespace AstralWilds
 
             if (controller.IsRestartPending)
             {
-                AddButton(actionBar, "Confirm Restart (Enter)", controller.UiConfirmRestart);
-                AddButton(actionBar, "Cancel (Esc)", controller.UiCancelRestart);
+                AddButton(actionBar, $"Confirm Restart ({controller.Prompt(AstralCommand.Confirm)})", controller.UiConfirmRestart);
+                AddButton(actionBar, $"Cancel ({controller.Prompt(AstralCommand.Cancel)})", controller.UiCancelRestart);
                 FocusFirstActionButton();
                 return;
             }
@@ -225,53 +238,53 @@ namespace AstralWilds
             if (controller.IsExploration)
             {
                 AddButton(actionBar, controller.EncounterActionLabel, controller.UiBeginEncounter, controller.CanBeginEncounter);
-                AddButton(actionBar, "Supply Relay (V)", controller.UiOpenVendor, controller.CanUseVendor);
-                AddButton(actionBar, "Use Field Tonic (T)", controller.UiUseFieldTonic, controller.CanUseFieldTonic);
-                AddButton(actionBar, "Party (P)", controller.UiOpenPartyManagement);
-                AddButton(actionBar, "Save (K)", controller.UiSave);
-                AddButton(actionBar, "Load (L)", controller.UiLoad);
-                AddButton(actionBar, "Restart (N)", controller.UiRequestRestart);
+                AddButton(actionBar, $"Supply Relay ({controller.Prompt(AstralCommand.Vendor)})", controller.UiOpenVendor, controller.CanUseVendor);
+                AddButton(actionBar, $"Use Field Tonic ({controller.Prompt(AstralCommand.Tonic)})", controller.UiUseFieldTonic, controller.CanUseFieldTonic);
+                AddButton(actionBar, $"Party ({controller.Prompt(AstralCommand.Party)})", controller.UiOpenPartyManagement);
+                AddButton(actionBar, $"Save ({controller.Prompt(AstralCommand.Save)})", controller.UiSave);
+                AddButton(actionBar, $"Load ({controller.Prompt(AstralCommand.Load)})", controller.UiLoad);
+                AddButton(actionBar, $"Restart ({controller.Prompt(AstralCommand.Restart)})", controller.UiRequestRestart);
             }
             else if (controller.IsEncounter)
             {
-                AddButton(actionBar, "Begin Battle (Enter)", controller.UiBeginBattle);
+                AddButton(actionBar, $"Begin Battle ({controller.Prompt(AstralCommand.Confirm)})", controller.UiBeginBattle);
             }
             else if (controller.InBattle)
             {
-                AddButton(actionBar, "Attack (A)", controller.UiAttack);
-                AddButton(actionBar, "Arc Burst (F)", controller.UiArcBurst);
-                AddButton(actionBar, "Guard (G)", controller.UiGuard);
-                AddButton(actionBar, "Replace Fainted (R)", controller.UiReplaceFainted);
-                AddButton(actionBar, "Swap (S)", controller.UiSwapBench);
+                AddButton(actionBar, $"Attack ({controller.Prompt(AstralCommand.Attack)})", controller.UiAttack);
+                AddButton(actionBar, $"Arc Burst ({controller.Prompt(AstralCommand.ArcBurst)})", controller.UiArcBurst);
+                AddButton(actionBar, $"Guard ({controller.Prompt(AstralCommand.Guard)})", controller.UiGuard);
+                AddButton(actionBar, $"Replace Fainted ({controller.Prompt(AstralCommand.Replace)})", controller.UiReplaceFainted);
+                AddButton(actionBar, $"Swap ({controller.Prompt(AstralCommand.Swap)})", controller.UiSwapBench);
             }
             else if (controller.IsRecruitment)
             {
-                AddButton(actionBar, "Recruit (R)", controller.UiRecruit);
+                AddButton(actionBar, $"Recruit ({controller.Prompt(AstralCommand.Replace)})", controller.UiRecruit);
             }
             else if (controller.IsPartyManagement)
             {
-                AddButton(actionBar, "Reorder (P)", controller.UiReorderParty);
-                AddButton(actionBar, "Exploration (Enter)", controller.UiReturnToExploration);
+                AddButton(actionBar, $"Reorder ({controller.Prompt(AstralCommand.Party)})", controller.UiReorderParty);
+                AddButton(actionBar, $"Exploration ({controller.Prompt(AstralCommand.Confirm)})", controller.UiReturnToExploration);
             }
             else if (controller.IsVendor)
             {
-                AddButton(actionBar, $"Buy Field Tonic ({AstralVendorService.FieldTonicPrice})", controller.UiBuyFieldTonic,
+                AddButton(actionBar, $"Buy Field Tonic [{controller.Prompt(AstralCommand.SelectActiveOne)}] ({AstralVendorService.FieldTonicPrice})", controller.UiBuyFieldTonic,
                     controller.Starshards >= AstralVendorService.FieldTonicPrice);
-                AddButton(actionBar, $"Sell Salvaged Alloy (+{AstralVendorService.SalvagedAlloySaleValue})", controller.UiSellSalvagedAlloy,
+                AddButton(actionBar, $"Sell Alloy [{controller.Prompt(AstralCommand.SelectActiveTwo)}] (+{AstralVendorService.SalvagedAlloySaleValue})", controller.UiSellSalvagedAlloy,
                     controller.SalvagedAlloy > 0);
-                AddButton(actionBar, "Leave Relay (Enter)", controller.UiLeaveVendor);
+                AddButton(actionBar, $"Leave Relay ({controller.Prompt(AstralCommand.Confirm)})", controller.UiLeaveVendor);
             }
             else if (controller.IsDefeat)
             {
-                AddButton(actionBar, "Recover (Enter)", controller.UiConfirmDefeatRecovery);
+                AddButton(actionBar, $"Recover ({controller.Prompt(AstralCommand.Confirm)})", controller.UiConfirmDefeatRecovery);
             }
             else if (controller.IsVictory)
             {
-                AddButton(actionBar, "Continue Exploring (Enter)", controller.UiContinueAfterVictory);
-                AddButton(actionBar, "Save Completion (K)", controller.UiSave);
-                AddButton(actionBar, "New Expedition (N)", controller.UiRequestRestart);
+                AddButton(actionBar, $"Continue Exploring ({controller.Prompt(AstralCommand.Confirm)})", controller.UiContinueAfterVictory);
+                AddButton(actionBar, $"Save Completion ({controller.Prompt(AstralCommand.Save)})", controller.UiSave);
+                AddButton(actionBar, $"New Expedition ({controller.Prompt(AstralCommand.Restart)})", controller.UiRequestRestart);
             }
-            AddButton(actionBar, "Pause (Esc)", controller.UiPause);
+            AddButton(actionBar, $"Pause ({controller.Prompt(AstralCommand.Cancel)})", controller.UiPause);
             FocusFirstActionButton();
         }
 
