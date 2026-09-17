@@ -8,21 +8,16 @@ namespace AstralWilds
     /// <summary>
     /// Minimal playable prototype loop for the demo scene. The combat rules are
     /// intentionally simple and editable; this is not the final combat model.
+    /// Battle-round mechanics (queuing actions, applying damage, resolving
+    /// counterattacks) live in <see cref="AstralBattleEngine"/> so they are
+    /// unit-testable without a live scene; this controller owns shell/flow state,
+    /// messages, save data, and economy/progression side effects.
     /// </summary>
     [DefaultExecutionOrder(-100)]
     public sealed class AstralDemoLoopController : MonoBehaviour
     {
         private enum Flow { Exploration, Encounter, Battle, Recruitment, PartyManagement, Vendor, Victory, Defeat }
         private enum ShellState { Gameplay, Title, Paused, SettingsFromTitle, SettingsFromPause }
-
-        [Serializable] private sealed class DemoMember
-        {
-            public string id;
-            public string displayName;
-            public int hp = 30;
-            public int maxHp = 30;
-            public bool defeated;
-        }
 
         [Serializable] private sealed class SaveData
         {
@@ -36,8 +31,8 @@ namespace AstralWilds
             public AstralEconomySaveData economy;
             public int alloySold;
             public bool wayfarerCommissionComplete;
-            public List<DemoMember> party = new List<DemoMember>();
-            public List<DemoMember> reserve = new List<DemoMember>();
+            public List<AstralDemoMember> party = new List<AstralDemoMember>();
+            public List<AstralDemoMember> reserve = new List<AstralDemoMember>();
             public List<string> clearedEncounterZoneIds = new List<string>();
             public List<string> collectedCurrencyPickupIds = new List<string>();
             public List<string> collectedItemPickupIds = new List<string>();
@@ -45,11 +40,9 @@ namespace AstralWilds
 
         private const string SaveFileName = "astralwilds-demo-save-v1.json";
         private static readonly string[] DirectionNames = { "north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest" };
-        private readonly List<DemoMember> party = new List<DemoMember>();
-        private readonly List<DemoMember> reserve = new List<DemoMember>();
-        private readonly DemoMember[] opponent = new DemoMember[2];
+        private readonly List<AstralDemoMember> party = new List<AstralDemoMember>();
+        private readonly List<AstralDemoMember> reserve = new List<AstralDemoMember>();
         private readonly int[] activeParty = { 0, 1 };
-        private readonly int[] activeOpponent = { 0, 1 };
         private Flow flow = Flow.Exploration;
         private ShellState shellState = ShellState.Gameplay;
         private int selectedActiveSlot;
@@ -58,9 +51,7 @@ namespace AstralWilds
         private bool beaconActivated;
         private bool restartPending;
         private bool victoryAcknowledged;
-        private AstralBattleState battle;
-        private readonly bool[] acted = new bool[2];
-        private readonly bool[] guarded = new bool[2];
+        private AstralBattleEngine battleEngine;
         private readonly AstralWallet wallet = new AstralWallet();
         private readonly AstralInventory inventory = new AstralInventory();
         private readonly AstralWayfarerCommission wayfarerCommission = new AstralWayfarerCommission();
@@ -169,14 +160,14 @@ namespace AstralWilds
         public List<AstralUiInfo> GetOpponentUiInfo()
         {
             var list = new List<AstralUiInfo>(2);
-            if (flow != Flow.Battle || opponent[0] == null)
+            if (flow != Flow.Battle || battleEngine == null)
                 return list;
-            for (int i = 0; i < opponent.Length; i++)
-                list.Add(ToUiInfo(opponent[i], true, i));
+            for (int i = 0; i < 2; i++)
+                list.Add(ToUiInfo(battleEngine.GetOpponent(i), true, i));
             return list;
         }
 
-        private static AstralUiInfo ToUiInfo(DemoMember member, bool isActive, int activeSlot)
+        private static AstralUiInfo ToUiInfo(AstralDemoMember member, bool isActive, int activeSlot)
         {
             return new AstralUiInfo
             {
@@ -553,10 +544,7 @@ namespace AstralWilds
             collectedItemPickupIds.Clear();
             activeParty[0] = 0;
             activeParty[1] = 1;
-            opponent[0] = opponent[1] = null;
-            acted[0] = acted[1] = false;
-            guarded[0] = guarded[1] = false;
-            battle = null;
+            battleEngine = null;
             activeEncounterZone = null;
             SetClearedEncounterZones(Array.Empty<string>());
             SetCollectedCurrencyPickups(Array.Empty<string>());
@@ -566,7 +554,7 @@ namespace AstralWilds
 
         private void AddParty(string id, string displayName)
         {
-            party.Add(new DemoMember { id = id, displayName = displayName });
+            party.Add(new AstralDemoMember { id = id, displayName = displayName });
         }
 
         private void TryBeginEncounter()
@@ -685,7 +673,7 @@ namespace AstralWilds
             if (flow != Flow.Exploration)
                 return;
 
-            DemoMember target = FindTonicTarget();
+            AstralDemoMember target = FindTonicTarget();
             if (target == null || !inventory.TryRemove(AstralItemId.FieldTonic, 1))
             {
                 message = FieldTonics == 0
@@ -701,13 +689,13 @@ namespace AstralWilds
             PlayFeedback(AstralFeedbackCue.Confirm);
         }
 
-        private DemoMember FindTonicTarget()
+        private AstralDemoMember FindTonicTarget()
         {
-            DemoMember best = null;
+            AstralDemoMember best = null;
             int mostMissingHp = 0;
             for (int i = 0; i < party.Count; i++)
             {
-                DemoMember candidate = party[i];
+                AstralDemoMember candidate = party[i];
                 int missingHp = candidate.maxHp - candidate.hp;
                 if (candidate.defeated || missingHp <= mostMissingHp)
                     continue;
@@ -796,33 +784,17 @@ namespace AstralWilds
                 return;
             }
 
-            opponent[0] = new DemoMember { id = activeEncounterZone.PrimaryAstralId, displayName = activeEncounterZone.PrimaryAstralName };
-            opponent[1] = new DemoMember { id = activeEncounterZone.CompanionAstralId, displayName = activeEncounterZone.CompanionAstralName };
-            activeParty[0] = FindFirstEligibleParty(0);
-            activeParty[1] = FindFirstEligibleParty(activeParty[0] + 1);
+            activeParty[0] = AstralBattleEngine.FindFirstEligibleParty(party, 0);
+            activeParty[1] = AstralBattleEngine.FindFirstEligibleParty(party, activeParty[0] + 1);
             if (activeParty[0] < 0) { flow = Flow.Defeat; message = $"No healthy Astrals. {Prompt(AstralCommand.Confirm)} recovers."; return; }
-            activeOpponent[0] = 0;
-            activeOpponent[1] = 1;
             selectedActiveSlot = 0;
             selectedTargetSlot = 0;
             flow = Flow.Battle;
-            var playerParty = new AstralParty(AstralParty.PlayerCapacity);
-            foreach (var member in party)
-            {
-                var combatant = new AstralCombatant(member.id, member.displayName);
-                if (member.defeated) combatant.MarkDefeated();
-                playerParty.TryAdd(combatant);
-            }
-            var enemyParty = new AstralParty(AstralParty.OpponentCapacity);
-            foreach (var member in opponent) enemyParty.TryAdd(new AstralCombatant(member.id, member.displayName));
-            battle = new AstralBattleState(playerParty, enemyParty);
-            for (int slot = 0; slot < 2; slot++)
-            {
-                battle.TryActivate(BattleSide.Player, activeParty[slot], slot);
-                battle.TryActivate(BattleSide.Opponent, slot, slot);
-            }
-            acted[0] = acted[1] = false;
-            guarded[0] = guarded[1] = false;
+            battleEngine = new AstralBattleEngine(
+                party, activeParty,
+                activeEncounterZone.PrimaryAstralId, activeEncounterZone.PrimaryAstralName,
+                activeEncounterZone.CompanionAstralId, activeEncounterZone.CompanionAstralName,
+                activeEncounterZone.OpponentDamage);
             message = $"2v2 battle: {Prompt(AstralCommand.SelectActiveOne)}/{Prompt(AstralCommand.SelectActiveTwo)} selects your active slot; " +
                       $"{Prompt(AstralCommand.TargetOne)}/{Prompt(AstralCommand.TargetTwo)} targets; {Prompt(AstralCommand.Attack)} attacks; " +
                       $"{Prompt(AstralCommand.ArcBurst)} bursts both opponents. {activeEncounterZone.TacticalBrief} " +
@@ -832,21 +804,23 @@ namespace AstralWilds
 
         private void ResolvePlayerAction()
         {
-            DemoMember actor = GetActiveParty(selectedActiveSlot);
-            DemoMember target = opponent[selectedTargetSlot];
-            if (flow != Flow.Battle || actor == null || actor.defeated || target == null || target.defeated)
+            if (flow != Flow.Battle || battleEngine == null)
+                return;
+
+            var outcome = battleEngine.QueueAttack(selectedActiveSlot, selectedTargetSlot, out _);
+            if (outcome == AstralBattleEngine.ActionOutcome.Invalid)
             {
                 message = "Invalid action: choose an eligible active Astral and a living target.";
                 return;
             }
-            if (acted[selectedActiveSlot] || !battle.TryQueueAction(BattleSide.Player, selectedActiveSlot,
-                new QueuedAstralAction("attack", TargetScope.OneEnemy, selectedTargetSlot)))
-            { message = "That Astral already acted this round. Choose the other active slot."; return; }
-            acted[selectedActiveSlot] = true;
+            if (outcome == AstralBattleEngine.ActionOutcome.SlotAlreadyActed)
+            {
+                message = "That Astral already acted this round. Choose the other active slot.";
+                return;
+            }
 
-            DamageOpponent(selectedTargetSlot, AstralCombatRules.BasicAttackDamage);
             PlayFeedback(AstralFeedbackCue.Combat);
-            if (AllOpponentsDefeated())
+            if (battleEngine.AllOpponentsDefeated())
             {
                 CompleteBattle(true);
                 return;
@@ -857,71 +831,51 @@ namespace AstralWilds
 
         private void ResolveArcBurst()
         {
-            DemoMember actor = GetActiveParty(selectedActiveSlot);
-            if (flow != Flow.Battle || actor == null || actor.defeated)
+            if (flow != Flow.Battle || battleEngine == null)
+                return;
+
+            var outcome = battleEngine.QueueArcBurst(selectedActiveSlot, out int targetsHit);
+            if (outcome == AstralBattleEngine.ActionOutcome.Invalid)
             {
                 message = "Invalid Arc Burst: choose a conscious active Astral.";
                 return;
             }
-            if (acted[selectedActiveSlot] || !battle.TryQueueAction(BattleSide.Player, selectedActiveSlot,
-                new QueuedAstralAction("arc-burst", TargetScope.BothEnemies)))
+            if (outcome == AstralBattleEngine.ActionOutcome.SlotAlreadyActed)
             {
                 message = "That Astral already acted this round. Choose the other active slot.";
                 return;
             }
 
-            acted[selectedActiveSlot] = true;
-            int targetsHit = 0;
-            for (int slot = 0; slot < opponent.Length; slot++)
-            {
-                if (opponent[slot] == null || opponent[slot].defeated)
-                    continue;
-                DamageOpponent(slot, AstralCombatRules.ArcBurstDamagePerTarget);
-                targetsHit++;
-            }
-
-            if (AllOpponentsDefeated())
+            if (battleEngine.AllOpponentsDefeated())
             {
                 CompleteBattle(true);
                 return;
             }
 
+            AstralDemoMember actor = battleEngine.GetActiveParty(selectedActiveSlot);
             message = $"{actor.displayName}'s Arc Burst dealt {AstralCombatRules.ArcBurstDamagePerTarget} damage to {targetsHit} opponent{(targetsHit == 1 ? "" : "s")}.";
             PlayFeedback(AstralFeedbackCue.Combat);
             FinishRoundIfReady();
         }
 
-        private void DamageOpponent(int slot, int damage)
-        {
-            DemoMember target = opponent[slot];
-            if (target == null || target.defeated || damage <= 0)
-                return;
-
-            target.hp = Mathf.Max(0, target.hp - damage);
-            if (target.hp == 0)
-            {
-                target.defeated = true;
-                battle.OpponentParty.Astrals[slot].MarkDefeated();
-            }
-        }
-
         private void GuardSelectedActive()
         {
-            DemoMember actor = GetActiveParty(selectedActiveSlot);
-            if (flow != Flow.Battle || actor == null || actor.defeated)
+            if (flow != Flow.Battle || battleEngine == null)
+                return;
+
+            var outcome = battleEngine.QueueGuard(selectedActiveSlot);
+            if (outcome == AstralBattleEngine.ActionOutcome.Invalid)
             {
                 message = "Invalid guard: choose a conscious active Astral.";
                 return;
             }
-            if (acted[selectedActiveSlot] || !battle.TryQueueAction(BattleSide.Player, selectedActiveSlot,
-                new QueuedAstralAction("guard", TargetScope.Self, selectedActiveSlot)))
+            if (outcome == AstralBattleEngine.ActionOutcome.SlotAlreadyActed)
             {
                 message = "That Astral already acted this round. Choose the other active slot.";
                 return;
             }
 
-            acted[selectedActiveSlot] = true;
-            guarded[selectedActiveSlot] = true;
+            AstralDemoMember actor = battleEngine.GetActiveParty(selectedActiveSlot);
             message = $"{actor.displayName} guards its position against the next counterattack.";
             PlayFeedback(AstralFeedbackCue.Guard);
             FinishRoundIfReady();
@@ -929,48 +883,23 @@ namespace AstralWilds
 
         private void FinishRoundIfReady()
         {
+            if (battleEngine == null)
+                return;
+
             for (int slot = 0; slot < 2; slot++)
             {
-                var member = GetActiveParty(slot);
-                if (member != null && !member.defeated && !acted[slot])
+                var member = battleEngine.GetActiveParty(slot);
+                if (member != null && !member.defeated && !battleEngine.HasActed(slot))
                 { selectedActiveSlot = slot; message = "Choose an action for the remaining active Astral."; return; }
             }
-            string roundResult = ResolveOpponentActions();
-            acted[0] = acted[1] = false;
-            battle.ClearQueuedActions();
-            if (AllPartyDefeated()) CompleteBattle(false);
-            else message = $"Round resolved: {roundResult} {Prompt(AstralCommand.Attack)} attacks, {Prompt(AstralCommand.ArcBurst)} bursts both, " +
-                           $"{Prompt(AstralCommand.Guard)} guards, {Prompt(AstralCommand.Swap)} swaps.";
-        }
 
-        private string ResolveOpponentActions()
-        {
-            var results = new List<string>(2);
-            for (int i = 0; i < activeOpponent.Length; i++)
-            {
-                DemoMember enemy = opponent[activeOpponent[i]];
-                int targetSlot = i % 2;
-                DemoMember target = GetActiveParty(targetSlot);
-                if (target == null || target.defeated)
-                {
-                    targetSlot = (i + 1) % 2;
-                    target = GetActiveParty(targetSlot);
-                }
-                if (enemy == null || enemy.defeated || target == null || target.defeated)
-                    continue;
-                int baseDamage = activeEncounterZone != null ? activeEncounterZone.OpponentDamage : 6;
-                bool wasGuarded = guarded[targetSlot];
-                int damage = AstralCombatRules.ResolveIncomingDamage(baseDamage, wasGuarded);
-                target.hp = Mathf.Max(0, target.hp - damage);
-                if (target.hp == 0)
-                {
-                    target.defeated = true;
-                    battle.PlayerParty.Astrals[party.IndexOf(target)].MarkDefeated();
-                }
-                results.Add($"{target.displayName}{(wasGuarded ? " guarded and" : "")} took {damage}{(target.defeated ? " and fainted" : "")}");
-            }
-            guarded[0] = guarded[1] = false;
-            return results.Count == 0 ? "no counterattacks landed." : string.Join("; ", results) + ".";
+            var result = battleEngine.TryFinishRound();
+            if (!result.Resolved)
+                return;
+
+            if (result.PlayerDefeat) CompleteBattle(false);
+            else message = $"Round resolved: {result.Summary} {Prompt(AstralCommand.Attack)} attacks, {Prompt(AstralCommand.ArcBurst)} bursts both, " +
+                           $"{Prompt(AstralCommand.Guard)} guards, {Prompt(AstralCommand.Swap)} swaps.";
         }
 
         private void ReplaceFaintedFromReserve()
@@ -980,25 +909,25 @@ namespace AstralWilds
 
         private void SwitchToBench(bool requireFainted)
         {
-            if (flow != Flow.Battle) return;
-            DemoMember current = GetActiveParty(selectedActiveSlot);
+            if (flow != Flow.Battle || battleEngine == null) return;
+            AstralDemoMember current = battleEngine.GetActiveParty(selectedActiveSlot);
             if (current == null || (requireFainted && !current.defeated))
             {
                 message = "Replacement is available only for a fainted active slot.";
                 return;
             }
-            if (!current.defeated && acted[selectedActiveSlot])
+            if (!current.defeated && battleEngine.HasActed(selectedActiveSlot))
             { message = "This slot already acted this round."; return; }
             for (int i = 0; i < party.Count; i++)
             {
                 if (party[i].defeated || i == activeParty[0] || i == activeParty[1])
                     continue;
-                if (!battle.TrySwitch(BattleSide.Player, selectedActiveSlot, i)) continue;
+                if (!battleEngine.Battle.TrySwitch(BattleSide.Player, selectedActiveSlot, i)) continue;
                 bool voluntary = !current.defeated;
                 activeParty[selectedActiveSlot] = i;
                 message = "Healthy bench Astral deployed. Party size unchanged.";
                 PlayFeedback(AstralFeedbackCue.Confirm);
-                if (voluntary) { acted[selectedActiveSlot] = true; FinishRoundIfReady(); }
+                if (voluntary) { battleEngine.MarkActed(selectedActiveSlot); FinishRoundIfReady(); }
                 return;
             }
             message = "No healthy inactive party members remain. Storage is unavailable in battle.";
@@ -1006,7 +935,7 @@ namespace AstralWilds
 
         private void ForceSelectedFaintForPrototypeTesting()
         {
-            DemoMember current = GetActiveParty(selectedActiveSlot);
+            AstralDemoMember current = battleEngine?.GetActiveParty(selectedActiveSlot);
             if (current != null)
                 current.hp = 0;
             if (current != null)
@@ -1018,7 +947,6 @@ namespace AstralWilds
         {
             if (flow != Flow.Battle)
                 return;
-            guarded[0] = guarded[1] = false;
             flow = playerWon ? Flow.Recruitment : Flow.Defeat;
             if (playerWon)
             {
@@ -1051,7 +979,7 @@ namespace AstralWilds
             for (int i = 0; i < reserve.Count; i++)
                 if (reserve[i].id == id)
                     return;
-            DemoMember reward = new DemoMember { id = id, displayName = "Recruited Astral " + encountersCompleted };
+            AstralDemoMember reward = new AstralDemoMember { id = id, displayName = "Recruited Astral " + encountersCompleted };
             if (party.Count < AstralCampaignState.PartyCapacity)
             {
                 party.Add(reward);
@@ -1070,7 +998,7 @@ namespace AstralWilds
         {
             if (party.Count > 1)
             {
-                DemoMember first = party[0];
+                AstralDemoMember first = party[0];
                 party[0] = party[1];
                 party[1] = first;
                 activeParty[0] = 0;
@@ -1090,7 +1018,7 @@ namespace AstralWilds
             else
             message = $"Returned to exploration. Visit the wild activity site for another encounter; {Prompt(AstralCommand.Interact)} activates the beacon; {Prompt(AstralCommand.Save)} saves.";
             flow = Flow.Exploration;
-            battle = null;
+            battleEngine = null;
             activeEncounterZone = null;
             PlayFeedback(AstralFeedbackCue.Confirm);
         }
@@ -1182,13 +1110,10 @@ namespace AstralWilds
                 collectedItemPickupIds.Clear();
                 if (data.collectedItemPickupIds != null)
                     collectedItemPickupIds.UnionWith(data.collectedItemPickupIds);
-                if (AllPartyDefeated()) foreach (var member in party) { member.hp = member.maxHp; member.defeated = false; }
-                activeParty[0] = FindFirstEligibleParty(0);
-                activeParty[1] = FindFirstEligibleParty(activeParty[0] + 1);
-                opponent[0] = opponent[1] = null;
-                acted[0] = acted[1] = false;
-                guarded[0] = guarded[1] = false;
-                battle = null;
+                if (AstralBattleEngine.AllDefeated(party)) foreach (var member in party) { member.hp = member.maxHp; member.defeated = false; }
+                activeParty[0] = AstralBattleEngine.FindFirstEligibleParty(party, 0);
+                activeParty[1] = AstralBattleEngine.FindFirstEligibleParty(party, activeParty[0] + 1);
+                battleEngine = null;
                 activeEncounterZone = null;
                 IReadOnlyCollection<string> clearedZoneIds = data.clearedEncounterZoneIds;
                 if (clearedZoneIds == null)
@@ -1273,32 +1198,6 @@ namespace AstralWilds
                     itemPickups[i].SetCollected(collected.Contains(itemPickups[i].PickupId));
         }
 
-        private DemoMember GetActiveParty(int slot)
-        {
-            if (slot < 0 || slot >= activeParty.Length || activeParty[slot] < 0 || activeParty[slot] >= party.Count)
-                return null;
-            return party[activeParty[slot]];
-        }
-
-        private int FindFirstEligibleParty(int start)
-        {
-            for (int i = Mathf.Max(0, start); i < party.Count; i++)
-                if (!party[i].defeated)
-                    return i;
-            return -1;
-        }
-
-        private bool AllPartyDefeated()
-        {
-            for (int i = 0; i < party.Count; i++) if (!party[i].defeated) return false;
-            return true;
-        }
-
-        private bool AllOpponentsDefeated()
-        {
-            return opponent[0] == null || (opponent[0].defeated && opponent[1].defeated);
-        }
-
 #if UNITY_EDITOR || DEBUG
         private void OnGUI()
         {
@@ -1309,11 +1208,13 @@ namespace AstralWilds
             GUILayout.Space(8);
             for (int i = 0; i < party.Count; i++)
                 GUILayout.Label((i == activeParty[0] || i == activeParty[1] ? "ACTIVE " : "      ") + party[i].displayName + "  HP " + party[i].hp + "/" + party[i].maxHp + (party[i].defeated ? " FAINTED" : ""));
-            if (flow == Flow.Battle)
+            if (flow == Flow.Battle && battleEngine != null)
             {
                 GUILayout.Space(8);
-                GUILayout.Label("Opponent slot 1: " + opponent[0].displayName + " HP " + opponent[0].hp + (opponent[0].defeated ? " FAINTED" : ""));
-                GUILayout.Label("Opponent slot 2: " + opponent[1].displayName + " HP " + opponent[1].hp + (opponent[1].defeated ? " FAINTED" : ""));
+                AstralDemoMember opp0 = battleEngine.GetOpponent(0);
+                AstralDemoMember opp1 = battleEngine.GetOpponent(1);
+                GUILayout.Label("Opponent slot 1: " + opp0.displayName + " HP " + opp0.hp + (opp0.defeated ? " FAINTED" : ""));
+                GUILayout.Label("Opponent slot 2: " + opp1.displayName + " HP " + opp1.hp + (opp1.defeated ? " FAINTED" : ""));
                 GUILayout.Label("Selected active slot: " + (selectedActiveSlot + 1) + "  target: " + (selectedTargetSlot + 1));
                 GUILayout.Label("A attack | Q/W target | 1/2 active slot | R replace | S swap bench");
             }
