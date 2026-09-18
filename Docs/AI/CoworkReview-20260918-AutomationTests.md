@@ -170,3 +170,31 @@ Opened `BP_ThirdPersonPlayerController` in the Blueprint editor (Class Defaults 
 **This rules out the content-gap theory entirely for basic Move/Look input.** `AAstral_WildsPlayerController::BeginPlay()` has a real, correctly-configured mapping context to add. So the WASD non-response I hit is not a project configuration bug - it's very likely a limitation of how this remote desktop bridge injects synthesized keyboard events into a game that's actively holding OS-level mouse/keyboard capture for look input (consistent with the same session's separate flakiness getting editor-chrome clicks to register while that capture was active, which needed `Shift+F1` to work around).
 
 **Bottom line for TJ**: the project itself should very likely support normal WASD+mouse play just fine at the actual machine - this looks like a Cowork-bridge-specific limitation for driving *real-time held-key gameplay input* during Play-in-Editor, not a bug worth chasing in the code. The Astral-specific actions (Attack/ArcBurst/Guard/Interact/WeaveAlignment/Channel/Harmonize) still have no assigned `UInputAction`s or dedicated Input Mapping Context of their own yet, though - that part genuinely is unbuilt content, separate from this Move/Look question, and is still real follow-up work (see the recommendation list above, item 1, second half).
+
+
+## Continued further: delegate test coverage, a visible Mage, and a real finding
+
+TJ said to keep rolling on code (he's working graphics himself, separately - new Meshy exports for Glacielle/Ironbur/Mossling/Ripplefin/Stormrook showed up in the working tree mid-session, untouched by me).
+
+### Closed the delegate-coverage gap
+
+Added `AstralWeaveResultListener.h/.cpp` - a minimal UObject that exists only so automation tests have a UFUNCTION-bearing target to `AddDynamic` to (UE's dynamic multicast delegates require one; a plain `FAutomationTestBase` isn't a UObject). `AstralResonanceWeaveComponentDelegateTests.cpp` uses it to cover the three delegate-firing entry points reachable without a Tick: `BeginWeave` broadcasting `OnStabilityChanged(0)` at the start of a fresh weave, `BeginWeave` called again while already active broadcasting `OnWeaveResult(MayRetry)` exactly once without disturbing the running attempt, and `CancelWeave` deliberately broadcasting nothing at all (per its own doc comment). `OnPulse` and anything Tick-only (pulse timing, Resonance Point movement, Hold-based Stability gain/decay, the Succeeded path) still isn't covered - still needs a real automation test world.
+
+Verified via Live Coding (`Ctrl+Alt+F11` in the running Editor - "1 class new", succeeded) then `Automation RunTests AstralWilds`: **all 22 tests (19 previous + 3 new) completed with result 'Success'.**
+
+### Gave the Mage a visible mesh (using existing template assets, no new art)
+
+Checked how the base template handles this first: `AAstral_WildsCharacter`'s constructor has an explicit comment - *"the skeletal mesh and anim blueprint references on the Mesh component ... are set in the derived blueprint asset ... to avoid direct content references in C++"* - a deliberate project convention. Respected it rather than hardcoding a `ConstructorHelpers::FObjectFinder` in C++: created `BP_AstralMageCharacter` (Blueprint, parent `AstralMageCharacter`) via the Content Browser, and in its Class Defaults set `Skeletal Mesh Asset = SKM_Quinn_Simple` and `Anim Class = ABP_Unarmed` - the exact same two assets `BP_ThirdPersonCharacter` already uses. Compiled clean, saved. The character now shows in a proper idle pose in the Blueprint preview instead of an empty capsule.
+
+This is **not** committed to git - `Content/` isn't tracked in this repo yet (same as everything else in it), so `BP_AstralMageCharacter.uasset` only exists locally on this machine for now. Worth keeping in mind next time Content/ gets set up with LFS.
+
+### A real finding, flagged but not chased
+
+While the Live Coding reload above was re-instancing objects, the Message Log's "Ensure Failed" category caught one:
+
+```
+Ensure condition failed: InvocationList[ CurFunctionIndex ] != InDelegate
+...AAstralMageCharacter::SetupPlayerInputComponent...
+```
+
+This is UE's internal duplicate-binding check firing on the `ResonanceWeave->OnWeaveResult.AddDynamic(this, &AAstralMageCharacter::OnResonanceWeaveResult)` call in `SetupPlayerInputComponent` - it means that exact same (object, function) pair was already bound once and got bound again. It fired from Live Coding re-running setup on a leftover PIE-world actor instance still in memory from the earlier manual-placement test, not from a clean, fresh, single Play session - so per "don't fix without a verified repro," I did **not** touch this code. But it's a real, plausible latent issue worth a clean repro next session: if `SetupPlayerInputComponent` can legitimately run twice on one instance (re-possession, certain replication flows), this line will ensure every time. A defensive fix, once reproduced cleanly, would be trivial (check `IsAlreadyBound()` first, or just accept the harmless ensure - dynamic multicast delegates silently no-op a true duplicate add rather than double-firing, so this is a logged warning, not a functional bug on its own).
