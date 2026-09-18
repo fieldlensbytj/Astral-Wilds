@@ -37,7 +37,7 @@ namespace AstralBattleEngineTests
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_QueueAttack, "AstralWilds.Battle.QueueAttack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_QueueAttack, "AstralWilds.Battle.QueueAttack", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralBattleEngine_QueueAttack::RunTest(const FString& Parameters)
 {
 	TArray<FAstralCombatant> Party = AstralBattleEngineTests::MakeParty();
@@ -62,7 +62,7 @@ bool FAstralBattleEngine_QueueAttack::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_QueueAttack_DefeatsOpponent, "AstralWilds.Battle.QueueAttack.DefeatsOpponent", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_QueueAttack_DefeatsOpponent, "AstralWilds.Battle.QueueAttack.DefeatsOpponent", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralBattleEngine_QueueAttack_DefeatsOpponent::RunTest(const FString& Parameters)
 {
 	TArray<FAstralCombatant> Party = AstralBattleEngineTests::MakeParty();
@@ -93,7 +93,7 @@ bool FAstralBattleEngine_QueueAttack_DefeatsOpponent::RunTest(const FString& Par
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_ArcBurstHitsLivingOpponentsOnly, "AstralWilds.Battle.ArcBurst.HitsLivingOpponentsOnly", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_ArcBurstHitsLivingOpponentsOnly, "AstralWilds.Battle.ArcBurst.HitsLivingOpponentsOnly", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralBattleEngine_ArcBurstHitsLivingOpponentsOnly::RunTest(const FString& Parameters)
 {
 	TArray<FAstralCombatant> Party = AstralBattleEngineTests::MakeParty();
@@ -131,7 +131,7 @@ bool FAstralBattleEngine_ArcBurstHitsLivingOpponentsOnly::RunTest(const FString&
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_GuardReducesCounterattack, "AstralWilds.Battle.Guard.ReducesCounterattack", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_GuardReducesCounterattack, "AstralWilds.Battle.Guard.ReducesCounterattack", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralBattleEngine_GuardReducesCounterattack::RunTest(const FString& Parameters)
 {
 	TArray<FAstralCombatant> Party = AstralBattleEngineTests::MakeParty();
@@ -158,7 +158,7 @@ bool FAstralBattleEngine_GuardReducesCounterattack::RunTest(const FString& Param
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_RoundOnlyResolvesOnceBothSlotsAct, "AstralWilds.Battle.TryFinishRound.WaitsForBothSlots", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_RoundOnlyResolvesOnceBothSlotsAct, "AstralWilds.Battle.TryFinishRound.WaitsForBothSlots", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralBattleEngine_RoundOnlyResolvesOnceBothSlotsAct::RunTest(const FString& Parameters)
 {
 	TArray<FAstralCombatant> Party = AstralBattleEngineTests::MakeParty();
@@ -182,7 +182,7 @@ bool FAstralBattleEngine_RoundOnlyResolvesOnceBothSlotsAct::RunTest(const FStrin
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_StaticPartyHelpers, "AstralWilds.Battle.StaticPartyHelpers", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_StaticPartyHelpers, "AstralWilds.Battle.StaticPartyHelpers", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralBattleEngine_StaticPartyHelpers::RunTest(const FString& Parameters)
 {
 	TArray<FAstralCombatant> Party = AstralBattleEngineTests::MakeParty();

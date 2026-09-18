@@ -11,7 +11,7 @@
 
 #include "AstralCombatRules.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralCombatRules_ResolveIncomingDamage_Unguarded, "AstralWilds.Combat.ResolveIncomingDamage.Unguarded", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralCombatRules_ResolveIncomingDamage_Unguarded, "AstralWilds.Combat.ResolveIncomingDamage.Unguarded", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralCombatRules_ResolveIncomingDamage_Unguarded::RunTest(const FString& Parameters)
 {
 	TestEqual(TEXT("Unguarded damage passes through unchanged"), UAstralCombatRules::ResolveIncomingDamage(12, false), 12);
@@ -20,7 +20,7 @@ bool FAstralCombatRules_ResolveIncomingDamage_Unguarded::RunTest(const FString& 
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralCombatRules_ResolveIncomingDamage_Guarded, "AstralWilds.Combat.ResolveIncomingDamage.Guarded", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralCombatRules_ResolveIncomingDamage_Guarded, "AstralWilds.Combat.ResolveIncomingDamage.Guarded", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralCombatRules_ResolveIncomingDamage_Guarded::RunTest(const FString& Parameters)
 {
 	// ceil(BaseDamage / 3), cross-checked against real verified play sessions in Docs/AI/WorkQueue.md:
@@ -34,7 +34,7 @@ bool FAstralCombatRules_ResolveIncomingDamage_Guarded::RunTest(const FString& Pa
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralCombatRules_ApplyDamage, "AstralWilds.Combat.ApplyDamage", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralCombatRules_ApplyDamage, "AstralWilds.Combat.ApplyDamage", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralCombatRules_ApplyDamage::RunTest(const FString& Parameters)
 {
 	FAstralCombatant Target;
