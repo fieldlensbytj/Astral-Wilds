@@ -2,14 +2,16 @@
 
 ## ENGINE STATUS (2026-09-18): UNREAL IS NOW ACTIVE, UNITY IS FROZEN
 
-TJ confirmed directly on 2026-09-18: **Unreal Engine (`Astral_Wilds_Unreal/Astral_Wilds/`) is the active project going forward. The Unity project below (everything else in this repo) is deprecated/frozen** — left in place for now, not being developed further. Everything below this note is the Unity project's historical queue/status log, kept for reference and design provenance (validated battle math, economy rules, etc.) — not an active task list. See `Docs/AI/CoworkReview-20260918.md` for what's known so far about the Unreal side and what still needs a real Unreal-side WorkQueue of its own (a future session should probably split this into `WorkQueueUnreal.md` once there's enough Unreal-specific queue content to warrant it).
+TJ confirmed directly on 2026-09-18: **Unreal Engine (`Astral_Wilds_Unreal/Astral_Wilds/`) is the active project going forward. The Unity project below (everything else in this repo) is deprecated/frozen** — left in place for now, not being developed further. Everything below this note is the Unity project's historical queue/status log, kept for reference and design provenance (validated battle math, economy rules, etc.) — not an active task list. See `Docs/AI/CoworkReview-20260918.md` and `Docs/AI/CoworkReview-20260918-AutomationTests.md` for what's known so far about the Unreal side and what still needs a real Unreal-side WorkQueue of its own (a future session should probably split this into `WorkQueueUnreal.md` once there's enough Unreal-specific queue content to warrant it).
 
 Unreal starting point, ported 2026-09-17/18 from the Unity prototype's validated mechanics:
 - `AstralCombatRules` (C++, static damage math for basic attack/Arc Burst/Guard).
 - `UAstralBattleEngine` (C++, 2v2 battle round resolution: queuing, counterattacks, retargeting, guard reduction) — direct C++ port of `Assets/Scripts/AstralBattleEngine.cs`.
 - `AstralMageCharacter` (extends the Unreal Third Person template character; wires Attack/Arc Burst/Guard/Interact-Resonance-Weave via Enhanced Input).
 - `AstralResonanceWeaveComponent` (new: a Track→Hold→Harmonize bonding minigame per the Canon Bible; no Unity equivalent existed).
+- `AWildAstralEncounter` (new: placeable wild Astral actor with a behavioral-state Temperament, wired into `AstralMageCharacter::DoInteract()` and the Resonance Weave; added 2026-09-18).
 - Content/ (the ~137MB template binary assets) is intentionally not committed yet, same reasoning as the Unity project's large art files.
+- `Source/Astral_Wilds/Tests/` (new 2026-09-18 afternoon): Unreal Automation Test coverage for `AstralCombatRules`/`AstralBattleEngine` (the previously-untested pure battle math), cross-checked against real verified Play Mode results already logged below. Not yet confirmed compiling — see `Docs/AI/CoworkReview-20260918-AutomationTests.md`.
 
 ---
 
