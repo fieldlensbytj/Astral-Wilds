@@ -2,6 +2,16 @@
 
 This repository is worked on by multiple AI collaborators on the same local clone: OpenAI Codex, Claude Code, and a scheduled Cowork session, plus TJ directly. A GitHub mirror now exists at https://github.com/fieldlensbytj/Astral-Wilds (remote `origin`, branch `master`). Previously this repo was local-only; the remote was added 2026-09-17.
 
+## ENGINE STATUS (as of 2026-09-18) — READ THIS FIRST
+
+**Unreal Engine is now the active engine. Unity is deprecated/frozen.** TJ confirmed this directly on 2026-09-18.
+
+- Active project: `Astral_Wilds_Unreal/Astral_Wilds/` (Unreal Engine 5.8, C++, Epic's Third Person template as a base). This is where new gameplay work goes.
+- Frozen project: everything under `Assets/`, `ProjectSettings/`, `Astral Wilds.slnx`, etc. (the Unity project) at the repo root. Do not add new features here. It is left in place for now (not deleted/archived yet) — TJ has not asked for it to be removed, just no longer actively developed. If you need to reference validated game-design/balance decisions (battle math, economy rules, etc.), the Unity C# implementation is a working reference, but port intent to C++ rather than extending the C# further.
+- The Unreal port began 2026-09-17/18 with `AstralCombatRules` (static Covenant-of-Two damage math) and `UAstralBattleEngine` (2v2 battle mechanics: queuing attacks/Arc Burst/Guard, opponent counterattacks, retargeting), ported from the validated Unity prototype logic in `AstralBattleEngine.cs`/`AstralDemoLoopController.cs`. `AstralMageCharacter` wires these into the template's Enhanced Input character.
+- Old Unity-specific instructions below (WorkQueue priorities, Verification narratives, etc.) describe the frozen Unity project's history and are kept for reference/provenance, not as an active task list. Check `Docs/AI/WorkQueue.md`'s top-of-file status note (if present) for the current Unreal priority list before starting work.
+- The non-negotiable no-real-money economy constraint (see `Docs/Design/EconomyPolicy.md`) applies equally to the Unreal build; port/re-implement that rule and its test coverage in C++ rather than assuming it's inherited for free.
+
 ## Git workflow (do this every session, automatically — no need to ask TJ)
 
 1. Before starting any work, run `git pull` to sync with `origin/master`, in case another agent or TJ pushed since your last run.
