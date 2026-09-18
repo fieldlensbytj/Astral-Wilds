@@ -45,6 +45,16 @@ This independently confirms the `756193d` commit's own claim ("Full project veri
 
 While mid-session, a new commit landed on top of what I'd reviewed: `46af8f6` "Add wild Astral encounters and wire them into bonding and the party" -- further confirmation TJ/another agent was live on this machine concurrently. I did not review or touch that commit's content.
 
+### Attempted Play-in-Editor verification (partial)
+
+After committing the doc updates, launched the editor for real via Visual Studio's "Local Windows Debugger" button (a click, within the click-tier grant) to try actual Play-in-Editor verification of `UAstralBattleEngine`/`AstralMageCharacter`/`AstralResonanceWeaveComponent`, not just confirm compilation.
+
+- The build ran again cleanly (`Build: 1 succeeded, 0 failed`, up-to-date in ~3s) and `UnrealEditor.exe` launched.
+- `Saved/Logs/Astral_Wilds.log` confirms a clean, error-free startup: engine init completed in 18.56s, asset registry scan found 9656 assets with no complaints, DerivedDataCache maintenance ran and finished normally at 08:55:34. `grep -c "Error:"` on the log returned 0, and there is nothing Astral-related flagged as an error or warning.
+- However, I was **not able to locate the actual editor window** through the computer-use bridge afterward -- checked all three attached monitors (`B156HAN15.H`, `PM161Q C1`, `HDMI`) repeatedly over ~2 minutes, granted `UnrealEditor.exe` full computer-use access, and it never appeared (no masked rectangle, no visible content, and the primary monitor's taskbar itself stopped rendering in screenshots partway through, for reasons unrelated to the project). This looks like a quirk of this particular bridge/session rather than an editor crash -- the log shows no crash, no shutdown, nothing past the normal idle-editor silence you'd expect once it's sitting at the main window with nothing happening.
+- **Net result: confirmed clean, error-free editor startup with the new C++ code loaded (stronger evidence than "compiles" alone), but did not achieve actual Play-in-Editor gameplay verification.** I left the editor process running rather than trying to force-close something I can't see, since TJ may want to pick it up directly. A future session (or TJ) should check whether `UnrealEditor.exe` is still running and either drive Play-in-Editor from there or restart clean.
+
+
 ## Changes made this session
 
 - `AGENTS.md`, `Docs/AI/WorkQueue.md`: engine-status documentation (see above).
