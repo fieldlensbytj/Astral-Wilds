@@ -74,6 +74,17 @@ at every `IMPLEMENT_SIMPLE_AUTOMATION_TEST(...)` call site in both new test file
 
 Framework note for whoever writes Unreal automation tests next in this project: don't assume `EAutomationTestFlags::ApplicationContextMask` will just work in this codebase's engine build - use the individual context flags (`EditorContext`/`ClientContext`/etc.) directly, or verify with a real build before committing.
 
+## Continued after the build went green: two more test files
+
+With a real compile signal working, kept going with the same low-risk pattern rather than stopping at just the two original files:
+
+- **`AstralWildEncounterTests.cpp`** - `AWildAstralEncounter`'s receptiveness state machine. Confirmed the exact design intent called out in its own doc comment and in `46af8f6`'s commit message: every non-aggressive starting state (Calm, Curious, Wary, Frightened) reaches Receptive via `TryBecomeReceptive()`, while Territorial and Enraged refuse to move on their own (the whole point of that narrow base implementation - forcing a real per-species override before those can ever be bonded with). Also covers the default state and `SetWildState`'s direct/unconditional behavior.
+- **`AstralResonanceWeaveComponentTests.cpp`** - the bonding minigame's public, non-Tick-driven surface: `BeginWeave` activation, `CancelWeave` (both as a no-op and as a real mid-weave cancel), `SetAlignmentInput`'s unit-circle clamping (small delta passes through exactly; a large one clamps/normalizes to exactly size 1; ignored entirely while inactive), and `RespondToHarmonize`'s documented no-op outside a pulse window. Deliberately does **not** cover Resonance Point movement, pulse timing, or Hold-based Stability gain/decay - those live in the protected `TickComponent()`, which needs a real automation test world to exercise (this pass used bare `NewObject<>()` for everything, no world). Also doesn't verify the `OnWeaveResult`/`OnStabilityChanged`/`OnPulse` delegate broadcasts themselves, since UE's dynamic multicast delegates need a UFUNCTION-bearing listener object to bind to. Both flagged as the natural next step.
+
+Both new files built clean on the **first** attempt (`Result: Succeeded` both times) - already using `EAutomationTestFlags::EditorContext` from the start rather than repeating the `ApplicationContextMask` mistake.
+
+Test file inventory as of this session's end: `AstralCombatRulesTests.cpp`, `AstralBattleEngineTests.cpp`, `AstralWildEncounterTests.cpp`, `AstralResonanceWeaveComponentTests.cpp` - all four compile clean. None have been run yet through the Editor's actual Automation window to confirm pass/fail at runtime (only compilation has been verified this session) - worth doing next session alongside the Play-in-Editor pass.
+
 ## Git sync note for future sessions
 
 `git push` from this device bridge's Linux VM (`device_bash`) failed outright: `fatal: could not read Username for 'https://github.com': No such device or address` - that VM has no GitHub credential helper, no `.netrc`, and no token in its environment configured at all (confirmed `git config --get credential.helper` is empty; network reachability to github.com itself is fine, `git pull`/`fetch` work because GitHub allows anonymous read of a public repo). This is a different failure than the `403 from proxy` issue noted in earlier sessions' standing convention - that one was a network restriction, this one is a missing-credential gap in the bridge VM specifically.
