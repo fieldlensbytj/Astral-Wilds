@@ -11,6 +11,7 @@
 #include "Astral_WildsCharacter.h"
 #include "AstralTypes.h"
 #include "AstralResonanceWeaveComponent.h"
+#include "AstralBattleEngine.h"
 #include "AstralMageCharacter.generated.h"
 
 class UInputAction;
@@ -22,6 +23,12 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAstralGuardChanged, bool, bIsGuar
 
 /** Broadcast when the Mage lands a combat action, carrying the outcome for HUD/VFX. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAstralActionResolved, EAstralActionOutcome, Outcome, int32, DamageDealt);
+
+/** Broadcast once both active slots have acted and the round resolves. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAstralRoundResolved, FAstralRoundOutcome, Outcome);
+
+/** Broadcast when a battle ends, either by victory or by the player's party being wiped. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAstralBattleEnded, bool, bPlayerVictory);
 
 /**
  *  The player-controlled Mage. Combat here follows the Covenant of Two: this
@@ -80,6 +87,30 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Astral|Combat")
 	bool bIsGuarding = false;
 
+	/**
+	 * The player's full Astral roster (up to 6, Canon Bible economy/registry
+	 * scale aside - battle only ever uses two at a time per the Covenant).
+	 * BattleEngine writes HP/defeated state directly into this array.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Astral|Party")
+	TArray<FAstralCombatant> Party;
+
+	/** Party indices of the two Astrals currently active in battle. Not Blueprint-exposed (UHT disallows static arrays on Blueprint properties) - use GetActiveParty(Slot) from Blueprint instead. */
+	UPROPERTY()
+	int32 ActiveParty[2] = { 0, 1 };
+
+	/** Which of the two active slots the player is currently issuing orders for. */
+	UPROPERTY(BlueprintReadOnly, Category = "Astral|Battle")
+	int32 SelectedActiveSlot = 0;
+
+	/** Which opponent slot a basic attack will target. */
+	UPROPERTY(BlueprintReadOnly, Category = "Astral|Battle")
+	int32 SelectedTargetSlot = 0;
+
+	/** Non-null only while a Covenant-of-Two battle is in progress. */
+	UPROPERTY(BlueprintReadOnly, Category = "Astral|Battle")
+	UAstralBattleEngine* BattleEngine = nullptr;
+
 public:
 
 	AAstralMageCharacter();
@@ -89,6 +120,12 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Astral|Combat")
 	FOnAstralActionResolved OnActionResolved;
+
+	UPROPERTY(BlueprintAssignable, Category = "Astral|Battle")
+	FOnAstralRoundResolved OnRoundResolved;
+
+	UPROPERTY(BlueprintAssignable, Category = "Astral|Battle")
+	FOnAstralBattleEnded OnBattleEnded;
 
 protected:
 
@@ -140,4 +177,33 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Astral|Bonding")
 	bool IsWeavingResonance() const { return ResonanceWeave && ResonanceWeave->IsWeaveActive(); }
+
+	UFUNCTION(BlueprintPure, Category = "Astral|Battle")
+	bool IsInBattle() const { return BattleEngine != nullptr; }
+
+	/** Starts a Covenant-of-Two encounter against two named opponents. Party must already have at least one non-defeated member. */
+	UFUNCTION(BlueprintCallable, Category = "Astral|Battle")
+	virtual void BeginBattle(const FString& PrimaryId, const FString& PrimaryName,
+		const FString& CompanionId, const FString& CompanionName, int32 OpponentDamage);
+
+	/** Ends the current battle (victory, defeat, or fled) and clears BattleEngine. */
+	UFUNCTION(BlueprintCallable, Category = "Astral|Battle")
+	virtual void EndBattle();
+
+	/** Picks which active slot the player is issuing orders for. */
+	UFUNCTION(BlueprintCallable, Category = "Astral|Battle")
+	void SelectActiveSlot(int32 Slot);
+
+	/** Picks which opponent slot a basic attack will target. */
+	UFUNCTION(BlueprintCallable, Category = "Astral|Battle")
+	void SelectTargetSlot(int32 Slot);
+
+	/** Returns the party index occupying the given active battle slot (0 or 1), or -1 if out of range. Blueprint-safe alternative to reading ActiveParty directly. */
+	UFUNCTION(BlueprintPure, Category = "Astral|Battle")
+	int32 GetActiveSlotPartyIndex(int32 Slot) const { return (Slot >= 0 && Slot < 2) ? ActiveParty[Slot] : -1; }
+
+protected:
+
+	/** Called automatically after every queued action; resolves the round once both active slots have acted. */
+	void FinishRoundIfReady();
 };

@@ -128,31 +128,107 @@ void AAstralMageCharacter::OnResonanceWeaveResult(EAstralWeaveResult Result)
 	// AI so it reacts according to its own temperament, per the Canon Bible.
 }
 
-void AAstralMageCharacter::DoAttack()
+void AAstralMageCharacter::BeginBattle(const FString& PrimaryId, const FString& PrimaryName,
+	const FString& CompanionId, const FString& CompanionName, int32 OpponentDamage)
 {
-	if (IsWeavingResonance())
+	if (BattleEngine)
 	{
 		return;
 	}
 
-	// TODO: resolve against the currently targeted opponent Astral once the
-	// battle-manager/targeting system exists. For now this establishes the
-	// entry point and broadcasts the base attack damage so HUD/VFX/animation
-	// can already hook in.
-	const int32 Damage = UAstralCombatRules::BasicAttackDamage;
-	OnActionResolved.Broadcast(EAstralActionOutcome::Applied, Damage);
+	ActiveParty[0] = UAstralBattleEngine::FindFirstEligibleParty(Party, 0);
+	ActiveParty[1] = UAstralBattleEngine::FindFirstEligibleParty(Party, ActiveParty[0] + 1);
+	if (ActiveParty[0] < 0)
+	{
+		// No healthy Astrals - nothing to fight with. Caller should have
+		// checked this and routed to a defeat/recovery flow instead.
+		return;
+	}
+	if (ActiveParty[1] < 0)
+	{
+		// Only one eligible Astral - still allowed to fight, the second slot
+		// simply stays empty (GetActiveParty returns nullptr for it).
+		ActiveParty[1] = ActiveParty[0];
+	}
+
+	SelectedActiveSlot = 0;
+	SelectedTargetSlot = 0;
+
+	BattleEngine = NewObject<UAstralBattleEngine>(this);
+	BattleEngine->Initialize(&Party, ActiveParty, PrimaryId, PrimaryName, CompanionId, CompanionName, OpponentDamage);
+}
+
+void AAstralMageCharacter::EndBattle()
+{
+	BattleEngine = nullptr;
+}
+
+void AAstralMageCharacter::SelectActiveSlot(int32 Slot)
+{
+	if (BattleEngine && Slot >= 0 && Slot < 2)
+	{
+		SelectedActiveSlot = Slot;
+	}
+}
+
+void AAstralMageCharacter::SelectTargetSlot(int32 Slot)
+{
+	if (BattleEngine && Slot >= 0 && Slot < 2)
+	{
+		SelectedTargetSlot = Slot;
+	}
+}
+
+void AAstralMageCharacter::DoAttack()
+{
+	if (IsWeavingResonance() || !BattleEngine)
+	{
+		return;
+	}
+
+	int32 Damage = 0;
+	const EAstralActionOutcome Outcome = BattleEngine->QueueAttack(SelectedActiveSlot, SelectedTargetSlot, Damage);
+	OnActionResolved.Broadcast(Outcome, Damage);
+
+	if (Outcome != EAstralActionOutcome::Applied)
+	{
+		return;
+	}
+
+	if (BattleEngine->AllOpponentsDefeated())
+	{
+		EndBattle();
+		OnBattleEnded.Broadcast(true);
+		return;
+	}
+
+	FinishRoundIfReady();
 }
 
 void AAstralMageCharacter::DoArcBurst()
 {
-	if (IsWeavingResonance())
+	if (IsWeavingResonance() || !BattleEngine)
 	{
 		return;
 	}
 
-	// TODO: apply UAstralCombatRules::ArcBurstDamagePerTarget to each living
-	// active opponent once targeting exists.
-	OnActionResolved.Broadcast(EAstralActionOutcome::Applied, UAstralCombatRules::ArcBurstDamagePerTarget);
+	int32 TargetsHit = 0;
+	const EAstralActionOutcome Outcome = BattleEngine->QueueArcBurst(SelectedActiveSlot, TargetsHit);
+	OnActionResolved.Broadcast(Outcome, UAstralCombatRules::ArcBurstDamagePerTarget * TargetsHit);
+
+	if (Outcome != EAstralActionOutcome::Applied)
+	{
+		return;
+	}
+
+	if (BattleEngine->AllOpponentsDefeated())
+	{
+		EndBattle();
+		OnBattleEnded.Broadcast(true);
+		return;
+	}
+
+	FinishRoundIfReady();
 }
 
 void AAstralMageCharacter::DoGuardStart()
@@ -163,6 +239,18 @@ void AAstralMageCharacter::DoGuardStart()
 	}
 	bIsGuarding = true;
 	OnGuardChanged.Broadcast(bIsGuarding);
+
+	if (IsWeavingResonance() || !BattleEngine)
+	{
+		return;
+	}
+
+	const EAstralActionOutcome Outcome = BattleEngine->QueueGuard(SelectedActiveSlot);
+	OnActionResolved.Broadcast(Outcome, 0);
+	if (Outcome == EAstralActionOutcome::Applied)
+	{
+		FinishRoundIfReady();
+	}
 }
 
 void AAstralMageCharacter::DoGuardEnd()
@@ -173,6 +261,42 @@ void AAstralMageCharacter::DoGuardEnd()
 	}
 	bIsGuarding = false;
 	OnGuardChanged.Broadcast(bIsGuarding);
+}
+
+void AAstralMageCharacter::FinishRoundIfReady()
+{
+	if (!BattleEngine)
+	{
+		return;
+	}
+
+	for (int32 Slot = 0; Slot < 2; Slot++)
+	{
+		if (ActiveParty[Slot] < 0 || ActiveParty[Slot] >= Party.Num())
+		{
+			continue;
+		}
+		const FAstralCombatant& Member = Party[ActiveParty[Slot]];
+		if (!Member.bDefeated && !BattleEngine->HasActed(Slot))
+		{
+			SelectedActiveSlot = Slot;
+			return;
+		}
+	}
+
+	const FAstralRoundOutcome Result = BattleEngine->TryFinishRound();
+	if (!Result.bResolved)
+	{
+		return;
+	}
+
+	OnRoundResolved.Broadcast(Result);
+
+	if (Result.bPlayerDefeat)
+	{
+		EndBattle();
+		OnBattleEnded.Broadcast(false);
+	}
 }
 
 void AAstralMageCharacter::DoInteract()
