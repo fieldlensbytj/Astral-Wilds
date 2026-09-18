@@ -37,7 +37,7 @@ namespace AstralBattleEngineTests
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_QueueAttack, "AstralWilds.Battle.QueueAttack", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralBattleEngine_QueueAttack, "AstralWilds.Battle.QueueAttack.Basic", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralBattleEngine_QueueAttack::RunTest(const FString& Parameters)
 {
 	TArray<FAstralCombatant> Party = AstralBattleEngineTests::MakeParty();

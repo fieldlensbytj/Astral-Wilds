@@ -85,6 +85,23 @@ Both new files built clean on the **first** attempt (`Result: Succeeded` both ti
 
 Test file inventory as of this session's end: `AstralCombatRulesTests.cpp`, `AstralBattleEngineTests.cpp`, `AstralWildEncounterTests.cpp`, `AstralResonanceWeaveComponentTests.cpp` - all four compile clean. None have been run yet through the Editor's actual Automation window to confirm pass/fail at runtime (only compilation has been verified this session) - worth doing next session alongside the Play-in-Editor pass.
 
+## Actually ran the tests: 18/18 pass at runtime
+
+Opened the Editor for real this time (the correct outer project - `.../Astral_Wilds_Unreal/Astral_Wilds/Astral_Wilds.uproject`, carefully avoiding the nested duplicate's `.uproject` in the file browser, which defaults into that folder first) and confirmed a clean startup: `LvI_ThirdPerson` loaded with 64 actors, no errors.
+
+Rather than fight the `Window` menu's search box for the Test Automation UI (same flaky-search-field behavior hit earlier in the session for other menus), ran the tests directly from the in-editor console command line instead - much more reliable:
+
+```
+Automation List            -> confirms all AstralWilds.* tests are discovered
+Automation RunTests AstralWilds
+```
+
+**Result: a Message Log popup opened automatically ("Automation Testing Log") showing all 18 discovered `AstralWilds.*` tests completed with result `'Success'`** - every test in all four files (`AstralCombatRulesTests`, `AstralBattleEngineTests`, `AstralWildEncounterTests`, `AstralResonanceWeaveComponentTests`). This is genuine runtime verification, not just a compile pass - the logic itself is now confirmed correct inside the actual engine, matching the real documented Play Mode values it was cross-checked against.
+
+One minor loose end: `AstralWilds.Battle.QueueAttack` (the plain, non-defeat-path test) didn't show up as its own entry in either `Automation List` or the run results - only `AstralWilds.Battle.QueueAttack.DefeatsOpponent` did. Total discovered was 18, not the 19 test macros actually written across the four files. Suspect the Automation framework's dot-separated name tree treats `AstralWilds.Battle.QueueAttack` as shadowed by `AstralWilds.Battle.QueueAttack.DefeatsOpponent` sharing that exact prefix (a naming collision, not a logic bug - the `QueueAttack.DefeatsOpponent` test exercises much of the same code path and passed). Cosmetic; a good 30-second fix next session is renaming one of the two `IMPLEMENT_SIMPLE_AUTOMATION_TEST` pretty-name strings so neither is a strict prefix of the other (e.g. `AstralWilds.Battle.QueueAttack.Basic` and `...QueueAttack.DefeatsOpponent`).
+
+**Fixed immediately, in-editor, via Live Coding**: renamed the pretty name to `AstralWilds.Battle.QueueAttack.Basic`, pressed Ctrl+Alt+F11 in the Editor (Live Coding compile - no need to close the Editor or fight the external VS-build Live-Coding-lock issue from earlier this session), got `LogLiveCoding: Display: Live coding succeeded`, and re-ran `Automation RunTests AstralWilds`. **Final result: `Automation Testing Log (20)`, all 19 distinct `AstralWilds.*` tests present and every one completed with result `'Success'`.** Confirms Live Coding is the right tool for iterating on C++ tests without a full external rebuild each time - worth remembering for future sessions instead of always reaching for a Visual Studio build.
+
 ## Git sync note for future sessions
 
 `git push` from this device bridge's Linux VM (`device_bash`) failed outright: `fatal: could not read Username for 'https://github.com': No such device or address` - that VM has no GitHub credential helper, no `.netrc`, and no token in its environment configured at all (confirmed `git config --get credential.helper` is empty; network reachability to github.com itself is fine, `git pull`/`fetch` work because GitHub allows anonymous read of a public repo). This is a different failure than the `403 from proxy` issue noted in earlier sessions' standing convention - that one was a network restriction, this one is a missing-credential gap in the bridge VM specifically.
