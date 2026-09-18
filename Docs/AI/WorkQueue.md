@@ -11,7 +11,7 @@ Unreal starting point, ported 2026-09-17/18 from the Unity prototype's validated
 - `AstralResonanceWeaveComponent` (new: a Track→Hold→Harmonize bonding minigame per the Canon Bible; no Unity equivalent existed).
 - `AWildAstralEncounter` (new: placeable wild Astral actor with a behavioral-state Temperament, wired into `AstralMageCharacter::DoInteract()` and the Resonance Weave; added 2026-09-18).
 - Content/ (the ~137MB template binary assets) is intentionally not committed yet, same reasoning as the Unity project's large art files.
-- `Source/Astral_Wilds/Tests/` (new 2026-09-18 afternoon): Unreal Automation Test coverage for `AstralCombatRules`/`AstralBattleEngine` (the previously-untested pure battle math), cross-checked against real verified Play Mode results already logged below. Not yet confirmed compiling — see `Docs/AI/CoworkReview-20260918-AutomationTests.md`.
+- `Source/Astral_Wilds/Tests/` (new 2026-09-18 afternoon): Unreal Automation Test coverage for `AstralCombatRules`/`AstralBattleEngine` (the previously-untested pure battle math), cross-checked against real verified Play Mode results already logged below. Build-verified (`Build Astral_Wilds` -> `Result: Succeeded`) after fixing an `EAutomationTestFlags::ApplicationContextMask` compile error — see `Docs/AI/CoworkReview-20260918-AutomationTests.md`.
 
 ---
 

@@ -59,6 +59,21 @@ I tried to locate and close that running Editor instance to unblock the build (T
 
 Given the compile step itself couldn't run, I did not claim these tests as "verified passing" - they're committed on the strength of careful manual review only (matching existing exact patterns already used elsewhere in this module: `TestEqual`/`TestTrue`/`TestFalse`, `IMPLEMENT_SIMPLE_AUTOMATION_TEST`, `WITH_AUTOMATION_TESTS`, `NewObject<UAstralBattleEngine>()` with no world). This is a deliberate exception to "don't move to the next thing until it compiles," made explicitly because: (a) the change is small, additive, and trivially revertible; (b) it's wrapped in `WITH_AUTOMATION_TESTS` so a mistake here can't reach a Shipping build; (c) not committing working-but-unverified code loses a full session's work against "commit often," and the blocker is environmental and already well-documented for the next session to unblock in seconds once someone can reach that Editor window.
 
+## Update: TJ closed the stray Editor, build is now actually verified green
+
+TJ confirmed live that no Unreal Editor was open (he'd closed it), and a retry of "Build Astral_Wilds" got past the Live Coding lock and into a real compile - which immediately surfaced a genuine error, not an environment one this time:
+
+```
+error C2065: 'ApplicationContextMask': undeclared identifier
+error C2838: 'ApplicationContextMask': illegal qualified name in member declaration
+```
+
+at every `IMPLEMENT_SIMPLE_AUTOMATION_TEST(...)` call site in both new test files - `EAutomationTestFlags::ApplicationContextMask` (the combined Editor|Client|Server|Commandlet mask constant) isn't resolving in this engine build, for whatever reason. Rather than keep guessing, checked a subagent's research into the actual UE `AutomationTest.h` struct/enum layout first - it confirmed the syntax itself is normally valid Epic-standard usage, so the safer, more conservative fix was to stop depending on that specific combined constant and use the two most fundamental, long-established flags directly instead: `EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter` (exactly right for these - they only ever need to run in-editor). Applied via `sed` across all 9 call sites in both files.
+
+**Rebuilt: `Result: Succeeded`, `Build: 1 succeeded, 0 failed, 0 up-to-date, 0 skipped`, output binary `UnrealEditor.exe`.** This is the actual compiler pass this file originally said was still pending - see commit `54fc5de`. The automation test suite added this session is now genuinely verified to compile clean against `Astral_WildsEditor` (Win64, Development).
+
+Framework note for whoever writes Unreal automation tests next in this project: don't assume `EAutomationTestFlags::ApplicationContextMask` will just work in this codebase's engine build - use the individual context flags (`EditorContext`/`ClientContext`/etc.) directly, or verify with a real build before committing.
+
 ## Git sync note for future sessions
 
 `git push` from this device bridge's Linux VM (`device_bash`) failed outright: `fatal: could not read Username for 'https://github.com': No such device or address` - that VM has no GitHub credential helper, no `.netrc`, and no token in its environment configured at all (confirmed `git config --get credential.helper` is empty; network reachability to github.com itself is fine, `git pull`/`fetch` work because GitHub allows anonymous read of a public repo). This is a different failure than the `403 from proxy` issue noted in earlier sessions' standing convention - that one was a network restriction, this one is a missing-credential gap in the bridge VM specifically.
