@@ -6,6 +6,11 @@
 #include "Astral_Wilds.h"
 #include "GameFramework/Controller.h"
 #include "Engine/LocalPlayer.h"
+#include "Kismet/GameplayStatics.h"
+#include "DrawDebugHelpers.h"
+#include "WorldCollision.h"
+#include "CollisionQueryParams.h"
+#include "Engine/OverlapResult.h"
 
 AAstralMageCharacter::AAstralMageCharacter()
 {
@@ -122,10 +127,42 @@ void AAstralMageCharacter::OnResonanceWeaveResult(EAstralWeaveResult Result)
 		}
 	}
 
-	// TODO: route Result into the wild-encounter system once it exists -
-	// Succeeded should complete the bond and add the Astral to the party or
-	// reserve; Fled/TurnedHostile/MayRetry should be relayed to that Astral's
-	// AI so it reacts according to its own temperament, per the Canon Bible.
+	AWildAstralEncounter* Target = CurrentWeaveTarget.Get();
+	CurrentWeaveTarget = nullptr;
+
+	switch (Result)
+	{
+	case EAstralWeaveResult::Succeeded:
+		if (Target)
+		{
+			AddAstralToParty(Target->Combatant);
+			Target->Destroy();
+		}
+		break;
+
+	case EAstralWeaveResult::Fled:
+		if (Target)
+		{
+			Target->Destroy();
+		}
+		break;
+
+	case EAstralWeaveResult::TurnedHostile:
+		// TODO: once wild Astrals can fight back directly, route this into
+		// BeginBattle() against Target's Combatant instead of just leaving it
+		// be. For now it stays in the world, no longer receptive.
+		if (Target)
+		{
+			Target->SetWildState(EAstralWildState::Enraged);
+		}
+		break;
+
+	case EAstralWeaveResult::MayRetry:
+	case EAstralWeaveResult::InProgress:
+	default:
+		// Leave the Astral as-is - the player can walk up and try again.
+		break;
+	}
 }
 
 void AAstralMageCharacter::BeginBattle(const FString& PrimaryId, const FString& PrimaryName,
@@ -306,13 +343,17 @@ void AAstralMageCharacter::DoInteract()
 		return;
 	}
 
-	// TODO: trace forward for a receptive wild Astral and pull its real
-	// FAstralWeaveTemperament + bUseOldConcordance (once Old Concordance is
-	// unlocked, per the Canon Bible's Elyndra revelation) instead of this
-	// placeholder default. If nothing receptive is in front of the Mage,
-	// this should fall back to a normal world interact instead.
-	const FAstralWeaveTemperament DefaultTemperament;
-	ResonanceWeave->BeginWeave(DefaultTemperament, /*bUseOldConcordance=*/ false);
+	AWildAstralEncounter* Target = FindReceptiveWildAstral();
+	if (!Target)
+	{
+		// TODO: fall back to a normal world interact (NPCs, pickups, doors)
+		// once that system exists. Nothing receptive nearby, so there's
+		// nothing to bond with right now.
+		return;
+	}
+
+	CurrentWeaveTarget = Target;
+	ResonanceWeave->BeginWeave(Target->Temperament, bHasLearnedOldConcordance);
 
 	if (const APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
@@ -327,4 +368,46 @@ void AAstralMageCharacter::DoInteract()
 			}
 		}
 	}
+}
+
+AWildAstralEncounter* AAstralMageCharacter::FindReceptiveWildAstral() const
+{
+	const FVector Start = GetActorLocation();
+	const FVector Forward = GetActorForwardVector();
+	const FVector End = Start + Forward * InteractTraceDistance;
+
+	TArray<FOverlapResult> Overlaps;
+	FCollisionShape Shape = FCollisionShape::MakeSphere(120.f);
+	GetWorld()->OverlapMultiByObjectType(Overlaps, End, FQuat::Identity,
+		FCollisionObjectQueryParams(ECC_WorldDynamic), Shape);
+
+	AWildAstralEncounter* Best = nullptr;
+	float BestDistSq = TNumericLimits<float>::Max();
+
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		AWildAstralEncounter* Candidate = Cast<AWildAstralEncounter>(Overlap.GetActor());
+		if (!Candidate || !Candidate->IsReceptive())
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared(Start, Candidate->GetActorLocation());
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Best = Candidate;
+		}
+	}
+
+	return Best;
+}
+
+bool AAstralMageCharacter::AddAstralToParty(const FAstralCombatant& NewMember)
+{
+	if (Party.Num() >= PartyCapacity)
+	{
+		return false;
+	}
+	Party.Add(NewMember);
+	return true;
 }

@@ -12,6 +12,7 @@
 #include "AstralTypes.h"
 #include "AstralResonanceWeaveComponent.h"
 #include "AstralBattleEngine.h"
+#include "AstralWildEncounter.h"
 #include "AstralMageCharacter.generated.h"
 
 class UInputAction;
@@ -111,6 +112,22 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Astral|Battle")
 	UAstralBattleEngine* BattleEngine = nullptr;
 
+	/** Maximum party size (Canon Bible Section XI/economy - matches the 6-Astral roster convention). */
+	UPROPERTY(EditAnywhere, Category = "Astral|Party")
+	int32 PartyCapacity = 6;
+
+	/** How far in front of the Mage DoInteract() looks for a receptive wild Astral. */
+	UPROPERTY(EditAnywhere, Category = "Astral|Bonding")
+	float InteractTraceDistance = 300.f;
+
+	/** The wild Astral currently being bonded with, if any - set when a weave begins, consumed when it resolves. */
+	UPROPERTY()
+	TWeakObjectPtr<AWildAstralEncounter> CurrentWeaveTarget;
+
+	/** Unlocked once the player learns Old Concordance on Elyndra (Canon Bible Section VII) - flips the Resonance Weave's scoring/fiction for every future bond. */
+	UPROPERTY(BlueprintReadWrite, Category = "Astral|Bonding")
+	bool bHasLearnedOldConcordance = false;
+
 public:
 
 	AAstralMageCharacter();
@@ -201,6 +218,17 @@ public:
 	/** Returns the party index occupying the given active battle slot (0 or 1), or -1 if out of range. Blueprint-safe alternative to reading ActiveParty directly. */
 	UFUNCTION(BlueprintPure, Category = "Astral|Battle")
 	int32 GetActiveSlotPartyIndex(int32 Slot) const { return (Slot >= 0 && Slot < 2) ? ActiveParty[Slot] : -1; }
+
+	/** Adds a bonded Astral to the party if there's room. Returns false (and adds nothing) if the party is already at PartyCapacity. */
+	UFUNCTION(BlueprintCallable, Category = "Astral|Party")
+	bool AddAstralToParty(const FAstralCombatant& NewMember);
+
+protected:
+
+	/** Traces forward from the Mage for the nearest receptive AWildAstralEncounter within InteractTraceDistance. */
+	AWildAstralEncounter* FindReceptiveWildAstral() const;
+
+public:
 
 protected:
 
