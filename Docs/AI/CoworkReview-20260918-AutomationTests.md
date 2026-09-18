@@ -123,3 +123,41 @@ One minor loose end: `AstralWilds.Battle.QueueAttack` (the plain, non-defeat-pat
 4. Still open from this morning: actual Play-in-Editor verification that the ported mechanics *play* correctly, not just compile/have logic tests - the Roadmap's Phase 2/3 "is this actually fun yet" checkpoint can't be answered by unit tests alone.
 5. Delete the stray nested `Astral_Wilds_Unreal/Astral_Wilds/Astral_Wilds/` project folder (TJ, whenever convenient - not urgent, not blocking anything).
 6. A real Unreal-side `WorkQueue.md` split (flagged both this morning and in prior sessions) - still not done, still worth doing once there's more Unreal-specific queue content.
+
+
+## Pushed into Play-in-Editor verification: found the real root cause of three sessions of failed attempts
+
+TJ asked me to keep going, so after the test-suite win I went after the other standing item: actually playing the ported mechanics, not just testing their logic in isolation.
+
+### The discovery
+
+Before touching anything, I checked what's actually wired up for Play-in-Editor right now:
+
+- `Config/DefaultEngine.ini`: `GlobalDefaultGameMode=/Game/ThirdPerson/Blueprints/BP_ThirdPersonGameMode.BP_ThirdPersonGameMode_C` - still the **stock Third Person template GameMode**, unmodified.
+- `Content/` has zero Astral-specific Blueprints or Input assets: no `BP_AstralMageCharacter`, no `BP_WildAstralEncounter`, and critically no `IA_Attack`/`IA_ArcBurst`/`IA_Guard`/`IA_Interact`(Astral)/`IA_WeaveAlignment`/`IA_Channel`/`IA_Harmonize`/mapping-context assets anywhere - only the stock template's `IMC_Default`/`IA_Move`/`IA_Look`/etc. and the other template variants' (Combat/Platforming/SideScrolling) input assets.
+- No level has a placed `AWildAstralEncounter` or `AstralMageCharacter` instance anywhere.
+
+**This is the real reason Play-in-Editor verification has failed or been skipped for three sessions running**: pressing Play right now just plays the vanilla Third Person template. None of the Astral C++ (`AstralMageCharacter`'s Attack/ArcBurst/Guard/Interact, the Resonance Weave, `AWildAstralEncounter`) is reachable through normal play at all yet - not a computer-use/bridge problem, an actual integration gap. Worth being very clear about this for the design/production side: the C++ systems exist and (per this session) are logic-verified, but nothing in the game *content* currently connects them to what a player experiences pressing Play.
+
+### What I did to verify anyway
+
+Rather than make a permanent project-wide change (editing `DefaultEngine.ini`'s GameMode, which would affect every future session), I did a minimal, fully reversible in-editor test:
+
+1. Used the **Place Actors** panel to drag one `AstralMageCharacter` and one `WildAstralEncounter` directly into `Lvl_ThirdPerson` (both are placeable native C++ classes, no Blueprint needed).
+2. Positioned the `WildAstralEncounter` close to the Mage (well within its 250-unit interact radius and the Mage's 300-unit interact trace distance).
+3. Set the placed `AstralMageCharacter`'s **Auto Possess Player = Player 0** - a per-instance override that gets it possessed on Play regardless of the GameMode's default pawn class, without touching any project settings.
+4. Pressed Play.
+
+**Confirmed via console (`GetAll PlayerController Pawn`)**: `BP_ThirdPersonPlayerController_C_0.Pawn = AstralMageCharacter'...'` - the Mage really was possessed and driving the player's view. No crash, no error on BeginPlay, no Astral-related warnings in the log.
+
+**Could not confirm**: WASD movement. Pressed `W` (up to 50 repeats, tried twice, with the mouse-look capture indicator ("Shift+F1 for Mouse Cursor") showing active both times) and the camera never moved at all. I don't have a confirmed root cause for this - it's one of two things, and I ran out of reliable ways to distinguish them through this remote desktop bridge this session:
+- A genuine content gap: `BP_ThirdPersonPlayerController`'s `DefaultMappingContexts` array (which `AAstral_WildsPlayerController::BeginPlay()` loops over to call `AddMappingContext`) might be empty or misconfigured for this specific Blueprint instance - I couldn't inspect a Blueprint's default array values without opening the Blueprint editor, which I didn't get to.
+- A remote-bridge input-injection limitation: several other input interactions this session behaved inconsistently based on subtle mouse-capture state (editor chrome clicks got swallowed while the game had "look" capture active, requiring `Shift+F1` to release before UI panels would respond again) - it's plausible synthesized keyboard events aren't reaching the game's Enhanced Input system the same way real hardware input would, independent of any project configuration issue.
+
+Cleaned up afterward: stopped Play, deleted both placed actors, confirmed the Outliner back to the original 64 actors and the editor's own "All Saved" indicator with nothing changed (`Content/` isn't git-tracked either way, so this never touched anything in git regardless).
+
+### Recommendation for next session (now the top priority)
+
+1. **Open `BP_ThirdPersonPlayerController` in the Blueprint editor and check `Default Mapping Contexts`** - if it's empty, that's the whole answer, and the fix is either populating it there or (better, long-term) building `BP_AstralMageCharacter`/`BP_AstralWildsPlayerController` Blueprints with their own real Input Mapping Context assigning actual keys to Attack/ArcBurst/Guard/Interact/WeaveAlignment/Channel/Harmonize (they're all still unset `UInputAction*` pointers on the C++ class right now - `SetupPlayerInputComponent` even logs an explicit error if the Enhanced Input component isn't found, but doesn't warn about unset individual actions).
+2. If the mapping context turns out to be fine, the movement failure is a remote-bridge limitation, not a game issue - worth testing directly at the machine (TJ, not through Cowork) to confirm the same repro steps (place both actors, Auto Possess Player = Player 0, Play) actually do work with real keyboard/mouse.
+3. Longer-term integration work (a good next real increment, once the above is resolved): a proper `BP_AstralMageCharacter` (or a dedicated Astral GameMode) so Play just works without manual per-session actor placement, plus the actual Input Mapping Context/Actions so the ported combat and bonding systems become genuinely playable rather than only unit-testable.

@@ -19,6 +19,10 @@ Checkpoint: 2026-09-17 Asia/Riyadh (UTC+3). The earlier stabilization deadline i
 
 Non-negotiable economy constraint: no real-money purchases, paywalls, premium currency, paid progression, or rewarded-ad currency. All purchases use currency earned through gameplay (bosses, item sales, exploration finds, quests, and related play rewards). See `Docs/Design/EconomyPolicy.md`.
 
+## IMPORTANT DISCOVERY (2026-09-18 afternoon): nothing wires Astral gameplay into Play-in-Editor yet
+
+`Config/DefaultEngine.ini`'s GameMode is still the stock Third Person template (`BP_ThirdPersonGameMode`), there are zero Astral-specific Blueprints or Input Mapping Context/Action assets in `Content/`, and no level has a placed `AWildAstralEncounter` or `AstralMageCharacter`. Pressing Play right now just plays the vanilla template - none of the ported C++ (Attack/ArcBurst/Guard/Interact, the Resonance Weave, wild encounters) is reachable through normal play yet. This is a real content/integration gap, not a bug - see `Docs/AI/CoworkReview-20260918-AutomationTests.md` for the full writeup, including a manual-placement workaround that confirmed possession works but left movement input unconfirmed (possibly an empty `DefaultMappingContexts` on `BP_ThirdPersonPlayerController`, possibly a remote-bridge limitation - needs checking directly in the Blueprint editor next). **This is now the top priority integration task**, ahead of expanding scope further.
+
 ## Current priority
 
 1. DONE (2026-09-16 Cowork): Exercise the full keyboard sequence in Play Mode and capture observed results.
