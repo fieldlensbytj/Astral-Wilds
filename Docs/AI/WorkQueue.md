@@ -1,5 +1,7 @@
 # Astral Wilds Work Queue
 
+**2026-09-30 update: the Unreal-specific queue now lives in `Docs/AI/WorkQueueUnreal.md`** (the split flagged below and in prior sessions, finally done). Read that file for current Unreal priorities — it also documents today's finding that the Unreal project folder appears to have moved outside this git repo, undocumented, which blocks further Unreal work until TJ resolves it. Everything in *this* file remains the old Unity-era queue, unchanged, for history and design-provenance reference only.
+
 ## ENGINE STATUS (2026-09-18): UNREAL IS NOW ACTIVE, UNITY IS FROZEN
 
 TJ confirmed directly on 2026-09-18: **Unreal Engine (`Astral_Wilds_Unreal/Astral_Wilds/`) is the active project going forward. The Unity project below (everything else in this repo) is deprecated/frozen** — left in place for now, not being developed further. Everything below this note is the Unity project's historical queue/status log, kept for reference and design provenance (validated battle math, economy rules, etc.) — not an active task list. See `Docs/AI/CoworkReview-20260918.md` and `Docs/AI/CoworkReview-20260918-AutomationTests.md` for what's known so far about the Unreal side and what still needs a real Unreal-side WorkQueue of its own (a future session should probably split this into `WorkQueueUnreal.md` once there's enough Unreal-specific queue content to warrant it).

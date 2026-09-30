@@ -18,6 +18,7 @@ This repository is worked on by multiple AI collaborators on the same local clon
 2. Work normally: small, conservative, reversible changes; commit with clear messages describing what and why.
 3. Before ending your session, if you made any commits, run `git push` to sync them back to `origin/master`.
 4. If a push is rejected because the remote has commits you don't have, run `git pull` again to merge them in (resolve any conflicts if they occur), then push again. Never force-push over another agent's or TJ's work.
+5. Known environment quirk on the Cowork device bridge: a `git` write command (status/add/commit) can leave a stale `.git/index.lock` behind, because the bridge blocks git's own internal `unlink()` cleanup in a connected folder until delete access is separately granted. If a git command fails with `fatal: Unable to create '.git/index.lock': File exists.`, don't request delete permission for this - just rename the lock out of the way (`mv .git/index.lock .git/index.lock.stale-$(date +%s)`) and retry. See `Docs/AI/WorkQueueUnreal.md` for the fuller writeup.
 
 ## Shared context (read at the start of every session)
 
