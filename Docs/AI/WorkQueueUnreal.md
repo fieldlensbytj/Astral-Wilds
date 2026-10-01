@@ -2,6 +2,18 @@
 
 This is the real, current priority list for the active engine (Unreal Engine 5.8, C++, `Astral_Wilds_Unreal/Astral_Wilds/`). `Docs/AI/WorkQueue.md` is the old Unity-era queue, kept for history/design provenance only — its "Current priority"/"Status" sections describe the frozen Unity project, not this one. This file replaces it as the thing to read for "what's next" on Unreal, per the split multiple prior sessions recommended (`CoworkReview-20260918.md`, `CoworkReview-20260918-AutomationTests.md`) but never got around to doing.
 
+## STATUS AS OF 2026-10-01 — STILL BLOCKED (second consecutive day); escalated directly to TJ
+
+Today's session (2026-10-01) re-checked everything from scratch rather than assuming yesterday's finding still holds:
+
+- `git pull`: still "Already up to date." `git log` still tops out at `2e8741b` (yesterday's documentation-only commit) — no commits landed on `origin/master` from TJ, Codex, or any other agent since then.
+- Re-listed `C:\Users\camer\Astral_Wilds_Unreal` (names-only skeleton, same as yesterday — this session still has no connected access to it): still exactly two subfolders, `Astral_Wilds` and `Astral_Wilds_2`, unchanged from yesterday's finding. Nothing on that side appears to have been touched.
+- The read-access request this session's predecessor sent yesterday (`09:44 UTC 2026-09-30`) would have expired after its ~120-minute window with no response; it is not still pending today.
+
+**Did not re-request folder access this session.** Yesterday's review explicitly recommended against auto-repeating that request ("don't re-request again... ask TJ directly"), and that's a deliberate guardrail against the same automated prompt hitting TJ's device every single day indefinitely. Instead, this session sent a direct push notification summarizing the blocker and asking TJ to either grant access to `C:\Users\camer\Astral_Wilds_Unreal` (or just `...\Astral_Wilds` specifically) the next time a session needs it, or say in a `Docs/AI/` note / to a live session where the project actually lives now and which of the two subfolders is canonical.
+
+**This is now a two-day-old blocker with zero Unreal code/Blueprint work possible through this Cowork bridge.** Every item in the carried-over priority list below still needs the actual project files. Rather than requesting access again tomorrow and every day after (which would just be the same overreach yesterday's session already flagged), future daily sessions should: check `git log` for a new commit that might indicate the situation changed, check whether `C:\Users\camer\Astral_Wilds_Unreal` shows up in `get_device_info.connectedFolders` (meaning TJ granted it live, not via the automated prompt), and if neither has changed, simply note "still blocked, no change" in that day's review rather than re-litigating the whole investigation — full root-cause detail lives in `CoworkReview-2026-09-30.md` and doesn't need restating daily.
+
 ## STATUS AS OF 2026-09-30 — BLOCKED: the project folder appears to have moved outside the git repo, undocumented
 
 Today's session (2026-09-30) found the entire tracked `Astral_Wilds_Unreal/Astral_Wilds/` subtree showing as deleted in the working tree (unstaged — `git status` lists every file under it as `deleted`), while `git log`/`git pull` confirm no commits have landed since `5772974` (2026-09-18 14:49 UTC) and the branch is up to date with `origin/master`. Nothing in git history explains this — it's a working-tree change, not a commit, and no `Docs/AI/` note mentions it.
