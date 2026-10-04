@@ -23,6 +23,21 @@ TJ pushed the new standalone repo himself from his own machine (this device brid
 **The relocation blocker that spanned 2026-09-30 through today is now fully closed.** Next session (or later today, time permitting) should pick up a build verification pass on the newly-confirmed `Astral_Wilds` source - still unverified since 2026-09-18 - before resuming the carried-over priority list below.
 
 
+### Build verification (same session): GREEN after fixing fallout from TJ's engine downgrade 5.8 -> 5.7
+
+TJ separately switched the project's active engine from 5.8 to 5.7 mid-session (reason not stated, not this session's call to question). This broke the build in two ways, both found via a real command-line UnrealBuildTool pass (not guessed):
+
+1. `Source/Astral_Wilds.Target.cs` and `Source/Astral_WildsEditor.Target.cs` hardcoded `BuildSettingsVersion.V7` / `EngineIncludeOrderVersion.Unreal5_8`, which don't exist in 5.7's UBT (`error CS0117`). Fixed by switching both to `.Latest` - tracks whatever engine is associated instead of hardcoding a version, so this won't break again on a future engine switch either direction.
+2. `Astral_Wilds.uproject` required three plugins (`ModelContextProtocol`, `MCPClientToolset`, `AllToolsets`) that ship with 5.8 but not 5.7 - the editor refused to even open the project. Verified via repo-wide `grep` that no source file references any of them (they look like Unreal's native MCP/AI-tooling integration, unrelated to gameplay code - this project also has `.claude`/`.codex`/`.cursor`/`.gemini`/`.mcp.json` for the same purpose at the editor-external level). Removed from the required plugin list with TJ's confirmation.
+3. Also updated `Astral_Wilds.uproject`'s `EngineAssociation` from `"5.8"` to `"5.7"` to match, at TJ's confirmation - it hadn't been updated when he switched engines.
+
+After both fixes: `Astral_WildsEditor Win64 Development` build via UnrealBuildTool - **Result: Succeeded, 84.74s**, all 9 compile/link steps passed. Committed as `3f9df6f` in the standalone Unreal repo (see above). A pile of deprecation warnings came through (Chaos physics API renames like `GetRadius`/`GetMargin` -> `GetRadiusf`/`GetMarginf`, `UObject::GetAssetRegistryTags`, `IAssetEditorInstance::CloseWindow`) - all UE5.7-flagged as "fix before next engine upgrade," none blocking. Worth a cleanup pass sometime but not urgent.
+
+**This is the first verified-green build since 2026-09-18** - the carried-over priority list below can now be trusted as a real starting point rather than assumed stale. Both this fix commit and the initial commit (`f1746b0`) are local-only in the standalone repo as of this writing; TJ said he'd push them (same credential-gap reasoning as this repo's own pushes).
+
+Build verification was done entirely by having TJ double-click a `.bat` script this session wrote (`Build_Verify.bat`, deleted after use, not committed) that ran UBT and redirected output to a log file this session could read back - screen automation via computer-use proved too unreliable in click-only mode (couldn't get a stable, identifiable File Explorer window; kept landing on masked/unidentified background processes). Worth remembering as the working pattern for future sessions that need a build/test result but can't run Windows commands directly: write a `.bat` that logs to the connected folder, ask TJ (or whoever's present) to double-click it, read the log back.
+
+
 ## STATUS AS OF 2026-10-04 (second firing, ~20:48 UTC) — STILL BLOCKED, no change since this morning's check
 
 The same scheduled task fired a second time today (first run documented just above, committed as `30ff94b`/`9959652`, ~15:16-15:21 UTC; this run fired ~20:48 UTC — cause of the double-firing unknown from this session's vantage point, flagging in case it matters, not investigating further since it's outside this bridge's visibility). Re-checked only what the standing guardrail says to check:

@@ -79,3 +79,20 @@ TJ replied live partway through the second firing's narrow re-check and resolved
 Open question for TJ, not decided here: whether the new standalone repo should get a remote (push to the existing `fieldlensbytj/Astral-Wilds` GitHub repo somehow, or a new one), noting the device bridge's known credential gap will block any push from this session regardless.
 
 Next: a build verification pass on the now-reachable `Astral_Wilds` source, since the last verified-green status (2026-09-18) predates the relocation/duplication/restore saga and shouldn't be trusted without re-checking.
+
+---
+
+## Addendum 3: build verified green after fixing engine-downgrade fallout
+
+TJ switched the project's engine from 5.8 to 5.7 mid-session. This broke the build two ways, both diagnosed from real UBT output rather than guessed:
+
+1. `Target.cs` files hardcoded 5.8-only enum values (`BuildSettingsVersion.V7`, `EngineIncludeOrderVersion.Unreal5_8`) - switched both to `.Latest` so this survives future engine switches too.
+2. `Astral_Wilds.uproject` required three 5.8-only plugins (`ModelContextProtocol`, `MCPClientToolset`, `AllToolsets`, all MCP/AI-tooling related, not gameplay) - confirmed via grep that no source references them, removed with TJ's go-ahead. Also updated `EngineAssociation` to `"5.7"` to match.
+
+Final build: **Succeeded**, 84.74s, all 9 steps passed (warnings only - several UE5.7-flagged API deprecations to clean up eventually, not urgent). Committed as `3f9df6f` in the standalone Unreal repo. This is the first verified-green build since 2026-09-18.
+
+Build verification method, for future reference: couldn't drive Windows directly (no shell access to that side, and computer-use screen automation was unreliable in click-only mode - kept landing on unidentified masked background windows instead of a usable File Explorer). Worked around it by writing a `.bat` script that ran UnrealBuildTool and logged to a file in the connected folder, then asking TJ to double-click it each time and reading the log back myself. No typing or screen interaction needed once that pattern was set up.
+
+## Session summary
+
+Today ended up covering far more than a routine daily check: resolved a 5-day-old blocker (Unreal project folder relocated outside any connected folder, two ambiguous duplicate folders, a near-miss where the real one was briefly deleted and restored), set up proper git tracking for the project's new permanent location as a standalone repo with TJ pushing it to a new GitHub branch, fixed two real build breaks from an engine downgrade, and got a verified-green build for the first time in over two weeks. Next session can resume the carried-over priority list in `WorkQueueUnreal.md` with a trustworthy starting point.
