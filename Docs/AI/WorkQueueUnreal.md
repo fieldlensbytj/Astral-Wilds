@@ -163,3 +163,16 @@ Run from a Claude Code session with direct shell access on the machine (no `.bat
 - **Watch out:** opening the project in 5.8 again and saving would re-create this problem for 5.7. Pick one engine and stay on it.
 
 Next up from the carried-over list: #4 (real Input Action / Mapping Context assets + GameMode/PlayerStart flow), then #3 (PIE playtest).
+
+### Later on 2026-10-05 — priorities #2, #4, #5 done; #6 moot (all pushed to `astral-wilds-unreal`)
+
+- **#4 Input + GameMode (`f4bbbd8`):** `Content/Astral/Input/` has 7 Input Actions, `IMC_Astral` (Attack LMB/RT, Arc Burst F/X, Guard G+RMB/B, Interact E/Y — Unity prototype bindings, except Attack moved off `A` because it collides with WASD) and `IMC_ResonanceWeave` (priority 10 during a weave: alignment = mouse delta ×0.005 or right stick ×dt×1.5, Channel LMB/RT held, Harmonize Space/X). `BP_AstralMageCharacter` now has every input action, the weave context and the template mesh offset. New `BP_AstralPlayerController` (adds `IMC_Astral`) and `BP_AstralGameMode`; `Lvl_ThirdPerson` overrides to it. A headless `-game` run confirmed that Play spawns and possesses the Mage with both contexts active, and that the spawner populates 4 wild Astrals. **Weave input scales are first guesses — tune them in the playtest.**
+- **#2 Tick tests (`4e569cd`):** `AstralResonanceWeaveComponentTickTests.cpp`, 10 tests using a throwaway UWorld + registered component, Tick driven by hand (Volatility 0 = deterministic). Covers point movement, pulse timing/window, channel gain/drain rates, Hold release, Succeeded-via-Tick, missed-pulse cost and failure (Fled/MayRetry), Harmonize scoring, Old Concordance.
+- **#5 Ensure (`1abdc41`):** reproduced deterministically before fixing. Cause: `APawn::PawnClientRestart` re-runs `SetupPlayerInputComponent` on every possess → `OnWeaveResult.AddDynamic` twice. Test `AstralWilds.Mage.RepossessBindsWeaveResultOnce` hit the exact ensure; fixed with `AddUniqueDynamic`. (Test-world tip: call `World->InitializeActorsForPlay(FURL())` or RPCs like `ClientRestart` are silently dropped.)
+- **#6:** the nested `Astral_Wilds/Astral_Wilds/` folder no longer exists.
+- **Suite: 52/52 pass.**
+
+**Still open:**
+- **#3 PIE playtest** — needs a person at the machine. Press Play in `Lvl_ThirdPerson`, walk to the Receptive Galevine (300, 300), press E, then try Channel/Harmonize. There's no Sigil UI yet, so weave state is only observable via the delegates/log — a minimal debug HUD for the weave is probably the next build task.
+- **#7 Content storage — TJ decision:** `Content/` (137 MB) is committed as plain binaries; the repo pack is 238 MB. Moving to Git LFS would need a history rewrite or a fresh start, and GitHub LFS has storage/bandwidth quotas. Not done unilaterally.
+- Deprecation-warning cleanup (low priority).
