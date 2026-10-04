@@ -1,0 +1,124 @@
+// Astral Wilds - species definitions. A UAstralSpeciesData is the designer-
+// editable "what is this kind of Astral" record (type, base stats, ability
+// slots, how it grows, how hard it is to bond with, what it looks like) that
+// AAstralCharacter instances reference at runtime. Everything here is
+// Blueprint-editable so new species never require touching C++.
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "GameplayTagContainer.h"
+#include "AstralTypes.h"
+#include "AstralResonanceWeaveComponent.h"
+#include "AstralSpeciesData.generated.h"
+
+class UCurveFloat;
+class USkeletalMesh;
+class UAnimInstance;
+
+/**
+ * Per-species AI personality classification - drives how a wild Astral of
+ * this species behaves before/during an encounter. Placeholder set; distinct
+ * from EAstralWildState (AstralWildEncounter.h), which is the moment-to-moment
+ * behavioral state a specific wild Astral is currently in.
+ */
+UENUM(BlueprintType)
+enum class EAstralAIArchetype : uint8
+{
+	Aggressive	UMETA(DisplayName = "Aggressive"),
+	Skittish	UMETA(DisplayName = "Skittish"),
+	Territorial	UMETA(DisplayName = "Territorial"),
+	Docile		UMETA(DisplayName = "Docile")
+};
+
+/**
+ * A species definition (not a runtime instance - see AAstralCharacter for
+ * that). Create one Blueprint child of this class per species; no C++
+ * required. PLACEHOLDER: all default values below are unbalanced placeholders
+ * pending real design - there is no "Astral Wilds Canon Bible" file in the
+ * repo despite other systems' comments referencing one, so nothing here had
+ * an existing spec to match.
+ */
+UCLASS(BlueprintType)
+class UAstralSpeciesData : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+
+	virtual FPrimaryAssetId GetPrimaryAssetId() const override { return FPrimaryAssetId(FName(TEXT("AstralSpecies")), GetFName()); }
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Identity")
+	FText SpeciesName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Identity")
+	EAstralEssence PrimaryType = EAstralEssence::Ember;
+
+	/** Enables SecondaryType below - up to two types per Astral, Pokemon-style. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Identity")
+	bool bHasSecondaryType = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Identity", meta = (EditCondition = "bHasSecondaryType"))
+	EAstralEssence SecondaryType = EAstralEssence::Ember;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Stats")
+	FAstralBaseStats BaseStats;
+
+	/** Placeholder ability system: real ability data model TBD, gameplay tags stand in for now. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Abilities")
+	TArray<FGameplayTag> AbilitySlots;
+
+	/**
+	 * How hard this Astral is to bond with, standard 0 (hardest) - 255
+	 * (easiest) capture-rate convention. Combat isn't an independent dice
+	 * roll here though - the real mechanic is the skill-based Resonance Weave
+	 * (see AstralResonanceWeaveComponent.h), so this feeds GetWeaveTemperament()
+	 * below rather than being consumed directly.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Capture", meta = (ClampMin = "0", ClampMax = "255", UIMin = "0", UIMax = "255"))
+	int32 CaptureRate = 45;
+
+	/** How far/fast the Resonance Point drifts within the Sigil - species "feel", independent of overall difficulty. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Capture", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float WeaveVolatility = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Capture", meta = (ClampMin = "0.1"))
+	float WeavePulseInterval = 1.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Capture", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float WeaveResistanceStrength = 0.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Capture")
+	bool bMayFleeOnWeaveFailure = true;
+
+	/** Builds a real FAstralWeaveTemperament for this species: feel fields pass through, RequiredStability is derived from CaptureRate. */
+	UFUNCTION(BlueprintCallable, Category = "Astral|Capture")
+	FAstralWeaveTemperament GetWeaveTemperament() const;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|AI")
+	EAstralAIArchetype AIArchetype = EAstralAIArchetype::Docile;
+
+	/** Optional curve mapping Level (X) -> XP required for that level (Y). Null-safe - see ComputeXPRequiredForLevel. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Growth")
+	TSoftObjectPtr<UCurveFloat> LevelToXPCurve;
+
+	/** TUNABLE placeholder: +this fraction of each base stat per level above 1. No IV/EV/nature system yet. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Growth", meta = (ClampMin = "0.0", ClampMax = "2.0"))
+	float GrowthRatePerLevel = 0.10f;
+
+	/** Scales BaseStats by Level using the TUNABLE placeholder growth formula above. */
+	UFUNCTION(BlueprintCallable, Category = "Astral|Growth")
+	FAstralBaseStats ComputeStatsForLevel(int32 Level) const;
+
+	/** Uses LevelToXPCurve if set; otherwise falls back to a TUNABLE placeholder cubic curve (Level^3). */
+	UFUNCTION(BlueprintCallable, Category = "Astral|Growth")
+	int32 ComputeXPRequiredForLevel(int32 Level) const;
+
+	/** Null-safe: Meshy/Blender assets drop in here later. Unset means AAstralCharacter shows its placeholder primitive instead. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals")
+	TSoftObjectPtr<USkeletalMesh> DisplayMesh;
+
+	/** Null-safe, only used when DisplayMesh is also set. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals")
+	TSoftClassPtr<UAnimInstance> AnimClass;
+};
