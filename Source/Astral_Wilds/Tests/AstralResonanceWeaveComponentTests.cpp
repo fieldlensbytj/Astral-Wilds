@@ -6,13 +6,10 @@
 // call GetWorld() or GetOwner(), so - like the other Tests/ files - the
 // component is constructed with a bare NewObject<>(), no actor/level needed.
 //
-// NOT covered here (needs a real automation test world so TickComponent -
-// currently protected - can actually run): Resonance Point movement,
-// pulse-window timing, Hold-based Stability gain/decay, and the
-// OnWeaveResult/OnStabilityChanged/OnPulse delegate broadcasts themselves
-// (UE's DECLARE_DYNAMIC_MULTICAST_DELEGATE requires a UFUNCTION-bearing
-// listener object to bind to, which is more setup than fits this pass).
-// Good next-session candidate - see the dated review note.
+// The Tick-driven surface (Resonance Point movement, pulse timing,
+// Hold-based Stability gain/decay, Succeeded-via-Tick) is covered in
+// AstralResonanceWeaveComponentTickTests.cpp; delegate broadcasts from
+// public entry points in AstralResonanceWeaveComponentDelegateTests.cpp.
 #include "Misc/AutomationTest.h"
 
 #if WITH_AUTOMATION_TESTS

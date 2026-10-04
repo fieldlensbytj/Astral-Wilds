@@ -4,13 +4,8 @@
 // (see its header comment). Uses UAstralWeaveResultListener - a minimal
 // UObject - as the UFUNCTION-bearing bind target dynamic delegates require.
 //
-// Still NOT covered here: OnPulse, and anything else that only fires from
-// the protected TickComponent() (resistance pulses, Resonance Point
-// movement, Hold-based Stability gain/decay, the Succeeded-via-Tick path).
-// Those genuinely need a real automation test world so Tick can run - a
-// bigger lift than fits this pass. What IS covered below fires synchronously
-// from public, non-Tick entry points, so it's still a simple automation
-// test with no level or Play-in-Editor session required.
+// OnPulse and everything else that only fires from TickComponent() is
+// covered in AstralResonanceWeaveComponentTickTests.cpp.
 #include "Misc/AutomationTest.h"
 
 #if WITH_AUTOMATION_TESTS
