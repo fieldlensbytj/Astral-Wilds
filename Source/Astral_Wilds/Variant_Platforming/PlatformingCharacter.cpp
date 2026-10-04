@@ -278,12 +278,6 @@ void APlatformingCharacter::DoJumpEnd()
 
 void APlatformingCharacter::DashMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	// Avoid resetting the dash if the previous ground dash interrupted the montage.
-	if (bInterrupted && bIsDashing)
-	{
-		return;
-	}
-
 	// end the dash
 	EndDash();
 }

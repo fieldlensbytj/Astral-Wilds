@@ -164,9 +164,6 @@ protected:
 	/** If true, the charged attack hold check has been tested at least once */
 	bool bHasLoopedChargedAttack = false;
 
-	/** If true, the character wants to release and resolve the charged attack. */
-	bool bHasReleasedChargedAttack = false;
-
 	/** Camera boom length while the character is dead */
 	UPROPERTY(EditAnywhere, Category="Camera", meta = (ClampMin = 0, ClampMax = 1000, Units = "cm"))
 	float DeathCameraDistance = 400.0f;
@@ -270,9 +267,6 @@ public:
 
 	/** Performs the charged attack hold check */
 	virtual void CheckChargedAttack() override;
-
-	/** Loops or resolves the charged attack animation */
-	void LoopOrResolveChargedAttack();
 
 	// ~end CombatAttacker interface
 

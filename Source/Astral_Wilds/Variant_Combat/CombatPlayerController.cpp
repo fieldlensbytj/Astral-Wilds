@@ -16,6 +16,25 @@
 void ACombatPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// only spawn touch controls on local player controllers
+	if (ShouldUseTouchControls() && IsLocalPlayerController())
+	{
+		// spawn the mobile controls widget
+		MobileControlsWidget = CreateWidget<UUserWidget>(this, MobileControlsWidgetClass);
+
+		if (MobileControlsWidget)
+		{
+			// add the controls to the player screen
+			MobileControlsWidget->AddToPlayerScreen(0);
+
+		} else {
+
+			UE_LOG(LogAstral_Wilds, Error, TEXT("Could not spawn mobile controls widget."));
+
+		}
+
+	}
 }
 
 void ACombatPlayerController::SetupInputComponent()
@@ -42,25 +61,6 @@ void ACombatPlayerController::SetupInputComponent()
 				}
 			}
 		}
-	}
-
-	// only spawn touch controls on local player controllers
-	if (IsLocalPlayerController() && ShouldUseTouchControls())
-	{
-		// spawn the mobile controls widget
-		MobileControlsWidget = CreateWidget<UUserWidget>(this, MobileControlsWidgetClass);
-
-		if (MobileControlsWidget)
-		{
-			// add the controls to the player screen
-			MobileControlsWidget->AddToPlayerScreen(0);
-
-		} else {
-
-			UE_LOG(LogAstral_Wilds, Error, TEXT("Could not spawn mobile controls widget."));
-
-		}
-
 	}
 }
 

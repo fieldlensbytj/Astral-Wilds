@@ -149,12 +149,6 @@ void ACombatCharacter::DoChargedAttackStart()
 
 	if (bIsAttacking)
 	{
-		// do not attack if the charge animation hasn't looped at least once
-		if (!bHasLoopedChargedAttack)
-		{
-			bHasReleasedChargedAttack = false;
-		}
-
 		// cache the input time so we can check it later
 		CachedAttackInputTime = GetWorld()->GetTimeSeconds();
 
@@ -169,13 +163,10 @@ void ACombatCharacter::DoChargedAttackEnd()
 	// lower the charging attack flag
 	bIsChargingAttack = false;
 
-	// have we done the charge loop at least once and haven't released the button yet?
-	if (bHasLoopedChargedAttack && !bHasReleasedChargedAttack)
+	// if we've done the charge loop at least once, release the charged attack right away
+	if (bHasLoopedChargedAttack)
 	{
-		// release the charge and resolve the attack
-		bHasReleasedChargedAttack = true;
-
-		LoopOrResolveChargedAttack();
+		CheckChargedAttack();
 	}
 }
 
@@ -221,9 +212,6 @@ void ACombatCharacter::ChargedAttack()
 
 	// reset the charge loop flag
 	bHasLoopedChargedAttack = false;
-
-	// reset the charge release flag
-	bHasReleasedChargedAttack = false;
 
 	// notify enemies they are about to be attacked
 	NotifyEnemiesOfIncomingAttack();
@@ -344,19 +332,10 @@ void ACombatCharacter::CheckChargedAttack()
 	// raise the looped charged attack flag
 	bHasLoopedChargedAttack = true;
 
-	// set the input release flag from the input. This will determine if we loop or resolve
-	bHasReleasedChargedAttack = !bIsChargingAttack;
-
-	// resolve the charge loop
-	LoopOrResolveChargedAttack();
-}
-
-void ACombatCharacter::LoopOrResolveChargedAttack()
-{
-	// jump to either the loop or the attack section depending on whether we've released the charge
+	// jump to either the loop or the attack section depending on whether we're still holding the charge button
 	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
-		AnimInstance->Montage_JumpToSection(bHasReleasedChargedAttack ? ChargeAttackSection : ChargeLoopSection , ChargedAttackMontage);
+		AnimInstance->Montage_JumpToSection(bIsChargingAttack ? ChargeLoopSection : ChargeAttackSection, ChargedAttackMontage);
 	}
 }
 
