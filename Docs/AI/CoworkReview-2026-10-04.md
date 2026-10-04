@@ -46,3 +46,21 @@ Docs-only changes; nothing to compile or run. Confirmed via `git status`/`git di
 `git push origin master` failed as expected: `fatal: could not read Username for 'https://github.com': No such device or address`. Same already-documented credential gap (see `3a9e9e2` 2026-09-18, confirmed again 2026-10-03) - this device bridge's Linux VM has no GitHub credential helper/token configured. Commit `9959652` (this session's docs-only work) is sitting locally on `master`, now 5 commits ahead of `origin/master` (4cee364 and its 3 predecessors, plus this one). Per standing convention, noting this rather than blocking on it - pushing via Visual Studio's own Git Changes panel on the Windows side (authenticated Credential Manager) remains the known workaround, needing a human or computer-use session at the keyboard; not attempted here for the same reasons as 2026-10-03 (small docs-only push, no urgency, risk of interfering with anything TJ may have open).
 
 Also hit the known stale-lock quirk twice this session (`.git/index.lock` and, newly, `.git/HEAD.lock` together after the index-lock mv) - resolved with the same `mv ... .lock.stale-$(date +%s)` workaround, now also noting the HEAD.lock variant for future sessions' awareness since `WorkQueueUnreal.md`'s writeup only mentioned index.lock explicitly before now.
+
+---
+
+## Addendum: second firing today, ~20:48 UTC
+
+The scheduled task fired again today, roughly 5.5 hours after the run documented above (which fired ~15:16 UTC and ended ~15:21 UTC). Reason for the double-firing is not visible from this session - noting it in case it's useful signal (possible scheduler duplicate or catch-up fire), not investigating further.
+
+Did the narrow re-check only, per the standing guardrail in `WorkQueueUnreal.md`:
+
+- `git pull` / `git log -1`: still `30ff94b` (this morning's commit). No new commits from TJ, Codex, or anyone else.
+- `get_device_info.connectedFolders`: still only `C:\Users\camer\Astral Wilds`.
+- `device_list_dir` on `C:\Users\camer\Astral_Wilds_Unreal`: still the same two subfolders (`Astral_Wilds`, `Astral_Wilds_2`), unchanged.
+- `ReadNotifications`: nothing queued, no TJ reply.
+- `git push origin master`: still fails with the same credential gap as every prior session (`fatal: could not read Username for 'https://github.com'`).
+
+Nothing has changed since this morning's check. No re-escalation, no new push notification - consistent with the standing guardrail against repeat pings with no new information. No code/Blueprint work was possible, same reason as every session since 2026-09-30. Only `WorkQueueUnreal.md` (new dated section, prior history left intact) and this addendum changed this session.
+
+This is now five consecutive calendar days unresolved counting today's two firings (2026-09-30 through 2026-10-04). Per the idea floated in the original section above - "if this blocker reaches a full week unresolved, a future session may want to consider a single, clearly-labeled status ping" - today's second firing does not change that threshold; still deferring that judgment call to TJ or a future session rather than deciding it here.
