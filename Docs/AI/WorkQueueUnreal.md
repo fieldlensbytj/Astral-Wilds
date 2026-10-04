@@ -149,3 +149,17 @@ Conclusion: in this remote session, GUI windows are not rendering/appearing to t
 **Next step for TJ (or a future session with a working build path):** double-click `Build_Verify.bat` at the repo root (already pointed at `UE_5.7`) to confirm `AstralEconomyRules` compiles clean, then delete the `.bat` (not git-tracked) same as prior rounds. If it fails, the fix is almost certainly a small syntax/include slip — `git revert 4538ba7` is safe either way since nothing else depends on these files yet.
 
 No files in the main repo changed this session beyond this note (the project itself lives entirely in the standalone `Astral_Wilds_Unreal` repo now).
+
+## STATUS AS OF 2026-10-05 — economy port verified; content made loadable on UE 5.7
+
+Run from a Claude Code session with direct shell access on the machine (no `.bat` hand-off needed — UBT and `UnrealEditor-Cmd` can be run directly).
+
+- **Economy port (`4538ba7`) verified:** editor build green; headless `Automation RunTests AstralWilds` → **41/41 pass**, including all 16 `AstralWilds.Economy.*`. `Build_Verify.bat` deleted. Priority #8 is done.
+- **New finding, now fixed (`ccf21a4`):** 32 packages were unloadable on 5.7 ("custom version is too new") because they'd been saved in 5.8 — including `BP_AstralMageCharacter`, all three `BP_Species_*`, and the two Astral test actors in `Lvl_ThirdPerson`. With TJ's go-ahead to stay on 5.7:
+  - `Variant_*` content + external actors/objects + C++ replaced with stock UE 5.7 `TP_ThirdPerson` template versions (renamed to `Astral_Wilds`). Drops 5.8's local-multiplayer additions; nothing Astral depends on the variants.
+  - Astral assets recreated in 5.7 via a headless editor Python script, with values recovered by parsing the 5.8 packages' tagged properties (stats, types, capture rates, AI archetypes, mesh/anim, spawner settings, actor placement). 5.8 originals are in git history and `Saved/UE58_Backup/`.
+  - Result: 0 unloadable packages, 41/41 tests still pass.
+- **Not pushed:** standalone repo `master` is 3 commits ahead of `origin/astral-wilds-unreal`.
+- **Watch out:** opening the project in 5.8 again and saving would re-create this problem for 5.7. Pick one engine and stay on it.
+
+Next up from the carried-over list: #4 (real Input Action / Mapping Context assets + GameMode/PlayerStart flow), then #3 (PIE playtest).
