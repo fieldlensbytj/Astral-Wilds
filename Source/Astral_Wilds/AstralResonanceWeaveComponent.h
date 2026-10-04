@@ -110,6 +110,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Astral|Bonding")
 	FVector2D GetAlignmentReticle() const { return PlayerAlignment; }
 
+	UFUNCTION(BlueprintPure, Category = "Astral|Bonding")
+	bool IsChanneling() const { return bIsChanneling; }
+
+	/** True between a resistance pulse firing and the Harmonize window closing (answered or missed). */
+	UFUNCTION(BlueprintPure, Category = "Astral|Bonding")
+	bool IsAwaitingPulseResponse() const { return bAwaitingPulseResponse; }
+
+	/** Fraction of the current Harmonize window still open, 1 -> 0. Zero when no pulse is live. */
+	UFUNCTION(BlueprintPure, Category = "Astral|Bonding")
+	float GetPulseWindowFraction() const { return bAwaitingPulseResponse ? FMath::Clamp(PulseResponseTimeRemaining / PulseResponseWindow, 0.f, 1.f) : 0.f; }
+
+	/** Radius, in unit-circle space, within which the reticle counts as aligned with the Resonance Point. */
+	static float GetAlignmentToleranceRadius() { return AlignmentToleranceRadius; }
+
 protected:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;

@@ -198,6 +198,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Astral|Battle")
 	bool IsInBattle() const { return BattleEngine != nullptr; }
 
+	UFUNCTION(BlueprintPure, Category = "Astral|Bonding")
+	UAstralResonanceWeaveComponent* GetResonanceWeave() const { return ResonanceWeave; }
+
+	/** The wild Astral the current Resonance Weave is bonding with, if any. */
+	UFUNCTION(BlueprintPure, Category = "Astral|Bonding")
+	AAstralCharacter* GetCurrentWeaveTarget() const { return CurrentWeaveTarget.Get(); }
+
+	/** The receptive wild Astral Interact would begin a weave with right now, if any (for prompts). */
+	UFUNCTION(BlueprintPure, Category = "Astral|Bonding")
+	AAstralCharacter* GetInteractableWildAstral() const { return IsWeavingResonance() ? nullptr : FindReceptiveWildAstral(); }
+
+	UFUNCTION(BlueprintPure, Category = "Astral|Party")
+	const TArray<FAstralCombatant>& GetParty() const { return Party; }
+
+	UFUNCTION(BlueprintPure, Category = "Astral|Party")
+	int32 GetPartyCapacity() const { return PartyCapacity; }
+
 	/** Starts a Covenant-of-Two encounter against two named opponents. Party must already have at least one non-defeated member. */
 	UFUNCTION(BlueprintCallable, Category = "Astral|Battle")
 	virtual void BeginBattle(const FString& PrimaryId, const FString& PrimaryName,
