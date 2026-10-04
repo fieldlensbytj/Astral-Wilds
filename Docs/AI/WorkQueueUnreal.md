@@ -14,6 +14,15 @@ TJ came online mid-session and resolved all three open questions from 2026-09-30
 
 **Nothing has been compiled or verified yet this session** - the next step (and where this session's remaining time went) is a build pass on the current `Astral_Wilds` source under its new repo, since the last verified-green status (2026-09-18, `5772974`) is now over two weeks and an unexplained relocation/duplication/restore stale, exactly as every prior session's recommendation said to re-verify before trusting it.
 
+### Final update (same session): pushed, remote confirmed
+
+TJ pushed the new standalone repo himself from his own machine (this device bridge genuinely can't - no GitHub credentials in its Linux VM, and that's staying that way; entering a token/credential into this environment is outside what this session will do, even on request). Confirmed via `git fetch` from this session afterward: `origin/astral-wilds-unreal` exists on `https://github.com/fieldlensbytj/Astral-Wilds` with commit `f1746b0`. `master`/`main` on that remote are untouched - this was a clean, additive new branch, no conflict with this repo's own history on that same remote.
+
+`AGENTS.md` updated to point at the new location/remote/branch as the first thing any future session (human or AI) should read.
+
+**The relocation blocker that spanned 2026-09-30 through today is now fully closed.** Next session (or later today, time permitting) should pick up a build verification pass on the newly-confirmed `Astral_Wilds` source - still unverified since 2026-09-18 - before resuming the carried-over priority list below.
+
+
 ## STATUS AS OF 2026-10-04 (second firing, ~20:48 UTC) — STILL BLOCKED, no change since this morning's check
 
 The same scheduled task fired a second time today (first run documented just above, committed as `30ff94b`/`9959652`, ~15:16-15:21 UTC; this run fired ~20:48 UTC — cause of the double-firing unknown from this session's vantage point, flagging in case it matters, not investigating further since it's outside this bridge's visibility). Re-checked only what the standing guardrail says to check:
