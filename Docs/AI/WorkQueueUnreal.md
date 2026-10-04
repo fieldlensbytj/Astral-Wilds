@@ -77,3 +77,5 @@ mv .git/index.lock .git/index.lock.stale-$(date +%s)
 ```
 
 then retry the git command. This renames the stale lock out of the way (satisfies the no-delete-without-permission policy, since nothing is actually deleted) without needing to request delete permission at all. Expect to do this once per commit, sometimes more than once per session.
+
+**2026-10-04 addendum:** the same thing can happen to `.git/HEAD.lock` (seen for the first time this session, immediately after an index.lock mv, mid-`git commit`) and presumably any other `.git/*.lock` git leaves behind under this same delete restriction - not just `index.lock`. Same workaround applies: `mv .git/HEAD.lock .git/HEAD.lock.stale-$(date +%s)` (or whichever lock file the error names) and retry. Worth checking `ls .git/*.lock` generally rather than assuming it's only ever `index.lock`.
