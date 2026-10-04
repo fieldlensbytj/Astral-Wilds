@@ -64,3 +64,18 @@ Did the narrow re-check only, per the standing guardrail in `WorkQueueUnreal.md`
 Nothing has changed since this morning's check. No re-escalation, no new push notification - consistent with the standing guardrail against repeat pings with no new information. No code/Blueprint work was possible, same reason as every session since 2026-09-30. Only `WorkQueueUnreal.md` (new dated section, prior history left intact) and this addendum changed this session.
 
 This is now five consecutive calendar days unresolved counting today's two firings (2026-09-30 through 2026-10-04). Per the idea floated in the original section above - "if this blocker reaches a full week unresolved, a future session may want to consider a single, clearly-labeled status ping" - today's second firing does not change that threshold; still deferring that judgment call to TJ or a future session rather than deciding it here.
+
+---
+
+## Addendum 2: blocker resolved - TJ came online mid-session
+
+TJ replied live partway through the second firing's narrow re-check and resolved the standing blocker directly:
+
+- Confirmed `Astral_Wilds` (not `Astral_Wilds_2`) is the real project - it has all the ported gameplay classes plus several built since the last documented check (`AstralCharacter`, `AstralSpeciesData`, `AstralWildEncounter`, `AstralWildlifeController`, `AstralWildlifeStateTreeUtility`, `AstralWildSpawner`), a `Tests/` dir, and `Content/`. He'd briefly told this session to keep `Astral_Wilds_2` and had deleted `Astral_Wilds`, but restored it once this session flagged that `Astral_Wilds_2` was just the bare template with none of the real work.
+- Approved deleting `Astral_Wilds_2` (via `device_request_delete_permission`) - done.
+- Confirmed the external path `C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\` is the permanent home and that git should be connected there. This session initialized a new standalone git repo at that location (commit `f1746b0`) rather than trying to nest an external sibling folder back inside this repo. See `Docs/AI/WorkQueueUnreal.md`'s new "RESOLVED" section for full detail.
+- Cleaned up this repo's stale tracked copy at `Astral_Wilds_Unreal/Astral_Wilds/...` (committed the already-present working-tree deletions, since that content is now tracked in the new standalone repo instead).
+
+Open question for TJ, not decided here: whether the new standalone repo should get a remote (push to the existing `fieldlensbytj/Astral-Wilds` GitHub repo somehow, or a new one), noting the device bridge's known credential gap will block any push from this session regardless.
+
+Next: a build verification pass on the now-reachable `Astral_Wilds` source, since the last verified-green status (2026-09-18) predates the relocation/duplication/restore saga and shouldn't be trusted without re-checking.
