@@ -176,3 +176,15 @@ Next up from the carried-over list: #4 (real Input Action / Mapping Context asse
 - **#3 PIE playtest** — needs a person at the machine. Press Play in `Lvl_ThirdPerson`, walk to the Receptive Galevine (300, 300), press E, then try Channel/Harmonize. There's no Sigil UI yet, so weave state is only observable via the delegates/log — a minimal debug HUD for the weave is probably the next build task.
 - **#7 Content storage — TJ decision:** `Content/` (137 MB) is committed as plain binaries; the repo pack is 238 MB. Moving to Git LFS would need a history rewrite or a fresh start, and GitHub LFS has storage/bandwidth quotas. Not done unilaterally.
 - Deprecation-warning cleanup (low priority).
+
+### Later still on 2026-10-05 — debug HUD + full bonding-loop test (`3334ba6`)
+
+- **`AAstralDebugHUD`** (C++, canvas only; `BP_AstralGameMode`'s HUD) makes the bonding loop observable in Play:
+  - Always: party count, plus a `[E / Y] Begin Resonance Weave with <species> (Lv n)` prompt when a receptive Astral is in reach.
+  - During a weave, the Sigil: Resonance Point with its tolerance ring, the reticle (green while channeling), and a Stability bar.
+  - When a pulse window opens: the Sigil turns red, a ring shrinks as the window closes, and "HARMONIZE!" appears.
+  - Each weave result stays on screen for 3s.
+- **New test `AstralWilds.Mage.BondingLoopAddsAstralToParty`** runs the whole loop through the real Mage code. Interact finds the Astral via the actual overlap query, then weave → Succeeded → the Astral joins the party with its species and is removed from the world. **53/53 pass.**
+- **Deprecation warnings: nothing to do.** A full rebuild shows 42 warnings, all inside UE 5.7's own engine headers; none are in project code. Drop this from the list.
+
+**Playtest is now ready (#3):** Play `Lvl_ThirdPerson` → walk toward the Galevine at (300, 300) until the prompt appears → E → keep the white cross on the yellow square while holding LMB, and press Space when the Sigil turns red. Tune the weave input scales in `IMC_ResonanceWeave` from feel. Remaining open items are only #3 (needs a human) and #7 (TJ's LFS decision).
