@@ -24,9 +24,11 @@ void AAstralMageCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 	// own actions on top.
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+	// Unique: APawn::PawnClientRestart re-runs this on every possess, so a
+	// re-possessed Mage would otherwise bind (and ensure on) a second copy.
 	if (ResonanceWeave)
 	{
-		ResonanceWeave->OnWeaveResult.AddDynamic(this, &AAstralMageCharacter::OnResonanceWeaveResult);
+		ResonanceWeave->OnWeaveResult.AddUniqueDynamic(this, &AAstralMageCharacter::OnResonanceWeaveResult);
 	}
 
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
