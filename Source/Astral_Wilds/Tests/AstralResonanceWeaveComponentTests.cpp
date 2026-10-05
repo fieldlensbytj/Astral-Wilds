@@ -46,7 +46,7 @@ bool FAstralResonanceWeave_BeginWeaveActivates::RunTest(const FString& Parameter
 	Weave->BeginWeave(AstralResonanceWeaveComponentTests::MakeTemperament(), false);
 
 	TestTrue(TEXT("BeginWeave activates the weave"), Weave->IsWeaveActive());
-	TestEqual(TEXT("Stability fraction starts at zero even once active"), Weave->GetStabilityFraction(), 0.f);
+	TestEqual(TEXT("Stability starts at StartingStability (20 of 100) once active"), Weave->GetStabilityFraction(), 0.2f, KINDA_SMALL_NUMBER);
 	TestEqual(TEXT("The Resonance Point starts at the Sigil's center before any tick runs"), Weave->GetResonancePoint(), FVector2D::ZeroVector);
 	TestEqual(TEXT("The player's alignment reticle starts at the Sigil's center"), Weave->GetAlignmentReticle(), FVector2D::ZeroVector);
 
@@ -118,7 +118,7 @@ bool FAstralResonanceWeave_HarmonizeOutsidePulseIsNoOp::RunTest(const FString& P
 	Weave->RespondToHarmonize();
 
 	TestTrue(TEXT("The weave stays active after an out-of-window Harmonize press"), Weave->IsWeaveActive());
-	TestEqual(TEXT("Stability is unaffected by an out-of-window Harmonize press"), Weave->GetStabilityFraction(), 0.f);
+	TestEqual(TEXT("Stability is unaffected by an out-of-window Harmonize press"), Weave->GetStabilityFraction(), 0.2f, KINDA_SMALL_NUMBER);
 
 	return true;
 }

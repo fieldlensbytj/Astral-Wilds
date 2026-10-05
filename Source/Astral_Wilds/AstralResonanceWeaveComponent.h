@@ -76,6 +76,17 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Astral|Bonding")
 	FOnAstralPulse OnPulse;
 
+	/**
+	 * Stability every weave begins with, so the first missed pulse (12 * (1 +
+	 * resistance) = 16.8 at the usual 0.4) or misaligned Harmonize (14) can't
+	 * zero it out before the player has had a real chance - a 2026-10-05
+	 * playtest bot fled at the very first pulse in 2 of 4 runs. Capped at half
+	 * the temperament's RequiredStability so easy species never start more
+	 * than halfway bonded.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Bonding", meta = (ClampMin = "0"))
+	float StartingStability = 20.f;
+
 	/** Begins a weave attempt against a receptive Astral. Fails immediately (Result = MayRetry) if a weave is already in progress. */
 	UFUNCTION(BlueprintCallable, Category = "Astral|Bonding")
 	void BeginWeave(const FAstralWeaveTemperament& Temperament, bool bUseOldConcordance);

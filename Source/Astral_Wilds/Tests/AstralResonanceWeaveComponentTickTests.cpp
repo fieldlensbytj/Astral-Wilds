@@ -43,6 +43,9 @@ namespace AstralResonanceWeaveComponentTickTests
 			World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("AstralWeaveTickTestWorld"));
 			AActor* Owner = World->SpawnActor<AActor>();
 			Weave = NewObject<UAstralResonanceWeaveComponent>(Owner);
+			// Zero baseline so the rate/penalty arithmetic below is exact;
+			// StartingStability itself is covered by its own tests.
+			Weave->StartingStability = 0.f;
 			Weave->RegisterComponent();
 
 			Listener = NewObject<UAstralWeaveResultListener>();
@@ -314,15 +317,45 @@ bool FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod::RunTest(const FStri
 
 	// Pulse 3: answer it badly misaligned (LoseAlignment guarantees it,
 	// regardless of exactly where the Resonance Point has drifted to).
-	// 30 more ticks reaches it. Costs 10 * 1.4 = 14, taking Stability from
+	// The pulse timer is paused while a window is open, so pulse 3 lands
+	// 0.4s after pulse 2's window lapsed (~tick 166-167, float accumulation);
+	// 40 more ticks reaches it with its 0.45s window still open. Costs 10 * 1.4 = 14, taking Stability from
 	// 8.2 to -5.8, clamped to 0 - this time past the grace period, so a
 	// flighty Astral flees.
-	H.Tick(0.01f, 30);
+	H.Tick(0.01f, 40);
 	TestEqual(TEXT("Third pulse fired"), H.Listener->PulseCallCount, 3);
 	H.LoseAlignment();
 	H.Weave->RespondToHarmonize();
 	TestEqual(TEXT("Flee resumes once the grace period is used up"), H.Listener->LastWeaveResult, EAstralWeaveResult::Fled);
 	TestFalse(TEXT("Weave is no longer active"), H.Weave->IsWeaveActive());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralResonanceWeave_Tick_StartingStabilityAbsorbsFirstMiss, "AstralWilds.ResonanceWeave.Tick.StartingStabilityAbsorbsFirstMiss", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FAstralResonanceWeave_Tick_StartingStabilityAbsorbsFirstMiss::RunTest(const FString& Parameters)
+{
+	using namespace AstralResonanceWeaveComponentTickTests;
+	FWeaveTickHarness H;
+	H.Weave->StartingStability = 20.f; // the shipping default
+	H.Weave->BeginWeave(MakeTemperament(0.4f), false);
+	TestEqual(TEXT("Weave starts at 20 of 100 Stability"), H.Weave->GetStabilityFraction(), 0.2f, KINDA_SMALL_NUMBER);
+
+	H.Tick(0.05f, 20); // pulse at 0.4s, window lapses by ~0.85s, no response
+	TestEqual(TEXT("A pulse fired and was missed"), H.Listener->PulseCallCount, 1);
+	TestTrue(TEXT("The weave survives a missed first pulse"), H.Weave->IsWeaveActive());
+	TestFalse(TEXT("No result was broadcast"), H.Listener->bReceivedWeaveResult);
+	TestEqual(TEXT("Miss cost 16.8, leaving 3.2"), H.Weave->GetStabilityFraction(), 0.032f, 0.001f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralResonanceWeave_Tick_StartingStabilityCappedAtHalf, "AstralWilds.ResonanceWeave.StartingStabilityCappedAtHalfRequired", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FAstralResonanceWeave_Tick_StartingStabilityCappedAtHalf::RunTest(const FString& Parameters)
+{
+	using namespace AstralResonanceWeaveComponentTickTests;
+	FWeaveTickHarness H;
+	H.Weave->StartingStability = 20.f;
+	H.Weave->BeginWeave(MakeTemperament(100.f, 30.f), false);
+	TestEqual(TEXT("An easy Astral (30 required) starts at half, not 20/30"), H.Weave->GetStabilityFraction(), 0.5f, KINDA_SMALL_NUMBER);
 	return true;
 }
 

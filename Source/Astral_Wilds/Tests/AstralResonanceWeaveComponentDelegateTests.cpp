@@ -37,7 +37,7 @@ bool FAstralResonanceWeave_BeginWeaveBroadcastsStabilityChanged::RunTest(const F
 	Weave->BeginWeave(AstralResonanceWeaveComponentDelegateTests::MakeTemperament(), false);
 
 	TestTrue(TEXT("BeginWeave broadcasts OnStabilityChanged at least once"), Listener->StabilityChangedCallCount >= 1);
-	TestEqual(TEXT("The broadcast stability fraction is zero at the start of a fresh weave"), Listener->LastStabilityFraction, 0.f);
+	TestEqual(TEXT("BeginWeave broadcasts the starting Stability (20 of 100)"), Listener->LastStabilityFraction, 0.2f, KINDA_SMALL_NUMBER);
 
 	return true;
 }

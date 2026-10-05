@@ -19,7 +19,7 @@ void UAstralResonanceWeaveComponent::BeginWeave(const FAstralWeaveTemperament& T
 	bIsActive = true;
 	bIsChanneling = false;
 	bHasSucceededAnyPulse = false;
-	Stability = 0.f;
+	Stability = FMath::Clamp(StartingStability, 0.f, CurrentTemperament.RequiredStability * 0.5f);
 	ResonancePoint = FVector2D::ZeroVector;
 	PlayerAlignment = FVector2D::ZeroVector;
 	TimeUntilNextPulse = FMath::Max(0.4f, CurrentTemperament.PulseInterval);
@@ -29,7 +29,7 @@ void UAstralResonanceWeaveComponent::BeginWeave(const FAstralWeaveTemperament& T
 	MovementRandomStream.Initialize(FMath::Rand());
 
 	SetComponentTickEnabled(true);
-	OnStabilityChanged.Broadcast(0.f);
+	OnStabilityChanged.Broadcast(GetStabilityFraction());
 }
 
 void UAstralResonanceWeaveComponent::CancelWeave()
