@@ -1,0 +1,9 @@
+# Astral Wilds - protect Unreal binary assets from any line-ending/text
+# conversion. Without this, a tool that touches these files with
+# autocrlf-style conversion enabled could silently corrupt them. Added
+# 2026-10-05 after a pure CRLF/LF churn was found on a source file
+# (AstralAutoPlaytest.cpp) with no .gitattributes in place at all - the
+# source churn itself was harmless, but the absence of any binary
+# declaration for .uasset/.umap was not.
+*.uasset binary
+*.umap binary
