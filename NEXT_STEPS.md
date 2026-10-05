@@ -2,46 +2,40 @@
 
 For a Claude Code session running in PowerShell with real shell access to this machine (unlike the Cowork scheduled-task bridge, which has none - see this repo's commit messages and `../../Astral Wilds/Docs/AI/CoworkReview-2026-10-05.md` for why). This file is kept up to date in place; it is not a log.
 
-Full project context, conventions, and the dated history of how this repo got here live in the *other* repo at `C:\Users\camer\Astral Wilds\` - read `AGENTS.md` there first if you haven't already this session, then `Docs\AI\WorkQueueUnreal.md` (this repo's full history is documented there, including a "PICK UP HERE" block that mirrors this file).
+Full project context, conventions, and the dated history of how this repo got here live in the *other* repo at `C:\Users\camer\Astral Wilds\` - read `AGENTS.md` there first if you haven't already this session, then `Docs\AI\WorkQueueUnreal.md`.
 
-## Current state (last updated 2026-10-05 by the Cowork daily session)
+## Current state (last updated 2026-10-05 by a Claude Code session with shell access)
 
-Local `master` is ahead of `origin/astral-wilds-unreal` - run `git log --oneline origin/astral-wilds-unreal..master` for the exact current list (this file's own commits add to the count each time it's updated, so no fixed number is given here). None of today's commits are build-verified yet - today's Cowork session had no compiler/PIE access at all. The substantive ones, oldest to newest:
+Everything is **build-verified, tested and pushed** to `origin/astral-wilds-unreal`. Suite: **56/56**. Rendered bot playtest: **4/4 bonded** (7.2-9.0s).
 
-- `7d83536` - adds `.gitattributes` (marks `*.uasset`/`*.umap` binary). Zero risk, not gameplay code.
-- `fa1b858` - Resonance Weave first-pulse grace period (no flee on a weave's very first pulse, win or lose) + tightened interact reach (~6.7m -> ~3.7m). Updates 2 existing tests' expected result to match.
-- `1c6f957` - Sigil debug-HUD draw position moved off dead-center + new test `FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod` (fills a TODO `fa1b858` left).
-- Everything after `1c6f957` is this file itself being added/corrected - docs only, zero build risk.
+Latest substantive commits (`git log --oneline -10` for the rest):
 
-Full reasoning for each, including the exact numbers and why, is in the commit messages (`git log -3 -p`).
+- `a9b7fcf` - Resonance Weave starts at 20 Stability (`StartingStability`, capped at half `RequiredStability`), TJ's chosen fix for the first-pulse cliff. Also fixes the tick count in `FleeResumesAfterFirstPulseGracePeriod`, which failed on its first real run.
+- `1c6f957` / `fa1b858` - first-pulse no-flee grace (kept alongside starting Stability), tighter interact reach (~3.7m, confirmed on screen), Sigil moved up off the Mage. Verified by the session above.
 
-## Do this, in order
+## How to verify (PowerShell)
 
-```powershell
-git pull   # in case anything else landed since
-git log --oneline -5   # confirm you see 7d83536 / fa1b858 / 1c6f957 at the top
-```
-
-Build (engine is 5.7 - see `Astral_Wilds.uproject`'s `EngineAssociation`; confirm the install path below is still right before running it, it's inferred from a sibling UE_5.8 path a 2026-09-18 session logged, not re-verified today):
+Build (UE 5.7 at `D:\Games\Epic Games\UE_5.7`, verified 2026-10-05):
 
 ```powershell
-& "D:\Games\Epic Games\UE_5.7\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.exe" Astral_WildsEditor Win64 Development -project="C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\Astral_Wilds.uproject"
+& "D:\Games\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" Astral_WildsEditor Win64 Development "-Project=C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\Astral_Wilds.uproject" -WaitMutex
 ```
 
-Then run the suite headless (should be **54/54** - 53 going into today, +1 new):
+Tests, headless. `-stdout` is needed to see the results; the GameFeatures "ensure" at startup is harmless, and its exit code 255 doesn't mean a test failed. Count the `Result={Success}` lines instead:
 
 ```powershell
-& "D:\Games\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\Astral_Wilds.uproject" -ExecCmds="Automation RunTests AstralWilds; Quit" -unattended -nopause -nosplash
+& "D:\Games\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\Astral_Wilds.uproject" -ExecCmds="Automation RunTests AstralWilds;Quit" -unattended -nopause -nosplash -NullRHI -log -stdout
 ```
 
-If both are green: `git push origin master:astral-wilds-unreal`, then update this file to say so (commits pushed, suite green, date) and mirror the same update into `Docs\AI\WorkQueueUnreal.md`'s "PICK UP HERE" block in the other repo.
+Rendered bot playtest. It opens a game window for about 30s, then logs `[AutoPlaytest] RESULT:` to `Saved\Logs\Astral_Wilds.log` and saves screenshots to `Saved\AutoPlaytest\`:
 
-If the build or a test fails: almost certainly `fa1b858` or `1c6f957` (both touch `AstralResonanceWeaveComponent`/its tests), not `7d83536` (docs/config only). `git revert <hash>` the specific bad one - each was written to be independently revertable. If it's `FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod` failing on a `PulseCallCount` assertion specifically, that commit's message says which stage's tick count to re-derive.
+```powershell
+& "D:\Games\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe" "C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\Astral_Wilds.uproject" /Game/ThirdPerson/Lvl_ThirdPerson -game -windowed -ResX=1280 -ResY=720 "-ExecCmds=Astral.AutoPlaytest"
+```
 
-## After that's confirmed, still open
+## Still open
 
-- A `NavMeshBoundsVolume` for `Lvl_ThirdPerson` so wildlife AI can actually path - needs the editor open, a Cowork session can't do this blind.
-- The `Content/` Git LFS decision (238MB+ and growing as plain binaries) - TJ's call.
-- A real human PIE playtest for game feel now that today's tuning has landed.
-
-See `../../Astral Wilds/Docs/AI/WorkQueueUnreal.md` for the full dated history and design findings behind all of the above.
+- A `NavMeshBoundsVolume` for `Lvl_ThirdPerson` so wildlife AI can path. The spawner now falls back to ground traces, but wild Astrals can't move.
+- The `Content/` Git LFS decision (238MB+ of plain binaries) - TJ's call.
+- A human PIE playtest for game feel (tracking speed, pulse rhythm). The bot only proves the loop works.
+- Both first-pulse protections are now active: starting Stability, and no flee on the first pulse. If bonding feels too forgiving, `fa1b858`'s grace is the one to revisit.
