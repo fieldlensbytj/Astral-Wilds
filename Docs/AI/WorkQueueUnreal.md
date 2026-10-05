@@ -230,3 +230,7 @@ Given no compiler access, kept this session's changes to things verifiable by in
 Did not touch the four open playtest findings from the previous entry (first-pulse difficulty cliff, interact reach, no-navmesh wildlife AI, Sigil screen position) - still TJ's design calls. Did not attempt a NavMeshBoundsVolume fix either (see today's `CoworkReview-2026-10-05.md` for why: no safe way to verify it from this session).
 
 Full detail in `Docs/AI/CoworkReview-2026-10-05.md`.
+
+### Later on 2026-10-05 — first-pulse grace period + tightened interact reach (`fa1b858`, unverified)
+
+TJ gave the go-ahead live to act on two of the four playtest findings above. `UAstralResonanceWeaveComponent` now grants a retry instead of a flee on a weave's very first pulse response (win or lose), fixing the "fled instantly at 1.6s" finding without changing difficulty afterward. Combined interact reach (probe + query sphere + Astral's own interact sphere) cut from ~6.7m to ~3.7m, chosen to stay clear of `FAstralMage_BondingLoopAddsAstralToParty`'s 300cm test placement with margin. Updated the two existing tests this deliberately changes the expected result of. **Not build-verified** - this session has no compiler/PIE access (see `CoworkReview-2026-10-05.md`). Needs a real build and ideally a re-run of `Astral.AutoPlaytest` before trusting it. Still open: no navmesh for wildlife AI, Sigil screen position, Content/ LFS decision.

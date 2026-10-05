@@ -48,3 +48,16 @@ Given the no-build-verification constraint above, kept changes to things I could
 2. Pick up carried-over priority #7 (Content/ Git LFS decision - still TJ's call) or the NavMeshBoundsVolume gap above, whichever a session with real build/editor access gets to first.
 3. The four playtest findings in `WorkQueueUnreal.md` (first-pulse difficulty cliff, ~6.7m interact reach, no-navmesh wildlife, Sigil screen position) are still open and still genuinely TJ's design calls, not something to guess-fix.
 4. If a future Cowork session (this bridge, not a Claude Code CLI session) wants to attempt real code changes beyond doc/hygiene work, budget time to re-confirm computer-use tier and `device_bash` platform first thing - don't assume either has changed, but also don't skip the check, since this is exactly the kind of thing that could change if TJ adjusts permissions.
+
+## Addendum: picked up two of the four playtest findings, at TJ's go-ahead
+
+TJ came online mid-session and said to go ahead ("let's get it crackin"), specifically pointing at the first-pulse difficulty cliff and interact-reach findings I'd offered to draft a fix for. Implemented both in the standalone Unreal repo, commit `fa1b858`:
+
+1. **First-pulse grace period** (`UAstralResonanceWeaveComponent`): a flighty Astral (`bMayFleeOnFailure`) no longer flees on the very first pulse response of a weave, win or lose - it gets a retry instead. Everything after that first pulse is unchanged. New `bHasSucceededAnyPulse` member gates it.
+2. **Interact reach tightened** (`AstralMageCharacter`/`AstralCharacter`): the three additive distances (probe 300→180, query sphere 120→70, Astral's own interact sphere 250→120) combined to ~6.7m before; now ~3.7m. Chose the new numbers specifically to clear `FAstralMage_BondingLoopAddsAstralToParty`'s wild Astral (placed exactly 300cm from the Mage, so needed >300cm total with real margin) while landing under the 425cm PlayerStart-to-Galevine distance that made the old reach show the prompt before the player moved at all.
+
+Both are still **unverified by a real build** - this session has no compiler or PIE access (see above). Updated the two existing automation tests whose expected result this deliberately flips (both exercised a weave's very first pulse and asserted `Fled`; now assert `MayRetry`), with inline comments explaining why, and left a TODO for the one case I didn't add coverage for (flee still happening on a *later* pulse, after the grace is used) rather than invent new timing-sensitive test math I can't run. Full reasoning, the exact numbers, and a caveat about `BP_AstralMageCharacter` possibly overriding `InteractTraceDistance` in the Blueprint defaults panel (which would silently block this C++ default change) are in the commit message.
+
+**This needs a real build + ideally a PIE/`Astral.AutoPlaytest` re-run before being trusted** - flagging clearly rather than claiming it's done. Did not touch the other two findings (no navmesh for wildlife, Sigil screen position) - still out of scope for a session without editor access.
+
+Sync: `fa1b858` pushed-attempted, same credential-gap failure as every prior session. Standalone repo `master` is now 2 commits ahead of `origin/astral-wilds-unreal` (`7d83536`, `fa1b858`).
