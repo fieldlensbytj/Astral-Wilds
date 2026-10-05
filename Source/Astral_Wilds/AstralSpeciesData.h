@@ -166,4 +166,16 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation", meta = (Units = "cm/s"))
 	float IdleSpeedThreshold = 25.f;
+
+	/** Drops the rigged DisplayMesh and its locomotion clips so the species falls back to DisplayStaticMesh. Also a button in the editor's Details panel. */
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Astral|Visuals|Animation")
+	void ClearRiggedDisplay()
+	{
+		Modify();
+		DisplayMesh.Reset();
+		AnimClass.Reset();
+		IdleAnim.Reset();
+		WalkAnim.Reset();
+		RunAnim.Reset();
+	}
 };
