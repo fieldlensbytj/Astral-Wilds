@@ -6,12 +6,12 @@ Full project context, conventions, and the dated history of how this repo got he
 
 ## Current state (last updated 2026-10-05 by the Cowork daily session)
 
-Local `master` is **4 commits ahead of `origin/astral-wilds-unreal`**, none of them build-verified yet - today's Cowork session had no compiler/PIE access at all. Oldest to newest:
+Local `master` is ahead of `origin/astral-wilds-unreal` - run `git log --oneline origin/astral-wilds-unreal..master` for the exact current list (this file's own commits add to the count each time it's updated, so no fixed number is given here). None of today's commits are build-verified yet - today's Cowork session had no compiler/PIE access at all. The substantive ones, oldest to newest:
 
-1. `7d83536` - adds `.gitattributes` (marks `*.uasset`/`*.umap` binary). Zero risk, not gameplay code.
-2. `fa1b858` - Resonance Weave first-pulse grace period (no flee on a weave's very first pulse, win or lose) + tightened interact reach (~6.7m -> ~3.7m). Updates 2 existing tests' expected result to match.
-3. `1c6f957` - Sigil debug-HUD draw position moved off dead-center + new test `FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod` (fills a TODO `fa1b858` left).
-4. `25f53fb` - adds this file. Zero risk, not gameplay code.
+- `7d83536` - adds `.gitattributes` (marks `*.uasset`/`*.umap` binary). Zero risk, not gameplay code.
+- `fa1b858` - Resonance Weave first-pulse grace period (no flee on a weave's very first pulse, win or lose) + tightened interact reach (~6.7m -> ~3.7m). Updates 2 existing tests' expected result to match.
+- `1c6f957` - Sigil debug-HUD draw position moved off dead-center + new test `FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod` (fills a TODO `fa1b858` left).
+- Everything after `1c6f957` is this file itself being added/corrected - docs only, zero build risk.
 
 Full reasoning for each, including the exact numbers and why, is in the commit messages (`git log -3 -p`).
 
