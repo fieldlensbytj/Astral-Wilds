@@ -14,6 +14,7 @@
 
 class UCurveFloat;
 class USkeletalMesh;
+class UStaticMesh;
 class UAnimInstance;
 
 /**
@@ -121,4 +122,21 @@ public:
 	/** Null-safe, only used when DisplayMesh is also set. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals")
 	TSoftClassPtr<UAnimInstance> AnimClass;
+
+	/**
+	 * Static (unrigged) display model, e.g. a Meshy export, used when the
+	 * skeletal DisplayMesh is unset. Auto-fitted: uniformly scaled to
+	 * DisplayHeight and placed with its base on the ground. No animation -
+	 * the Astral glides until a rigged DisplayMesh replaces it.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals")
+	TSoftObjectPtr<UStaticMesh> DisplayStaticMesh;
+
+	/** Height in cm that DisplayStaticMesh is scaled to. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals", meta = (ClampMin = "10", Units = "cm"))
+	float DisplayHeight = 120.f;
+
+	/** Yaw in degrees applied to DisplayStaticMesh so the model faces the Astral's forward (+X) direction. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals")
+	float DisplayYawOffset = 0.f;
 };

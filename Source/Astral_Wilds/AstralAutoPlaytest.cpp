@@ -17,6 +17,9 @@
 
 #include "AstralMageCharacter.h"
 #include "AstralCharacter.h"
+#include "AstralWildSpawner.h"
+#include "Astral_WildsCharacter.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "AstralSpeciesData.h"
 #include "AstralResonanceWeaveComponent.h"
 #include "Containers/Ticker.h"
@@ -320,6 +323,87 @@ namespace AstralAutoPlaytest
 			GRun->Handle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateStatic(&Tick));
 			UE_LOG(LogAstralAutoPlaytest, Display, TEXT("[AutoPlaytest] started in %s"), *GetNameSafe(World));
 		}));
+	// Astral.LineupTest: spawns one of each species the level's spawner knows,
+	// in a row along +X, all facing +X (actor yaw 0) with AI removed, and
+	// views them from the side (camera looking along +Y, so +X is screen
+	// LEFT). A correctly oriented model's head points left. Screenshot goes
+	// to Saved/AutoPlaytest/lineup.png, then the game quits.
+	FAutoConsoleCommandWithWorld GLineupCommand(
+		TEXT("Astral.LineupTest"),
+		TEXT("Spawns every species facing +X for a side-view orientation screenshot, then quits."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			TArray<UAstralSpeciesData*> Species;
+			for (TActorIterator<AAstralWildSpawner> It(World); It; ++It)
+			{
+				for (UAstralSpeciesData* S : It->PossibleSpecies)
+				{
+					if (S && !Species.Contains(S))
+					{
+						Species.Add(S);
+					}
+				}
+				It->SpawnCount = 0; // keep the wild ones out of the shot
+			}
+			for (TActorIterator<AAstralCharacter> It(World); It; ++It)
+			{
+				It->SetActorHiddenInGame(true);
+			}
+			APlayerController* PC = World->GetFirstPlayerController();
+			APawn* Mage = PC ? PC->GetPawn() : nullptr;
+			if (!Mage)
+			{
+				return;
+			}
+			// One close-up per species: camera 250cm from the slot, looking +Y,
+			// so +X (the actor's facing) is screen LEFT.
+			const FVector Origin = Mage->GetActorLocation();
+			const FVector Slot = Origin + FVector(0.f, 150.f, 0.f);
+			Mage->SetActorLocation(Origin + FVector(0.f, -100.f, 0.f));
+			Mage->SetActorHiddenInGame(true);
+			if (AAstral_WildsCharacter* Char = Cast<AAstral_WildsCharacter>(Mage))
+			{
+				Char->GetCameraBoom()->TargetArmLength = 150.f;
+			}
+			PC->SetControlRotation(FRotator(-5.f, 90.f, 0.f));
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakWorld = TWeakObjectPtr<UWorld>(World), Species, Slot, Index = -1, T = 0.f, Current = TWeakObjectPtr<AAstralCharacter>()](float Dt) mutable
+			{
+				UWorld* W = WeakWorld.Get();
+				if (!W)
+				{
+					return false;
+				}
+				T += Dt;
+				if (T < (Index < 0 ? 6.f : 3.5f))
+				{
+					return true; // let the previous shot land / textures stream
+				}
+				T = 0.f;
+				if (Current.IsValid())
+				{
+					Current->Destroy();
+				}
+				if (++Index >= Species.Num())
+				{
+					if (APlayerController* P = W->GetFirstPlayerController())
+					{
+						P->ConsoleCommand(TEXT("quit"));
+					}
+					return false;
+				}
+				const FTransform Xf(FRotator::ZeroRotator, Slot);
+				AAstralCharacter* A = W->SpawnActorDeferred<AAstralCharacter>(AAstralCharacter::StaticClass(), Xf, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+				A->SpeciesData = Species[Index];
+				A->AutoPossessAI = EAutoPossessAI::Disabled;
+				A->FinishSpawning(Xf);
+				Current = A;
+				const FString Name = FString::Printf(TEXT("lineup_%s"), *Species[Index]->SpeciesName.ToString());
+				// Delay the shot a moment so the new mesh is on screen.
+				FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Name](float) { Shot(*Name); return false; }), 2.5f);
+				return true;
+			}));
+		}));
 }
+
 
 #endif // !UE_BUILD_SHIPPING

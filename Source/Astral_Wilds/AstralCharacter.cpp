@@ -6,6 +6,7 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 #include "Animation/AnimInstance.h"
 #include "UObject/ConstructorHelpers.h"
 #include "AstralWildlifeController.h"
@@ -31,7 +32,8 @@ AAstralCharacter::AAstralCharacter()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMeshAsset(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (CylinderMeshAsset.Succeeded())
 	{
-		PlaceholderMesh->SetStaticMesh(CylinderMeshAsset.Object);
+		PlaceholderShape = CylinderMeshAsset.Object;
+		PlaceholderMesh->SetStaticMesh(PlaceholderShape);
 	}
 
 	GetMesh()->SetVisibility(false);
@@ -143,10 +145,36 @@ void AAstralCharacter::ApplySpeciesVisuals()
 	}
 
 	SkeletalMeshComp->SetVisibility(false);
-	if (PlaceholderMesh)
+	if (!PlaceholderMesh)
 	{
-		PlaceholderMesh->SetVisibility(true);
+		return;
 	}
+	PlaceholderMesh->SetVisibility(true);
+
+	UStaticMesh* StaticModel = (SpeciesData && !SpeciesData->DisplayStaticMesh.IsNull()) ? SpeciesData->DisplayStaticMesh.LoadSynchronous() : nullptr;
+	if (StaticModel)
+	{
+		// Auto-fit: uniform scale to DisplayHeight, centred on the capsule
+		// axis, base resting at the bottom of the capsule.
+		const FBox Bounds = StaticModel->GetBoundingBox();
+		const float ModelHeight = Bounds.GetSize().Z;
+		const float Scale = ModelHeight > KINDA_SMALL_NUMBER ? SpeciesData->DisplayHeight / ModelHeight : 1.f;
+		const FRotator Yaw(0.f, SpeciesData->DisplayYawOffset, 0.f);
+		const FVector CenterXY = Yaw.RotateVector(FVector(Bounds.GetCenter().X, Bounds.GetCenter().Y, 0.f)) * Scale;
+		const float CapsuleBottom = -GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+
+		PlaceholderMesh->SetStaticMesh(StaticModel);
+		PlaceholderMesh->SetRelativeScale3D(FVector(Scale));
+		PlaceholderMesh->SetRelativeRotation(Yaw);
+		PlaceholderMesh->SetRelativeLocation(FVector(-CenterXY.X, -CenterXY.Y, CapsuleBottom - Bounds.Min.Z * Scale));
+		return;
+	}
+
+	// PLACEHOLDER cylinder - see the constructor for the scale's derivation.
+	PlaceholderMesh->SetStaticMesh(PlaceholderShape);
+	PlaceholderMesh->SetRelativeScale3D(FVector(0.68f, 0.68f, 1.76f));
+	PlaceholderMesh->SetRelativeRotation(FRotator::ZeroRotator);
+	PlaceholderMesh->SetRelativeLocation(FVector::ZeroVector);
 }
 
 void AAstralCharacter::BeginPlay()

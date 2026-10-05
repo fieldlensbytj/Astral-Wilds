@@ -116,6 +116,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Wild")
 	float InteractRadius = 120.f;
 
-	/** Applies SpeciesData's DisplayMesh/AnimClass to the inherited skeletal mesh component if set, otherwise shows PlaceholderMesh. */
+	/** Applies SpeciesData's DisplayMesh/AnimClass to the inherited skeletal mesh if set; else its DisplayStaticMesh on PlaceholderMesh; else the placeholder cylinder. */
 	void ApplySpeciesVisuals();
+
+	/** The cylinder PlaceholderMesh shows when a species has no display model. */
+	UPROPERTY()
+	TObjectPtr<UStaticMesh> PlaceholderShape;
 };
