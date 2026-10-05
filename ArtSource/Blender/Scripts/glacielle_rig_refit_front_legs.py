@@ -47,22 +47,56 @@ D = np.empty((len(V), len(deform)))
 for i in range(len(deform)):
     t = np.clip(((V - heads[i]) @ seg[i]) / seglen2[i], 0.0, 1.0)
     D[:, i] = np.sqrt(((V - (heads[i] + t[:, None] * seg[i])) ** 2).sum(1))
-W = 1.0 / (np.maximum(D, 0.01) ** 6)
-
-# Below the chest, each vertex belongs to whichever leg of the pair has the
-# nearer bone chain, and gets no weight from the other leg. (A plane at the
-# midline was tried first: the paws sit 15cm apart in depth, so it cut the
-# left paw's fur and handed it to the right leg, which tore into sheets.)
+# 4th power over the top 4 bones: softer joint blends than the first rig's
+# 6th power / top 3, so elbows and wrists bend rather than crease.
+W = 1.0 / (np.maximum(D, 0.01) ** 4)
 names = [b.name for b in deform]
+
+# Upper leg bones fade out from just below their shoulder/hip to 8cm above,
+# so the chest and haunch fur rides the body instead of swinging with the
+# leg (the first refit let fl_upper/fr_upper reach most of the chest side;
+# fading from 12cm below opened a gap under the chest when the legs swung).
+def smoothstep(a, b, x):
+    t = np.clip((x - a) / (b - a), 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+for i, b in enumerate(deform):
+    if b.name.endswith("_upper"):
+        W[:, i] *= 1.0 - smoothstep(b.head_local.z - 0.02, b.head_local.z + 0.08, V[:, 2])
+
+# Glacielle's mesh has no continuous skin: it is ~2,400 overlapping ice-shard
+# pieces (the largest is 62 vertices). Weights stay smooth per vertex, so
+# neighbouring pieces move together; making each piece rigid (or copying a
+# "skin" weight) was tried and separated the pieces. The one decision made
+# per piece is which leg of a pair it belongs to: below the chest a piece
+# goes wholly to whichever leg's bone chain is nearer on average, and gets no
+# weight from the other leg. Per vertex, that split pieces between legs and
+# they flickered; a midline plane cut the left paw (the paws sit 15cm apart
+# in depth) and tore it into sheets.
+parent = np.arange(len(V))
+def find(i):
+    while parent[i] != i:
+        parent[i] = parent[parent[i]]
+        i = parent[i]
+    return i
+for e in mesh.data.edges:
+    a, b = find(e.vertices[0]), find(e.vertices[1])
+    if a != b:
+        parent[a] = b
+roots = np.array([find(i) for i in range(len(V))])
+_, island, sizes = np.unique(roots, return_inverse=True, return_counts=True)
+def piece_mean(x):
+    s = np.zeros(len(sizes)); np.add.at(s, island, x)
+    return (s / sizes)[island]
 for pair, ztop in (("f", 0.56), ("b", 0.50)):
     li = [i for i, n in enumerate(names) if n[:2] == pair + "l"]
     ri = [i for i, n in enumerate(names) if n[:2] == pair + "r"]
-    low = V[:, 2] < ztop
-    left_nearer = D[:, li].min(1) < D[:, ri].min(1)
+    low = piece_mean(V[:, 2]) < ztop
+    left_nearer = piece_mean(D[:, li].min(1)) < piece_mean(D[:, ri].min(1))
     W[np.ix_(low & left_nearer, ri)] = 0.0
     W[np.ix_(low & ~left_nearer, li)] = 0.0
+print("refit: %d pieces (largest %d verts); leg sides decided per piece" % (len(sizes), sizes.max()))
 
-top = np.argsort(-W, axis=1)[:, :3]
+top = np.argsort(-W, axis=1)[:, :4]
 mesh.vertex_groups.clear()
 groups = [mesh.vertex_groups.new(name=b.name) for b in deform]
 for vi in range(len(V)):

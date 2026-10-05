@@ -103,6 +103,7 @@ def aim(name, target):
     head = M.translation.copy()
     q = (M.to_3x3() @ Y).rotation_difference(target - head)
     p.matrix = Matrix.Translation(head) @ q.to_matrix().to_4x4() @ Matrix.Translation(-head) @ M
+    p.scale = Vector((1, 1, 1))     # rotation only: the matrix setter leaks parent scale into the child
     upd()
 
 def solve_leg(k, toe, ankle):
@@ -128,6 +129,7 @@ def stabilise_head(amount, look):
     steady = rest["head"].to_quaternion()
     q = look @ cur.slerp(steady, amount)
     p.matrix = Matrix.Translation(M.translation) @ q.to_matrix().to_4x4()
+    p.scale = Vector((1, 1, 1))
     upd()
 
 # ---------------- gaits ----------------
@@ -205,6 +207,10 @@ for name, g in GAITS.items():
         for p in pb:
             p.rotation_quaternion = Quaternion()
             p.location = Vector()
+            # Scale is never animated, but setting pose matrices leaked a little
+            # into it, which compounded frame to frame (and run to run, via the
+            # saved .blend) until Glacielle's foot was 2.4x long. Reset it.
+            p.scale = Vector((1, 1, 1))
         poses, pelvis_off, stab, look = g["body"](t, g)
         for bn, q in poses.items():
             pb[bn].rotation_quaternion = q
