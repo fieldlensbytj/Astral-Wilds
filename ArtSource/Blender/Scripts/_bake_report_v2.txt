@@ -1,0 +1,6 @@
+=== Cindrel: decimate -> quad retopo -> baked-albedo pass (v2) ===
+=== FAILED ===
+Refusing to overwrite existing output: C:\Users\camer\Astral Wilds\ArtSource\Blender\Astral_Cindrel_Retopo_v02.blend
+Traceback (most recent call last):
+  File "cindrel_bake_v2.py", line 28, in <module>
+RuntimeError: Refusing to overwrite existing output: C:\Users\camer\Astral Wilds\ArtSource\Blender\Astral_Cindrel_Retopo_v02.blend

@@ -1,0 +1,14 @@
+=== Cindrel: decimate -> quad retopo -> baked-albedo pass (v2) ===
+Source Meshy_Cindrel Full Size Model_Mesh_0.001: verts=1084889 polys=2170343 dims=(1.672192931175232, 1.4774738550186157, 1.8545689582824707)
+Duplicated to intermediate object: Cindrel_Decimated_v02
+Voxel remesh (voxel_size=0.01427): verts=58448 polys=58452 dims=(1.671245813369751, 1.4769705533981323, 1.857456922531128)
+Connected shells found: 2 (sizes: [58446, 6])
+Deleted 6 stray faces from 1 smaller shells, kept the largest (58446 faces).
+Recalculated consistent outward normals.
+Pre-quadriflow cleanup: verts=58440 polys=58446 non_manifold_edges=0
+QuadriFlow remesh op result: {'CANCELLED'}
+=== FAILED ===
+QuadriFlow remesh did not finish (result={'CANCELLED'}) -- aborting rather than exporting an unretopologized mesh.
+Traceback (most recent call last):
+  File "cindrel_bake_v4.py", line 132, in <module>
+RuntimeError: QuadriFlow remesh did not finish (result={'CANCELLED'}) -- aborting rather than exporting an unretopologized mesh.

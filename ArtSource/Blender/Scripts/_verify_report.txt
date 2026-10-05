@@ -1,0 +1,4 @@
+Cindrel_Retopo_v03: verts=9994 polys=18061 materials=['Cindrel_Identity_v02']
+Hid from render: Meshy_Cindrel Full Size Model_Mesh_0.001
+Hid from render: Meshy_Glacielle Full Size Model_Mesh_0
+Rendered isolated verification: C:\Users\camer\Astral Wilds\ArtSource\Blender\Previews\Cindrel_Retopo_v03_ISOLATED.png

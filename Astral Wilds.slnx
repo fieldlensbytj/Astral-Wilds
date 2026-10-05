@@ -1,7 +1,8 @@
 ﻿<Solution>
   <Project Path="AstralWilds.Runtime.csproj" />
-  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="AstralWilds.Tests.EditMode.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="AstralWilds.Editor.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="MeshyAssembly.csproj" />
 </Solution>

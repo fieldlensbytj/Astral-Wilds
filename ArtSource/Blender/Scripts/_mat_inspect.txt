@@ -1,0 +1,16 @@
+=== Material_0.001 ===
+  BSDF input 'Base Color' <- node Image Texture (type=TEX_IMAGE) image=Image_0.001
+  BSDF input 'Metallic' <- node Separate Color (type=SEPARATE_COLOR) image=None
+  BSDF input 'Roughness' <- node Separate Color (type=SEPARATE_COLOR) image=None
+  BSDF input 'Normal' <- node Normal Map (type=NORMAL_MAP) image=None
+  image node Image Texture -> image Image_0.001 colorspace=sRGB size=(4096, 4096)
+  image node Image Texture.001 -> image Image_1.001 colorspace=Non-Color size=(2048, 2048)
+  image node Image Texture.002 -> image Image_2.001 colorspace=Non-Color size=(4096, 4096)
+=== Material_0 ===
+  BSDF input 'Base Color' <- node Image Texture (type=TEX_IMAGE) image=Image_0
+  BSDF input 'Metallic' <- node Separate Color (type=SEPARATE_COLOR) image=None
+  BSDF input 'Roughness' <- node Separate Color (type=SEPARATE_COLOR) image=None
+  BSDF input 'Normal' <- node Normal Map (type=NORMAL_MAP) image=None
+  image node Image Texture -> image Image_0 colorspace=sRGB size=(4096, 4096)
+  image node Image Texture.001 -> image Image_1 colorspace=Non-Color size=(2048, 2048)
+  image node Image Texture.002 -> image Image_2 colorspace=Non-Color size=(4096, 4096)

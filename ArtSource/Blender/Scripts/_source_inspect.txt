@@ -1,0 +1,7 @@
+Meshy_Cindrel Full Size Model_Mesh_0.001: verts=1084889 polys=2170343 dims=(1.672192931175232, 1.4774738550186157, 1.8545689582824707) materials=['Material_0.001'] uv=['UVMap']
+Meshy_Glacielle Full Size Model_Mesh_0: verts=1239940 polys=2480263 dims=(0.8027870059013367, 1.5672550201416016, 1.9073169231414795) materials=['Material_0'] uv=['UVMap']
+IMAGES: [('Image_0', 4096, 4096, ''), ('Image_0.001', 4096, 4096, ''), ('Image_1', 2048, 2048, ''), ('Image_1.001', 2048, 2048, ''), ('Image_2', 4096, 4096, ''), ('Image_2.001', 4096, 4096, ''), ('Render Result', 0, 0, ''), ('Viewer Node', 256, 256, '')]
+MATERIALS: ['Material', 'Material_0', 'Material_0.001']
+  material Material image_nodes=[]
+  material Material_0 image_nodes=['Image_0', 'Image_1', 'Image_2']
+  material Material_0.001 image_nodes=['Image_0.001', 'Image_1.001', 'Image_2.001']

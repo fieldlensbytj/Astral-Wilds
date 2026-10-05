@@ -1,0 +1,15 @@
+=== Cindrel finish pass (v5): decimate-to-target (QuadriFlow persistently ===
+=== cancelled on this mesh for undiagnosed reasons despite passing every ===
+=== manifold/shell/degenerate-face check -- using clean triangulated LOD ===
+=== instead, which is still fully usable for baking/rigging/skinning) ===
+Working mesh Cindrel_Decimated_v02 before final decimate: verts=58440 polys=58446 dims=(1.671245813369751, 1.4769705533981323, 1.857456922531128)
+Final decimate to verts=9994 polys=18061 (ratio=0.1711)
+Final mesh: verts=9994 polys=18061 non_manifold_edges=0 loose_verts=0 dims=(1.6705514192581177, 1.4746493101119995, 1.8540927171707153)
+UV layers after unwrap: ['UVMap']
+Created bake target material 'Cindrel_Identity_v02' with empty 2048x2048 image.
+Baked DIFFUSE/COLOR from Meshy_Cindrel Full Size Model_Mesh_0.001 onto Cindrel_Retopo_v03.
+Saved baked albedo: C:\Users\camer\Astral Wilds\Assets\Art\Astrals\Cindrel\Textures\Cindrel_Albedo_v02.png
+Saved new blend: C:\Users\camer\Astral Wilds\ArtSource\Blender\Astral_Cindrel_Retopo_v03.blend
+Exported FBX: C:\Users\camer\Astral Wilds\Assets\Art\Astrals\Cindrel\Models\Cindrel_Retopo_v03.fbx
+Rendered preview: C:\Users\camer\Astral Wilds\ArtSource\Blender\Previews\Cindrel_Retopo_v03_ThreeQuarter.png
+=== DONE OK ===

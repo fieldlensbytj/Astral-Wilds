@@ -47,3 +47,16 @@ Desktop.ini
 
 # Local standalone player build output (from Build Profiles "New folder" target)
 /New folder/
+
+# 2026-10-05: raw download/export folders kept locally but not in git -
+# their useful contents are organized under ArtSource/, Assets/ and Docs/
+# (many files are byte-identical duplicates of those).
+/Astral_World_Astral_Images/
+/Astrals in Blender/
+/Astrals in Unity/
+/Astral Wilds Proof of Concept/
+# Archives of the above, installers, transfer temp files
+*.zip
+*.exe
+*.b64
+*.b64tmp

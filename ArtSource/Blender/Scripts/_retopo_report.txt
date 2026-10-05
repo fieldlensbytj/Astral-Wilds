@@ -1,0 +1,13 @@
+=== Cindrel retopology + procedural identity material pass ===
+Source Cindrel_LOD0: verts=17492 polys=35000 dims=(1.0879812240600586, 1.0651905536651611, 1.25)
+Duplicated to new object: Cindrel_Retopo_v01
+QuadriFlow remesh op result: {'FINISHED'}
+Retopo result: verts=3831 polys=3830 (quads=3830 tris=0 other=0) dims=(1.0853413343429565, 1.01832914352417, 1.247002363204956)
+Manifold check: non_manifold_edges=6 loose_verts=0
+UV layers after unwrap: ['UVMap']
+Vertex color attribute 'Col' written for 3831 verts.
+Material 'Cindrel_Identity_v01' created and assigned (vertex-color driven).
+Saved new blend: C:\Users\camer\Astral Wilds\ArtSource\Blender\Astral_Cindrel_Retopo_v01.blend
+Exported FBX: C:\Users\camer\Astral Wilds\Assets\Art\Astrals\Cindrel\Models\Cindrel_Retopo_v01.fbx
+Rendered preview: C:\Users\camer\Astral Wilds\ArtSource\Blender\Previews\Cindrel_Retopo_v01_ThreeQuarter.png
+=== DONE OK ===

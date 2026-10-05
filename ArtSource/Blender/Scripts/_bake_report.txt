@@ -1,0 +1,14 @@
+=== Cindrel high-poly retopo + baked-albedo pass ===
+Source Meshy_Cindrel Full Size Model_Mesh_0.001: verts=1084889 polys=2170343 dims=(1.672192931175232, 1.4774738550186157, 1.8545689582824707)
+Duplicated to new object: Cindrel_Retopo_v02
+QuadriFlow remesh op result: {'CANCELLED'}
+Retopo result: verts=1084889 polys=2170343 (quads=0 tris=2170343) dims=(1.672192931175232, 1.4774738550186157, 1.8545689582824707)
+Manifold check: non_manifold_edges=180 loose_verts=0
+UV layers after unwrap: ['UVMap']
+Created bake target material 'Cindrel_Identity_v02' with empty 2048x2048 image.
+Baked DIFFUSE/COLOR from Meshy_Cindrel Full Size Model_Mesh_0.001 onto Cindrel_Retopo_v02.
+Saved baked albedo: C:\Users\camer\Astral Wilds\Assets\Art\Astrals\Cindrel\Textures\Cindrel_Albedo_v01.png
+Saved new blend: C:\Users\camer\Astral Wilds\ArtSource\Blender\Astral_Cindrel_Retopo_v02.blend
+Exported FBX: C:\Users\camer\Astral Wilds\Assets\Art\Astrals\Cindrel\Models\Cindrel_Retopo_v02.fbx
+Rendered preview: C:\Users\camer\Astral Wilds\ArtSource\Blender\Previews\Cindrel_Retopo_v02_ThreeQuarter.png
+=== DONE OK ===
