@@ -253,3 +253,13 @@ TJ gave the go-ahead live to act on two of the four playtest findings above. `UA
 ### Later still on 2026-10-05 — Sigil reposition + flee-after-grace test (`1c6f957`, unverified)
 
 More code-only work while build/push access was unavailable this session: `AstralDebugHUD`'s Sigil no longer draws dead-center over the Mage (new `SigilVerticalFraction`, default 0.35). Added `FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod`, filling the TODO from `fa1b858` - confirms a flighty Astral still flees on a later pulse failure once the first-pulse grace is used up. **Standalone repo `master` is now 3 commits ahead of `origin/astral-wilds-unreal` (`7d83536`, `fa1b858`, `1c6f957`) - none pushed, none build-verified.** Next session with real access: push these, build, run the suite (54 tests now, was 53), and ideally re-run `Astral.AutoPlaytest`.
+
+### 2026-10-05 — first human playtest (TJ)
+
+TJ played the bonding loop in PIE on `Lvl_ThirdPerson`: **"the mechanics are great so far."** Keep the current Resonance Weave tuning as the baseline:
+- 20 starting Stability, plus the first-pulse no-flee grace.
+- Mouse ×0.005 / stick ×1.5 alignment scales.
+- Pulse window 0.45s.
+- Interact reach ~3.7m.
+
+Don't retune without new feedback. Next: wildlife AI and navmesh, so wild Astrals move.
