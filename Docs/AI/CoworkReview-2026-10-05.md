@@ -39,7 +39,7 @@ Given the no-build-verification constraint above, kept changes to things I could
 ## Sync status
 
 - Standalone Unreal repo: committed `7d83536` on `master`, **not pushed** - `git push` failed with the same known credential gap as every prior session (`fatal: could not read Username for 'https://github.com'`). `master` is now 1 commit ahead of `origin/astral-wilds-unreal`. TJ or a session with real Windows git credentials (Visual Studio's Git Changes panel, or a Claude Code CLI session on the machine) needs to push it.
-- This repo ("Astral Wilds"): only doc changes this session (this file + `WorkQueueUnreal.md`'s new dated section below). Will attempt `git push origin master` before ending, per standing convention, and note the actual result rather than assuming it'll fail the same way.
+- This repo ("Astral Wilds"): only doc changes this session (this file + `WorkQueueUnreal.md`'s new dated section, committed together as `20eaa25`). `git push origin master` was attempted and failed with the same credential gap (`fatal: could not read Username for 'https://github.com'`) - confirmed, not assumed. `master` is now 1 commit ahead of `origin/master`.
 - Hit the documented stale-lock quirk repeatedly in the standalone repo (`index.lock`, once also needed for `HEAD.lock`) - resolved each time with the standing `mv .git/<name>.lock .git/<name>.lock.stale-$(date +%s)` workaround. Nothing new to add to that writeup beyond confirming it's still accurate.
 
 ## Recommendation for next session
