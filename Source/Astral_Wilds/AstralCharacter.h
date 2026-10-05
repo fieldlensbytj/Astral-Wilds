@@ -161,7 +161,7 @@ protected:
 	float SmoothedSpeedAlpha = 0.f;
 	float LastYaw = 0.f;
 
-	/** Rigged display: clips loaded from SpeciesData, and the one currently playing. */
+	/** Rigged display: clips loaded from SpeciesData, blended by UAstralLocomotionAnimInstance. */
 	bool bHasRiggedDisplay = false;
 	UPROPERTY(Transient)
 	TObjectPtr<UAnimSequence> LoadedIdle;
@@ -169,8 +169,11 @@ protected:
 	TObjectPtr<UAnimSequence> LoadedWalk;
 	UPROPERTY(Transient)
 	TObjectPtr<UAnimSequence> LoadedRun;
-	UPROPERTY(Transient)
-	TObjectPtr<UAnimSequence> CurrentClip;
 
-	void UpdateLocomotionClip();
+	/** The anim instance the clips were last handed to; rebinds if the mesh re-creates it. */
+	TWeakObjectPtr<UAnimInstance> BoundLocomotionInstance;
+	void BindLocomotionClips();
+
+	/** Eased roll into turns from the actor's yaw rate (shared by static and rigged displays). */
+	void UpdateTurnLean(float DeltaSeconds, float SpeedAlpha);
 };

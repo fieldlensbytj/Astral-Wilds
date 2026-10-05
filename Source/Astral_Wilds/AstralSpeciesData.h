@@ -142,10 +142,11 @@ public:
 	float DisplayYawOffset = 0.f;
 
 	/**
-	 * Locomotion clips for a rigged DisplayMesh, played directly (no Anim
-	 * Blueprint needed): Idle below IdleSpeedThreshold, then Walk, then Run
-	 * above the midpoint of WalkAnimSpeed and RunAnimSpeed. Play rate scales
-	 * with speed relative to the clip's authored speed. Ignored if AnimClass is set.
+	 * Locomotion clips for a rigged DisplayMesh, crossfaded by ground speed
+	 * by UAstralLocomotionAnimInstance (no Anim Blueprint needed): Idle fades
+	 * into Walk above IdleSpeedThreshold, Walk into Run between WalkAnimSpeed
+	 * and RunAnimSpeed. Walk and Run share one gait phase that advances with
+	 * distance travelled. Ignored if AnimClass is set.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation")
 	TSoftObjectPtr<UAnimSequence> IdleAnim;
@@ -156,11 +157,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation")
 	TSoftObjectPtr<UAnimSequence> RunAnim;
 
-	/** Ground speed (cm/s) at which WalkAnim plays at 1x. */
+	/** Ground speed (cm/s) at which WalkAnim's feet don't slide at 1x. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation", meta = (Units = "cm/s"))
 	float WalkAnimSpeed = 150.f;
 
-	/** Ground speed (cm/s) at which RunAnim plays at 1x. */
+	/** Ground speed (cm/s) at which RunAnim's feet don't slide at 1x. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation", meta = (Units = "cm/s"))
 	float RunAnimSpeed = 380.f;
 

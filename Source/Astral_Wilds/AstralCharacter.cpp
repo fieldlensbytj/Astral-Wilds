@@ -11,6 +11,7 @@
 #include "Animation/AnimInstance.h"
 #include "UObject/ConstructorHelpers.h"
 #include "AstralWildlifeController.h"
+#include "AstralLocomotionAnimInstance.h"
 
 AAstralCharacter::AAstralCharacter()
 {
@@ -21,6 +22,12 @@ AAstralCharacter::AAstralCharacter()
 
 	bUseControllerRotationYaw = false;
 	GetCharacterMovement()->bOrientRotationToMovement = true;
+	// Animal-like momentum instead of the engine's near-instant defaults
+	// (360 deg/s turns, 2048 cm/s^2): starts, stops and turns read as motion
+	// the locomotion blend can follow rather than snaps.
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 240.f, 0.f);
+	GetCharacterMovement()->MaxAcceleration = 900.f;
+	GetCharacterMovement()->BrakingDecelerationWalking = 900.f;
 
 	PlaceholderMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderMesh"));
 	PlaceholderMesh->SetupAttachment(RootComponent);
@@ -153,9 +160,14 @@ void AAstralCharacter::ApplySpeciesVisuals()
 				LoadedWalk = SpeciesData->WalkAnim.LoadSynchronous();
 				LoadedRun = SpeciesData->RunAnim.LoadSynchronous();
 				bHasRiggedDisplay = LoadedIdle || LoadedWalk || LoadedRun;
-				CurrentClip = nullptr;
-				SkeletalMeshComp->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-				UpdateLocomotionClip();
+				if (bHasRiggedDisplay)
+				{
+					DisplayRestRotation = Yaw;
+					BoundLocomotionInstance.Reset();
+					SkeletalMeshComp->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+					SkeletalMeshComp->SetAnimInstanceClass(UAstralLocomotionAnimInstance::StaticClass());
+					BindLocomotionClips();
+				}
 			}
 			bHasStaticDisplay = false;
 
@@ -212,21 +224,33 @@ void AAstralCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (bHasRiggedDisplay)
-	{
-		UpdateLocomotionClip();
-		return;
-	}
-
-	if (!bProceduralMotion || !bHasStaticDisplay || !PlaceholderMesh || DeltaSeconds <= 0.f)
+	if (DeltaSeconds <= 0.f)
 	{
 		return;
 	}
 
 	const float Speed = GetVelocity().Size2D();
-	const float MaxSpeed = FMath::Max(GetCharacterMovement()->MaxWalkSpeed, 1.f);
-	// 0 at rest -> 1 at the current max walk speed; smoothed so starts/stops ease.
+	// 0 at rest -> 1 at a full run; smoothed so starts/stops ease.
 	SmoothedSpeedAlpha = FMath::FInterpTo(SmoothedSpeedAlpha, FMath::Clamp(Speed / 450.f, 0.f, 1.f), DeltaSeconds, 6.f);
+
+	if (bHasRiggedDisplay)
+	{
+		// The clips carry gait, bob and breathing; only the turn lean is added here.
+		BindLocomotionClips();
+		if (bProceduralMotion)
+		{
+			UpdateTurnLean(DeltaSeconds, SmoothedSpeedAlpha);
+			GetMesh()->SetRelativeRotation(FQuat(FRotator(0.f, 0.f, SmoothedLean)) * FQuat(DisplayRestRotation));
+		}
+		return;
+	}
+
+	if (!bProceduralMotion || !bHasStaticDisplay || !PlaceholderMesh)
+	{
+		return;
+	}
+
+	const float MaxSpeed = FMath::Max(GetCharacterMovement()->MaxWalkSpeed, 1.f);
 
 	// Gait: one bob per stride, |sin| gives a footfall-like bounce.
 	GaitPhase = FMath::Fmod(GaitPhase + Speed / FMath::Max(GaitStride, 1.f) * PI * DeltaSeconds, 2.f * PI);
@@ -234,11 +258,7 @@ void AAstralCharacter::Tick(float DeltaSeconds)
 	const float GaitPitch = FMath::Sin(GaitPhase * 2.f) * 2.5f * SmoothedSpeedAlpha;   // nod with each step
 	const float RunPitch = -4.f * SmoothedSpeedAlpha * (Speed / MaxSpeed);              // lean forward when fast
 
-	// Turn lean from yaw rate, eased.
-	const float Yaw = GetActorRotation().Yaw;
-	const float YawRate = FMath::FindDeltaAngleDegrees(LastYaw, Yaw) / DeltaSeconds;
-	LastYaw = Yaw;
-	SmoothedLean = FMath::FInterpTo(SmoothedLean, FMath::Clamp(-YawRate * 0.04f, -MaxTurnLean, MaxTurnLean) * SmoothedSpeedAlpha, DeltaSeconds, 5.f);
+	UpdateTurnLean(DeltaSeconds, SmoothedSpeedAlpha);
 
 	// Breathing: slow chest-like swell, faded out while moving.
 	BreathTime += DeltaSeconds;
@@ -251,34 +271,23 @@ void AAstralCharacter::Tick(float DeltaSeconds)
 	PlaceholderMesh->SetRelativeScale3D(FVector(DisplayRestScale * (1.f - Breath * 0.5f), DisplayRestScale * (1.f - Breath * 0.5f), DisplayRestScale * (1.f + Breath)));
 }
 
-void AAstralCharacter::UpdateLocomotionClip()
+void AAstralCharacter::BindLocomotionClips()
 {
-	if (!SpeciesData)
+	UAstralLocomotionAnimInstance* Instance = Cast<UAstralLocomotionAnimInstance>(GetMesh()->GetAnimInstance());
+	if (!Instance || !SpeciesData || BoundLocomotionInstance.Get() == Instance)
 	{
-		return;
+		return;   // not created yet (e.g. in the constructor), or already bound
 	}
-	const float Speed = GetVelocity().Size2D();
-	UAnimSequence* Wanted = LoadedIdle;
-	float AuthoredSpeed = 0.f;
-	if (Speed > SpeciesData->IdleSpeedThreshold)
-	{
-		const bool bRun = LoadedRun && (!LoadedWalk || Speed > 0.5f * (SpeciesData->WalkAnimSpeed + SpeciesData->RunAnimSpeed));
-		Wanted = bRun ? LoadedRun.Get() : LoadedWalk.Get();
-		AuthoredSpeed = bRun ? SpeciesData->RunAnimSpeed : SpeciesData->WalkAnimSpeed;
-	}
-	if (!Wanted)
-	{
-		Wanted = LoadedIdle ? LoadedIdle.Get() : (LoadedWalk ? LoadedWalk.Get() : LoadedRun.Get());
-	}
+	Instance->SetClips(LoadedIdle, LoadedWalk, LoadedRun, SpeciesData->WalkAnimSpeed, SpeciesData->RunAnimSpeed, SpeciesData->IdleSpeedThreshold);
+	BoundLocomotionInstance = Instance;
+}
 
-	USkeletalMeshComponent* SkeletalMeshComp = GetMesh();
-	if (Wanted != CurrentClip)
-	{
-		CurrentClip = Wanted;
-		SkeletalMeshComp->PlayAnimation(Wanted, /*bLooping*/ true);
-	}
-	// Match cadence to ground speed (feet slide a little outside the clamp).
-	SkeletalMeshComp->SetPlayRate(AuthoredSpeed > 0.f ? FMath::Clamp(Speed / AuthoredSpeed, 0.6f, 1.8f) : 1.f);
+void AAstralCharacter::UpdateTurnLean(float DeltaSeconds, float SpeedAlpha)
+{
+	const float Yaw = GetActorRotation().Yaw;
+	const float YawRate = FMath::FindDeltaAngleDegrees(LastYaw, Yaw) / DeltaSeconds;
+	LastYaw = Yaw;
+	SmoothedLean = FMath::FInterpTo(SmoothedLean, FMath::Clamp(-YawRate * 0.04f, -MaxTurnLean, MaxTurnLean) * SpeedAlpha, DeltaSeconds, 5.f);
 }
 
 void AAstralCharacter::BeginPlay()
