@@ -4,16 +4,21 @@ For a Claude Code session running in PowerShell with real shell access to this m
 
 Full project context, conventions, and the dated history of how this repo got here live in the *other* repo at `C:\Users\camer\Astral Wilds\` - read `AGENTS.md` there first if you haven't already this session, then `Docs\AI\WorkQueueUnreal.md`.
 
-## Current state (last updated 2026-10-05, navmesh fixed by hand in-editor via TJ + Cowork walkthrough)
+## Current state (last updated 2026-10-05, after the Glacielle rig `a70cfe9`)
 
-Everything is **build-verified, tested and pushed** to `origin/astral-wilds-unreal`. Suite: **61/61**. Rendered bot playtest: **4/4 bonded** (7.2-9.0s).
+Everything is **build-verified, tested and pushed** to `origin/astral-wilds-unreal`. Suite: **61/61**, 0 unloadable assets. Rendered bot playtest: the bot bonds with the (rigged) Glacielle.
 
-**Navmesh on `Lvl_ThirdPerson` is fixed.** Previous attempts (see commit history / below) only generated navmesh inside the central platform, never on its walkable top. TJ placed a fresh `NavMeshBoundsVolume` by hand (Location 0,0,150 / Scale 22,22,4.5 - covers the full arena), ran Build > Build Paths, and confirmed via the `P` nav-display overlay that the ENTIRE top of the central platform and all four ramps show green, not just the floor. Saved (External Actors under `Content/__ExternalActors__/ThirdPerson/Lvl_ThirdPerson/` - still needs `git add` + commit, not done yet as of this note). Wildlife still won't move on it, though - see Still Open below, that's a separate StateTree problem.
+**The Astrals in the world are the six Meshy models** (`43def68`): Cindrel (Ember, Skittish), Mossling (Verdant, Docile), Ironbur (Terra, Territorial), Ripplefin (Tide, Skittish), Stormrook (Volt, Aggressive), Glacielle (Frost, Skittish). Each has `Content/Astral/Species/<Name>/` with the imported GLB and `BP_Species_<Name>`. All use `DisplayYawOffset` -90 (the GLBs face +Y). Check new models with the dev command `Astral.LineupTest`, which writes `Saved/AutoPlaytest/lineup_<Name>.png`.
 
-Latest substantive commits (`git log --oneline -10` for the rest):
+**Rigging** is scripted in headless Blender. The scripts are in the art repo at `C:\Users\camer\Astral Wilds\ArtSource\Blender\Scripts\<name>_rig_*.py`, and the rigged .blend/.fbx files are in `ArtSource\Blender\Rigs\`.
+- **Glacielle is rigged** (`a70cfe9`): a 22-bone quadruped with Idle/Walk/Run, and a skeletal mesh decimated to 20k tris. Skin weights come from distance to bone segments, because heat weighting fails on its shard-covered surface. Material_0 is re-parented onto the static model's glTF material (full 4K PBR). The bondable test Astral is a Glacielle.
+- **Cindrel is back on its static model** (TJ: its curved paw needs hand animation). The pilot's `Rigged/` assets (`db19d63`) are kept as a possible starting point.
+- Engine side: `UAstralSpeciesData` has IdleAnim/WalkAnim/RunAnim plus authored speeds. `AAstralCharacter` plays them by ground speed (AnimationSingleNode, no Anim BP). `ClearRiggedDisplay()` (CallInEditor) drops back to the static display.
+- Unrigged Astrals get procedural breathing, gait bob and turn lean (`68098cf`, `bProceduralMotion`).
 
-- `a9b7fcf` - Resonance Weave starts at 20 Stability (`StartingStability`, capped at half `RequiredStability`), TJ's chosen fix for the first-pulse cliff. Also fixes the tick count in `FleeResumesAfterFirstPulseGracePeriod`, which failed on its first real run.
-- `1c6f957` / `fa1b858` - first-pulse no-flee grace (kept alongside starting Stability), tighter interact reach (~3.7m, confirmed on screen), Sigil moved up off the Mage. Verified by the session above.
+**The navmesh on `Lvl_ThirdPerson` is fixed and committed** (`304a9f2`). A hand-placed `NavMeshBoundsVolume` (Location 0,0,150 / Scale 22,22,4.5) covers the platform top and all four ramps, and wild Astrals move on it via the native AI. Re-check it by eye (`P` overlay) if the level geometry changes.
+
+**Open decision for TJ:** keep the scripted rigging approach or rig by hand, judged on how Glacielle looks and moves.
 
 ## How to verify (PowerShell)
 
@@ -37,8 +42,10 @@ Rendered bot playtest. It opens a game window for about 30s, then logs `[AutoPla
 
 ## Still open
 
-- **Wildlife AI: native C++ behaviour in place** (`AAstralWildlifeController::bUseNativeBehavior`, on by default). Docile wander, Skittish flee within 6m, Aggressive chase (slower than the player, gives up at 12m), Territorial guard home; Receptive Astrals always hold still. Verified in a rendered run. A designer StateTree can replace it later: author it, assign it to `StateTreeAI`, and set `bUseNativeBehavior` false.
-- ~~Navmesh: tried and backed out.~~ **Fixed 2026-10-05** - see Current State above. Manually placing the volume and running Build Paths worked where the earlier dynamic-generation attempt didn't; root cause of the original failure still isn't understood, just worked around. The spawner already waits for navmesh when navigation data exists and falls back to ground traces otherwise - worth confirming wild Astrals actually use the new navmesh once a StateTree exists for them to run.
-- **Git LFS: done** (`32bd598`, forward-only). `*.uasset`/`*.umap` are LFS-tracked, and all 759 assets are uploaded. Any clone or pull needs Git LFS installed, otherwise assets check out as text pointers and Unreal can't load them. History before `32bd598` is unchanged.
-- A human PIE playtest for game feel (tracking speed, pulse rhythm). The bot only proves the loop works.
+- **Rig more Astrals** with the Glacielle pipeline where the body shape allows. Mossling is next, then possibly Ironbur and Stormrook. Ripplefin (a fish) needs a different rig, and Cindrel waits for hand animation.
+- **Rig rough edges:** walk/run speeds are estimates, so some feet slide.
+- **Mesh weight:** the static Meshy models are ~100-135MB each and due for retopology or decimation.
+- **Wildlife AI: native C++ behaviour in place** (`AAstralWildlifeController::bUseNativeBehavior`, on by default). Docile wander, Skittish flee within 6m, Aggressive chase (slower than the player, gives up at 12m), Territorial guard home; Receptive Astrals always hold still. A designer StateTree can replace it later: author it, assign it to `StateTreeAI`, and set `bUseNativeBehavior` false.
+- **Git LFS: done** (`32bd598`, forward-only). `*.uasset`/`*.umap` are LFS-tracked. Any clone or pull needs Git LFS installed, otherwise assets check out as text pointers and Unreal can't load them. The Meshy plugin is installed engine-wide, not in the project, so other machines need it too (`b06f5f7`).
+- A human PIE playtest for game feel (tracking speed, pulse rhythm, how the rigs read). The bot only proves the loop works.
 - Both first-pulse protections are now active: starting Stability, and no flee on the first pulse. If bonding feels too forgiving, `fa1b858`'s grace is the one to revisit.
