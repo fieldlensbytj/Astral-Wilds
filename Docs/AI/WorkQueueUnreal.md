@@ -6,12 +6,13 @@ This is the real, current priority list for the active engine (Unreal Engine 5.8
 
 **For a Claude Code session running in PowerShell on tjs-laptop with real shell access.** This block is maintained in place each session; the dated sections below it are the permanent historical log (append-only, oldest first).
 
-**Project path:** `C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\` - its own standalone git repo, `origin` = `https://github.com/fieldlensbytj/Astral-Wilds`, branch `astral-wilds-unreal`. Not the same repo as this file lives in.
+**Project path:** `C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\` - its own standalone git repo, `origin` = `https://github.com/fieldlensbytj/Astral-Wilds`, branch `astral-wilds-unreal`. Not the same repo as this file lives in. **That repo now also has its own `NEXT_STEPS.md` at its root, mirroring this block** - update both together from here on.
 
-**Current state:** local `master` is **3 commits ahead of `origin/astral-wilds-unreal`**, none of them build-verified yet (today's Cowork session had no compiler/PIE access - see `CoworkReview-2026-10-05.md`). Oldest to newest:
-1. `7d83536` - adds `.gitattributes` (marks `*.uasset`/`*.umap` binary). Zero risk, not gameplay code.
-2. `fa1b858` - Resonance Weave first-pulse grace period (no flee on a weave's very first pulse, win or lose) + tightened interact reach (~6.7m -> ~3.7m). Updates 2 existing tests' expected result to match.
-3. `1c6f957` - Sigil debug-HUD draw position moved off dead-center + new test `FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod` (fills a TODO `fa1b858` left; proves flee still works on a later pulse after the grace is used up).
+**Current state:** local `master` is ahead of `origin/astral-wilds-unreal` - run `git log --oneline origin/astral-wilds-unreal..master` in the standalone repo for the exact current list. None of today's commits are build-verified yet (today's Cowork session had no compiler/PIE access - see `CoworkReview-2026-10-05.md`). The substantive ones, oldest to newest:
+- `7d83536` - adds `.gitattributes` (marks `*.uasset`/`*.umap` binary). Zero risk, not gameplay code.
+- `fa1b858` - Resonance Weave first-pulse grace period (no flee on a weave's very first pulse, win or lose) + tightened interact reach (~6.7m -> ~3.7m). Updates 2 existing tests' expected result to match.
+- `1c6f957` - Sigil debug-HUD draw position moved off dead-center + new test `FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod` (fills a TODO `fa1b858` left; proves flee still works on a later pulse after the grace is used up).
+- Everything after `1c6f957` adds `NEXT_STEPS.md` (a mirror of this block, living in the standalone repo itself) - docs only, zero build risk.
 
 Full reasoning for each commit, including the exact numbers and why, is in the commit messages themselves (`git log -3 -p`) and in `CoworkReview-2026-10-05.md`'s two addenda.
 
