@@ -142,6 +142,9 @@ private:
 	bool bIsChanneling = false;
 	bool bUseOldConcordance = false;
 
+	/** True once the player has landed at least one successful Harmonize this weave - gates fleeing (see ResolveWeave's flee checks). A flighty Astral never flees on the very first pulse; it's a fixed grace period against the first-pulse difficulty cliff a playtest bot found 2026-10-05 (fled instantly at 1.6s in roughly half of its runs), not a change to the difficulty after that. */
+	bool bHasSucceededAnyPulse = false;
+
 	/** [-1, 1] on each axis; treated as a point within the unit circle. */
 	FVector2D ResonancePoint = FVector2D::ZeroVector;
 	FVector2D PlayerAlignment = FVector2D::ZeroVector;

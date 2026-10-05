@@ -118,7 +118,7 @@ protected:
 
 	/** How far in front of the Mage DoInteract() looks for a receptive wild Astral. */
 	UPROPERTY(EditAnywhere, Category = "Astral|Bonding")
-	float InteractTraceDistance = 300.f;
+	float InteractTraceDistance = 180.f;
 
 	/** The wild Astral currently being bonded with, if any - set when a weave begins, consumed when it resolves. */
 	UPROPERTY()

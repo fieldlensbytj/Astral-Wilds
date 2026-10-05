@@ -197,7 +197,11 @@ bool FAstralResonanceWeave_Tick_MissedPulseAtZeroStability::RunTest(const FStrin
 		H.Weave->BeginWeave(MakeTemperament(0.4f), false);
 		H.Tick(0.05f, 30);
 		TestEqual(TEXT("A pulse fired"), H.Listener->PulseCallCount, 1);
-		TestEqual(TEXT("Missing it at zero Stability makes a flighty Astral flee"), H.Listener->LastWeaveResult, EAstralWeaveResult::Fled);
+		// 2026-10-05: missing the very first pulse of a weave no longer lets the
+		// Astral flee outright (grace period against the first-pulse difficulty
+		// cliff a playtest bot found) - it grants a retry instead, same as a
+		// non-fleeing species always would.
+		TestEqual(TEXT("Missing the very first pulse grants a retry, not a flee (grace period)"), H.Listener->LastWeaveResult, EAstralWeaveResult::MayRetry);
 		TestFalse(TEXT("Weave is no longer active"), H.Weave->IsWeaveActive());
 	}
 	{
@@ -262,7 +266,8 @@ bool FAstralResonanceWeave_Tick_HarmonizeMisaligned::RunTest(const FString& Para
 		H.Tick(0.01f, 41);
 		H.LoseAlignment();
 		H.Weave->RespondToHarmonize();
-		TestEqual(TEXT("Misaligned Harmonize at zero Stability fails the weave"), H.Listener->LastWeaveResult, EAstralWeaveResult::Fled);
+		// 2026-10-05: same first-pulse grace period as the missed-pulse case above.
+		TestEqual(TEXT("Misaligned Harmonize on the very first pulse grants a retry, not a flee"), H.Listener->LastWeaveResult, EAstralWeaveResult::MayRetry);
 	}
 	{
 		FWeaveTickHarness H;
@@ -275,5 +280,12 @@ bool FAstralResonanceWeave_Tick_HarmonizeMisaligned::RunTest(const FString& Para
 	}
 	return true;
 }
+
+// TODO (2026-10-05): no coverage yet for the flee path AFTER the grace period -
+// i.e. a weave that lands one successful pulse, then later hits zero Stability
+// again, should still let a flighty Astral flee. Deliberately not added this
+// session (no build/PIE access to verify the timing math); a session that can
+// run the suite should add it alongside MakeTemperament() + the existing
+// landed-pulse pattern in FAstralResonanceWeave_Tick_HarmonizeInWindow above.
 
 #endif // WITH_AUTOMATION_TESTS

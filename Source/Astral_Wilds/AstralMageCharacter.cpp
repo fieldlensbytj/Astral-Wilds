@@ -381,7 +381,7 @@ AAstralCharacter* AAstralMageCharacter::FindReceptiveWildAstral() const
 	const FVector End = Start + Forward * InteractTraceDistance;
 
 	TArray<FOverlapResult> Overlaps;
-	FCollisionShape Shape = FCollisionShape::MakeSphere(120.f);
+	FCollisionShape Shape = FCollisionShape::MakeSphere(70.f);
 	GetWorld()->OverlapMultiByObjectType(Overlaps, End, FQuat::Identity,
 		FCollisionObjectQueryParams(ECC_WorldDynamic), Shape);
 

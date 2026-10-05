@@ -18,6 +18,7 @@ void UAstralResonanceWeaveComponent::BeginWeave(const FAstralWeaveTemperament& T
 	bUseOldConcordance = bInUseOldConcordance;
 	bIsActive = true;
 	bIsChanneling = false;
+	bHasSucceededAnyPulse = false;
 	Stability = 0.f;
 	ResonancePoint = FVector2D::ZeroVector;
 	PlayerAlignment = FVector2D::ZeroVector;
@@ -81,6 +82,7 @@ void UAstralResonanceWeaveComponent::RespondToHarmonize()
 		// Old Concordance: matching the rhythm forgives imperfect alignment,
 		// because the point is to listen, not to overpower.
 		Stability += 15.f + (10.f * AlignmentQuality);
+		bHasSucceededAnyPulse = true;
 	}
 	else
 	{
@@ -92,7 +94,8 @@ void UAstralResonanceWeaveComponent::RespondToHarmonize()
 
 	if (Stability <= 0.f)
 	{
-		ResolveWeave(CurrentTemperament.bMayFleeOnFailure ? EAstralWeaveResult::Fled : EAstralWeaveResult::MayRetry);
+		// Never flee on the very first pulse response, win or lose - see bHasSucceededAnyPulse.
+		ResolveWeave((CurrentTemperament.bMayFleeOnFailure && bHasSucceededAnyPulse) ? EAstralWeaveResult::Fled : EAstralWeaveResult::MayRetry);
 	}
 }
 
@@ -163,7 +166,8 @@ void UAstralResonanceWeaveComponent::UpdatePulseTimer(float DeltaTime)
 
 			if (Stability <= 0.f)
 			{
-				ResolveWeave(CurrentTemperament.bMayFleeOnFailure ? EAstralWeaveResult::Fled : EAstralWeaveResult::MayRetry);
+				// Never flee on the very first pulse, win or lose - see bHasSucceededAnyPulse.
+				ResolveWeave((CurrentTemperament.bMayFleeOnFailure && bHasSucceededAnyPulse) ? EAstralWeaveResult::Fled : EAstralWeaveResult::MayRetry);
 			}
 		}
 		return;

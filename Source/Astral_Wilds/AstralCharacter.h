@@ -108,13 +108,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> PlaceholderMesh;
 
-	/** Overlap-only detection volume for AAstralMageCharacter::FindReceptiveWildAstral()'s sphere-overlap query. Mirrors AWildAstralEncounter's InteractSphere (same radius/profile) so that query keeps working unchanged. */
+	/** Overlap-only detection volume for AAstralMageCharacter::FindReceptiveWildAstral()'s sphere-overlap query. Originally mirrored the legacy AWildAstralEncounter's InteractSphere radius exactly; reduced independently 2026-10-05 (see AstralMageCharacter.h's InteractTraceDistance) after a playtest bot found combined interact reach of ~6.7m, large enough that the prompt showed from the level's PlayerStart. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USphereComponent> InteractSphere;
 
-	/** Radius of InteractSphere. */
+	/** Radius of InteractSphere. Reduced from 250 to 120 on 2026-10-05 as part of tightening the combined interact reach (see AstralMageCharacter.h). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Wild")
-	float InteractRadius = 250.f;
+	float InteractRadius = 120.f;
 
 	/** Applies SpeciesData's DisplayMesh/AnimClass to the inherited skeletal mesh component if set, otherwise shows PlaceholderMesh. */
 	void ApplySpeciesVisuals();
