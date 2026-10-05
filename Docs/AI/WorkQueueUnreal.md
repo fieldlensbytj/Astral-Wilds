@@ -216,3 +216,17 @@ Next up from the carried-over list: #4 (real Input Action / Mapping Context asse
 4. **The Sigil sits over the Mage.** It's drawn at screen centre, on top of the character. Fine for a debug HUD; worth considering when designing the real UI.
 
 Still needs a human: game feel, i.e. whether tracking and the pulse rhythm are fun. 53/53 tests pass.
+
+## STATUS AS OF 2026-10-05 (Cowork daily session, ~06:15 UTC firing) — .gitattributes added, no new gameplay code (no build access this session)
+
+Confirmed, via direct testing rather than assumption, that this specific bridge (the scheduled Cowork session's `device_bash`) runs in an isolated **Linux** VM with no path to Windows build tools at all, and that computer-use for Visual Studio/Terminal/Command Prompt is restricted to tier "click" (view + left-click only, no typing) - the same hard limitation found 2026-10-04, now reconfirmed rather than re-discovered from scratch. This is a property of this bridge; it does not apply to a Claude Code CLI session running directly on the machine (which is what produced all of today's earlier commits, `ccf21a4` through `d37147d`).
+
+Given no compiler access, kept this session's changes to things verifiable by inspection alone:
+- Added `.gitattributes` (`*.uasset`/`*.umap` marked binary) - none existed before, and the 757 tracked binary assets had no protection against a future text-conversion corruption.
+- Discarded a pure CRLF/LF working-tree diff on `AstralAutoPlaytest.cpp` (confirmed via `md5sum` against HEAD - no semantic change).
+- Reviewed (read-only) the economy rules against `Docs/Design/EconomyPolicy.md` and the wild spawner's navmesh fallback - no issues found, nothing changed.
+- Committed as `7d83536` on the standalone repo's `master`, 1 commit ahead of `origin/astral-wilds-unreal` - **not pushed**, same known credential gap as every prior session.
+
+Did not touch the four open playtest findings from the previous entry (first-pulse difficulty cliff, interact reach, no-navmesh wildlife AI, Sigil screen position) - still TJ's design calls. Did not attempt a NavMeshBoundsVolume fix either (see today's `CoworkReview-2026-10-05.md` for why: no safe way to verify it from this session).
+
+Full detail in `Docs/AI/CoworkReview-2026-10-05.md`.
