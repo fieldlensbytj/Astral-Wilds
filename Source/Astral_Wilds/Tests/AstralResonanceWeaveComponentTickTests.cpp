@@ -281,11 +281,49 @@ bool FAstralResonanceWeave_Tick_HarmonizeMisaligned::RunTest(const FString& Para
 	return true;
 }
 
-// TODO (2026-10-05): no coverage yet for the flee path AFTER the grace period -
-// i.e. a weave that lands one successful pulse, then later hits zero Stability
-// again, should still let a flighty Astral flee. Deliberately not added this
-// session (no build/PIE access to verify the timing math); a session that can
-// run the suite should add it alongside MakeTemperament() + the existing
-// landed-pulse pattern in FAstralResonanceWeave_Tick_HarmonizeInWindow above.
+// Covers the flee path AFTER the first-pulse grace period: once the player
+// has landed one successful pulse, a later failure down to zero Stability
+// still lets a flighty Astral flee - the grace only ever covers the very
+// first pulse response of a weave. Tick counts below follow the same
+// 0.01s-step, PulseInterval=0.4s/Window=0.45s derivation already used by
+// FAstralResonanceWeave_Tick_HarmonizeInWindow and
+// FAstralResonanceWeave_Tick_MissedPulseDrainsStability above - not run this
+// session (no build/PIE access - see Docs/AI/CoworkReview-2026-10-05.md), so
+// double-check PulseCallCount at each stage first if this ever fails.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod, "AstralWilds.ResonanceWeave.Tick.FleeResumesAfterFirstPulseGracePeriod", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod::RunTest(const FString& Parameters)
+{
+	using namespace AstralResonanceWeaveComponentTickTests;
+	FWeaveTickHarness H;
+	H.Weave->BeginWeave(MakeTemperament(0.4f), false);
+
+	// Pulse 1: land it (uses up the grace period). Stability -> 25.
+	H.Tick(0.01f, 41, /*bTrack*/ true);
+	TestEqual(TEXT("First pulse fired"), H.Listener->PulseCallCount, 1);
+	H.TrackPoint();
+	H.Weave->RespondToHarmonize();
+	TestTrue(TEXT("First pulse landed - Stability above zero, weave still active"), H.Weave->GetStabilityFraction() > 0.2f && H.Weave->IsWeaveActive());
+
+	// Pulse 2: miss it outright (no response before the window lapses).
+	// 40 ticks to reach it, 45 more to outlast its window, 10 to spare.
+	// Costs 12 * 1.4 = 16.8, leaving Stability at 25 - 16.8 = 8.2 - not
+	// enough on its own to zero it out.
+	H.Tick(0.01f, 95);
+	TestEqual(TEXT("Second pulse fired"), H.Listener->PulseCallCount, 2);
+	TestTrue(TEXT("One miss after landing the first pulse isn't enough to zero Stability"), H.Weave->IsWeaveActive());
+
+	// Pulse 3: answer it badly misaligned (LoseAlignment guarantees it,
+	// regardless of exactly where the Resonance Point has drifted to).
+	// 30 more ticks reaches it. Costs 10 * 1.4 = 14, taking Stability from
+	// 8.2 to -5.8, clamped to 0 - this time past the grace period, so a
+	// flighty Astral flees.
+	H.Tick(0.01f, 30);
+	TestEqual(TEXT("Third pulse fired"), H.Listener->PulseCallCount, 3);
+	H.LoseAlignment();
+	H.Weave->RespondToHarmonize();
+	TestEqual(TEXT("Flee resumes once the grace period is used up"), H.Listener->LastWeaveResult, EAstralWeaveResult::Fled);
+	TestFalse(TEXT("Weave is no longer active"), H.Weave->IsWeaveActive());
+	return true;
+}
 
 #endif // WITH_AUTOMATION_TESTS

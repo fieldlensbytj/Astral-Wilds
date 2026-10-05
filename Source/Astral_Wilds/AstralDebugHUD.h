@@ -31,6 +31,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Astral|Debug")
 	float SigilRadiusFraction = 0.16f;
 
+	/** Sigil center's vertical position as a fraction of viewport height (0 = top, 1 = bottom). Off dead-center so it doesn't draw directly over the possessed Mage, per a 2026-10-05 playtest finding. */
+	UPROPERTY(EditAnywhere, Category = "Astral|Debug")
+	float SigilVerticalFraction = 0.35f;
+
 protected:
 
 	UFUNCTION()

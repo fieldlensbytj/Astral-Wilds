@@ -93,7 +93,7 @@ void AAstralDebugHUD::DrawStatusLine(const FString& Line, int32 Row, const FLine
 void AAstralDebugHUD::DrawSigil(const UAstralResonanceWeaveComponent& Weave, const FString& TargetName)
 {
 	const float Radius = Canvas->ClipY * SigilRadiusFraction;
-	const FVector2D Center(Canvas->ClipX * 0.5f, Canvas->ClipY * 0.5f);
+	const FVector2D Center(Canvas->ClipX * 0.5f, Canvas->ClipY * SigilVerticalFraction);
 	// Unit-circle space -> screen: +Y is up in the Sigil, down on screen.
 	auto ToScreen = [&](const FVector2D& P) { return Center + FVector2D(P.X, -P.Y) * Radius; };
 
