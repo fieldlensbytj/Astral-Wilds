@@ -100,6 +100,31 @@ protected:
 
 	virtual void BeginPlay() override;
 
+public:
+	virtual void Tick(float DeltaSeconds) override;
+
+	/**
+	 * Procedural "life" for unrigged (static display mesh) Astrals until real
+	 * rigs exist: breathing when idle, a gait bob scaled by speed, a lean into
+	 * turns. Only touches the display mesh's relative transform.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals")
+	bool bProceduralMotion = true;
+
+	/** Peak gait bob height at a full run, in cm. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals", meta = (Units = "cm"))
+	float GaitBobHeight = 6.f;
+
+	/** Distance covered per gait bob, in cm - shorter = quicker little steps. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals", meta = (Units = "cm"))
+	float GaitStride = 90.f;
+
+	/** Maximum roll when turning, in degrees. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals")
+	float MaxTurnLean = 10.f;
+
+protected:
+
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -122,4 +147,16 @@ protected:
 	/** The cylinder PlaceholderMesh shows when a species has no display model. */
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> PlaceholderShape;
+
+	/** Rest transform of the static display mesh, set by ApplySpeciesVisuals; procedural motion offsets from it. */
+	bool bHasStaticDisplay = false;
+	FVector DisplayRestLocation = FVector::ZeroVector;
+	FRotator DisplayRestRotation = FRotator::ZeroRotator;
+	float DisplayRestScale = 1.f;
+
+	float GaitPhase = 0.f;
+	float BreathTime = 0.f;
+	float SmoothedLean = 0.f;
+	float SmoothedSpeedAlpha = 0.f;
+	float LastYaw = 0.f;
 };

@@ -167,14 +167,58 @@ void AAstralCharacter::ApplySpeciesVisuals()
 		PlaceholderMesh->SetRelativeScale3D(FVector(Scale));
 		PlaceholderMesh->SetRelativeRotation(Yaw);
 		PlaceholderMesh->SetRelativeLocation(FVector(-CenterXY.X, -CenterXY.Y, CapsuleBottom - Bounds.Min.Z * Scale));
+		bHasStaticDisplay = true;
+		DisplayRestLocation = PlaceholderMesh->GetRelativeLocation();
+		DisplayRestRotation = Yaw;
+		DisplayRestScale = Scale;
+		BreathTime = FMath::FRandRange(0.f, 10.f); // desync a group's breathing
 		return;
 	}
+
+	bHasStaticDisplay = false;
 
 	// PLACEHOLDER cylinder - see the constructor for the scale's derivation.
 	PlaceholderMesh->SetStaticMesh(PlaceholderShape);
 	PlaceholderMesh->SetRelativeScale3D(FVector(0.68f, 0.68f, 1.76f));
 	PlaceholderMesh->SetRelativeRotation(FRotator::ZeroRotator);
 	PlaceholderMesh->SetRelativeLocation(FVector::ZeroVector);
+}
+
+void AAstralCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (!bProceduralMotion || !bHasStaticDisplay || !PlaceholderMesh || DeltaSeconds <= 0.f)
+	{
+		return;
+	}
+
+	const float Speed = GetVelocity().Size2D();
+	const float MaxSpeed = FMath::Max(GetCharacterMovement()->MaxWalkSpeed, 1.f);
+	// 0 at rest -> 1 at the current max walk speed; smoothed so starts/stops ease.
+	SmoothedSpeedAlpha = FMath::FInterpTo(SmoothedSpeedAlpha, FMath::Clamp(Speed / 450.f, 0.f, 1.f), DeltaSeconds, 6.f);
+
+	// Gait: one bob per stride, |sin| gives a footfall-like bounce.
+	GaitPhase = FMath::Fmod(GaitPhase + Speed / FMath::Max(GaitStride, 1.f) * PI * DeltaSeconds, 2.f * PI);
+	const float Bob = FMath::Abs(FMath::Sin(GaitPhase)) * GaitBobHeight * SmoothedSpeedAlpha;
+	const float GaitPitch = FMath::Sin(GaitPhase * 2.f) * 2.5f * SmoothedSpeedAlpha;   // nod with each step
+	const float RunPitch = -4.f * SmoothedSpeedAlpha * (Speed / MaxSpeed);              // lean forward when fast
+
+	// Turn lean from yaw rate, eased.
+	const float Yaw = GetActorRotation().Yaw;
+	const float YawRate = FMath::FindDeltaAngleDegrees(LastYaw, Yaw) / DeltaSeconds;
+	LastYaw = Yaw;
+	SmoothedLean = FMath::FInterpTo(SmoothedLean, FMath::Clamp(-YawRate * 0.04f, -MaxTurnLean, MaxTurnLean) * SmoothedSpeedAlpha, DeltaSeconds, 5.f);
+
+	// Breathing: slow chest-like swell, faded out while moving.
+	BreathTime += DeltaSeconds;
+	const float Breath = FMath::Sin(BreathTime * 2.f * PI * 0.35f) * 0.018f * (1.f - SmoothedSpeedAlpha);
+
+	// Offsets are in actor space; DisplayRestRotation already carries the model's yaw fix.
+	PlaceholderMesh->SetRelativeLocation(DisplayRestLocation + FVector(0.f, 0.f, Bob));
+	// Compose in actor space (left-multiply): the model's own axes are yawed by DisplayRestRotation.
+	PlaceholderMesh->SetRelativeRotation(FQuat(FRotator(GaitPitch + RunPitch, 0.f, SmoothedLean)) * FQuat(DisplayRestRotation));
+	PlaceholderMesh->SetRelativeScale3D(FVector(DisplayRestScale * (1.f - Breath * 0.5f), DisplayRestScale * (1.f - Breath * 0.5f), DisplayRestScale * (1.f + Breath)));
 }
 
 void AAstralCharacter::BeginPlay()
