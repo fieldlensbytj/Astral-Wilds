@@ -1,0 +1,17 @@
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+
+      - run:
+          name: Verify Astral Wilds CI
+          command: echo "Astral Wilds is connected to CircleCI!"
+
+workflows:
+  build-and-test:
+    jobs:
+      - build
