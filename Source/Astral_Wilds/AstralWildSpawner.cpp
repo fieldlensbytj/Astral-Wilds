@@ -5,10 +5,14 @@
 #include "NavigationSystem.h"
 #include "Engine/World.h"
 #include "Components/CapsuleComponent.h"
+#include "Astral_Wilds.h"
+#include "TimerManager.h"
 
 AAstralWildSpawner::AAstralWildSpawner()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	// Without a root component the actor has no transform and is stuck at the origin.
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	AstralCharacterClass = AAstralCharacter::StaticClass();
 }
 
@@ -16,6 +20,44 @@ void AAstralWildSpawner::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// With runtime (dynamic) navmesh generation the navmesh is usually not
+	// ready at BeginPlay, and spawning immediately would always miss it.
+	const UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
+	if (NavSys && NavSys->GetDefaultNavDataInstance() && MaxNavigationWaitSeconds > 0.f)
+	{
+		NavigationWaitElapsed = 0.f;
+		GetWorldTimerManager().SetTimer(NavigationWaitTimer, this, &AAstralWildSpawner::TrySpawnBatch, 0.25f, true, 0.f);
+		return;
+	}
+	SpawnBatch();
+}
+
+void AAstralWildSpawner::TrySpawnBatch()
+{
+	UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
+	FNavLocation Probe;
+	const bool bNavReady = NavSys && !NavSys->IsNavigationBuildInProgress()
+		&& NavSys->GetRandomReachablePointInRadius(GetActorLocation(), SpawnRadius, Probe);
+	NavigationWaitElapsed += 0.25f;
+	if (bNavReady || NavigationWaitElapsed >= MaxNavigationWaitSeconds)
+	{
+		if (!bNavReady)
+		{
+			FNavLocation Projected;
+			const bool bProjects = NavSys && NavSys->ProjectPointToNavigation(GetActorLocation(), Projected, FVector(200.f, 200.f, 1000.f));
+			UE_LOG(LogAstral_Wilds, Warning, TEXT("%s: no navmesh point reachable within %.0fcm after %.1fs (build in progress: %s, nav data: %s, nearest navmesh to spawner: %s) - using ground-trace fallback"),
+				*GetName(), SpawnRadius, NavigationWaitElapsed,
+				NavSys && NavSys->IsNavigationBuildInProgress() ? TEXT("yes") : TEXT("no"),
+				NavSys && NavSys->GetDefaultNavDataInstance() ? TEXT("yes") : TEXT("no"),
+				bProjects ? *Projected.Location.ToCompactString() : TEXT("none"));
+		}
+		GetWorldTimerManager().ClearTimer(NavigationWaitTimer);
+		SpawnBatch();
+	}
+}
+
+void AAstralWildSpawner::SpawnBatch()
+{
 	for (int32 Index = 0; Index < SpawnCount; ++Index)
 	{
 		SpawnOneAstral();
@@ -79,6 +121,9 @@ AAstralCharacter* AAstralWildSpawner::SpawnOneAstral() const
 	NewAstral->Level = FMath::RandRange(FMath::Min(MinLevel, MaxLevel), FMath::Max(MinLevel, MaxLevel));
 
 	NewAstral->FinishSpawning(SpawnTransform);
+
+	UE_LOG(LogAstral_Wilds, Display, TEXT("%s spawned %s (Lv %d) at %s via %s"), *GetName(), *ChosenSpecies->SpeciesName.ToString(), NewAstral->Level,
+		*SpawnLocation.ToCompactString(), bFoundNavPoint ? TEXT("navmesh") : TEXT("ground-trace fallback"));
 
 	return NewAstral;
 }

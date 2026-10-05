@@ -35,7 +35,8 @@ Rendered bot playtest. It opens a game window for about 30s, then logs `[AutoPla
 
 ## Still open
 
-- A `NavMeshBoundsVolume` for `Lvl_ThirdPerson` so wildlife AI can path. The spawner now falls back to ground traces, but wild Astrals can't move.
+- **Wildlife AI has no StateTree asset.** `AAstralWildlifeController` starts a `UStateTreeAIComponent`, but no StateTree exists in `Content/`, so wild Astrals do nothing, navmesh or not. Authoring it (using the tasks in `AstralWildlifeStateTreeUtility`) is editor work.
+- **Navmesh: tried and backed out.** A NavMeshBoundsVolume + `RuntimeGeneration=Dynamic` on this World Partition level showed "NAVMESH NEEDS TO BE REBUILT" and only generated inside the hollow central platform, never on its walkable top. Un-partitioning the RecastNavMesh didn't help. Next attempt: build nav in the editor (Build > Paths), or use the WP navigation builder commandlet, and check the central platform's collision. The spawner already waits for navmesh when navigation data exists and falls back to ground traces otherwise.
 - The `Content/` Git LFS decision (238MB+ of plain binaries) - TJ's call.
 - A human PIE playtest for game feel (tracking speed, pulse rhythm). The bot only proves the loop works.
 - Both first-pulse protections are now active: starting Stability, and no flee on the first pulse. If bonding feels too forgiving, `fa1b858`'s grace is the one to revisit.

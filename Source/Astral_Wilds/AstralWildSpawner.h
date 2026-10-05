@@ -44,6 +44,18 @@ protected:
 
 	virtual void BeginPlay() override;
 
+	/** Longest BeginPlay will wait for a runtime-generated navmesh to finish before spawning anyway (with the ground-trace fallback). */
+	UPROPERTY(EditAnywhere, Category = "Astral|Spawner", meta = (ClampMin = "0", Units = "s"))
+	float MaxNavigationWaitSeconds = 5.f;
+
+	/** Polled until a navmesh query from the spawner succeeds or MaxNavigationWaitSeconds runs out, then spawns the batch. */
+	void TrySpawnBatch();
+
+	void SpawnBatch();
+
+	float NavigationWaitElapsed = 0.f;
+	FTimerHandle NavigationWaitTimer;
+
 	/** Picks a random species/level/nav-valid point and spawns one AAstralCharacter. Returns null if PossibleSpecies is empty or the class is invalid. */
 	AAstralCharacter* SpawnOneAstral() const;
 };
