@@ -21,6 +21,7 @@
 #include "AstralCharacter.generated.h"
 
 class UStaticMeshComponent;
+class UAnimSequence;
 class USphereComponent;
 
 UCLASS()
@@ -159,4 +160,17 @@ protected:
 	float SmoothedLean = 0.f;
 	float SmoothedSpeedAlpha = 0.f;
 	float LastYaw = 0.f;
+
+	/** Rigged display: clips loaded from SpeciesData, and the one currently playing. */
+	bool bHasRiggedDisplay = false;
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> LoadedIdle;
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> LoadedWalk;
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> LoadedRun;
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> CurrentClip;
+
+	void UpdateLocomotionClip();
 };

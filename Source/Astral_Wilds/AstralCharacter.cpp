@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Animation/AnimSequence.h"
 #include "Animation/AnimInstance.h"
 #include "UObject/ConstructorHelpers.h"
 #include "AstralWildlifeController.h"
@@ -127,6 +128,18 @@ void AAstralCharacter::ApplySpeciesVisuals()
 		{
 			SkeletalMeshComp->SetSkeletalMesh(NewSkeletalMesh);
 
+			// Same auto-fit as static display models: uniform scale to
+			// DisplayHeight, centred on the capsule axis, base on the ground.
+			const FBox Bounds = NewSkeletalMesh->GetImportedBounds().GetBox();
+			const float ModelHeight = Bounds.GetSize().Z;
+			const float Scale = ModelHeight > KINDA_SMALL_NUMBER ? SpeciesData->DisplayHeight / ModelHeight : 1.f;
+			const FRotator Yaw(0.f, SpeciesData->DisplayYawOffset, 0.f);
+			const FVector CenterXY = Yaw.RotateVector(FVector(Bounds.GetCenter().X, Bounds.GetCenter().Y, 0.f)) * Scale;
+			SkeletalMeshComp->SetRelativeScale3D(FVector(Scale));
+			SkeletalMeshComp->SetRelativeRotation(Yaw);
+			SkeletalMeshComp->SetRelativeLocation(FVector(-CenterXY.X, -CenterXY.Y, -GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight() - Bounds.Min.Z * Scale));
+
+			bHasRiggedDisplay = false;
 			if (!SpeciesData->AnimClass.IsNull())
 			{
 				if (UClass* AnimClassPtr = SpeciesData->AnimClass.LoadSynchronous())
@@ -134,6 +147,17 @@ void AAstralCharacter::ApplySpeciesVisuals()
 					SkeletalMeshComp->SetAnimInstanceClass(AnimClassPtr);
 				}
 			}
+			else
+			{
+				LoadedIdle = SpeciesData->IdleAnim.LoadSynchronous();
+				LoadedWalk = SpeciesData->WalkAnim.LoadSynchronous();
+				LoadedRun = SpeciesData->RunAnim.LoadSynchronous();
+				bHasRiggedDisplay = LoadedIdle || LoadedWalk || LoadedRun;
+				CurrentClip = nullptr;
+				SkeletalMeshComp->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+				UpdateLocomotionClip();
+			}
+			bHasStaticDisplay = false;
 
 			SkeletalMeshComp->SetVisibility(true);
 			if (PlaceholderMesh)
@@ -188,6 +212,12 @@ void AAstralCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	if (bHasRiggedDisplay)
+	{
+		UpdateLocomotionClip();
+		return;
+	}
+
 	if (!bProceduralMotion || !bHasStaticDisplay || !PlaceholderMesh || DeltaSeconds <= 0.f)
 	{
 		return;
@@ -219,6 +249,36 @@ void AAstralCharacter::Tick(float DeltaSeconds)
 	// Compose in actor space (left-multiply): the model's own axes are yawed by DisplayRestRotation.
 	PlaceholderMesh->SetRelativeRotation(FQuat(FRotator(GaitPitch + RunPitch, 0.f, SmoothedLean)) * FQuat(DisplayRestRotation));
 	PlaceholderMesh->SetRelativeScale3D(FVector(DisplayRestScale * (1.f - Breath * 0.5f), DisplayRestScale * (1.f - Breath * 0.5f), DisplayRestScale * (1.f + Breath)));
+}
+
+void AAstralCharacter::UpdateLocomotionClip()
+{
+	if (!SpeciesData)
+	{
+		return;
+	}
+	const float Speed = GetVelocity().Size2D();
+	UAnimSequence* Wanted = LoadedIdle;
+	float AuthoredSpeed = 0.f;
+	if (Speed > SpeciesData->IdleSpeedThreshold)
+	{
+		const bool bRun = LoadedRun && (!LoadedWalk || Speed > 0.5f * (SpeciesData->WalkAnimSpeed + SpeciesData->RunAnimSpeed));
+		Wanted = bRun ? LoadedRun.Get() : LoadedWalk.Get();
+		AuthoredSpeed = bRun ? SpeciesData->RunAnimSpeed : SpeciesData->WalkAnimSpeed;
+	}
+	if (!Wanted)
+	{
+		Wanted = LoadedIdle ? LoadedIdle.Get() : (LoadedWalk ? LoadedWalk.Get() : LoadedRun.Get());
+	}
+
+	USkeletalMeshComponent* SkeletalMeshComp = GetMesh();
+	if (Wanted != CurrentClip)
+	{
+		CurrentClip = Wanted;
+		SkeletalMeshComp->PlayAnimation(Wanted, /*bLooping*/ true);
+	}
+	// Match cadence to ground speed (feet slide a little outside the clamp).
+	SkeletalMeshComp->SetPlayRate(AuthoredSpeed > 0.f ? FMath::Clamp(Speed / AuthoredSpeed, 0.6f, 1.8f) : 1.f);
 }
 
 void AAstralCharacter::BeginPlay()

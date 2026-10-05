@@ -16,6 +16,7 @@ class UCurveFloat;
 class USkeletalMesh;
 class UStaticMesh;
 class UAnimInstance;
+class UAnimSequence;
 
 /**
  * Per-species AI personality classification - drives how a wild Astral of
@@ -136,7 +137,33 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals", meta = (ClampMin = "10", Units = "cm"))
 	float DisplayHeight = 120.f;
 
-	/** Yaw in degrees applied to DisplayStaticMesh so the model faces the Astral's forward (+X) direction. */
+	/** Yaw in degrees applied to the display model (static or skeletal) so it faces the Astral's forward (+X) direction. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals")
 	float DisplayYawOffset = 0.f;
+
+	/**
+	 * Locomotion clips for a rigged DisplayMesh, played directly (no Anim
+	 * Blueprint needed): Idle below IdleSpeedThreshold, then Walk, then Run
+	 * above the midpoint of WalkAnimSpeed and RunAnimSpeed. Play rate scales
+	 * with speed relative to the clip's authored speed. Ignored if AnimClass is set.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation")
+	TSoftObjectPtr<UAnimSequence> IdleAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation")
+	TSoftObjectPtr<UAnimSequence> WalkAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation")
+	TSoftObjectPtr<UAnimSequence> RunAnim;
+
+	/** Ground speed (cm/s) at which WalkAnim plays at 1x. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation", meta = (Units = "cm/s"))
+	float WalkAnimSpeed = 150.f;
+
+	/** Ground speed (cm/s) at which RunAnim plays at 1x. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation", meta = (Units = "cm/s"))
+	float RunAnimSpeed = 380.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation", meta = (Units = "cm/s"))
+	float IdleSpeedThreshold = 25.f;
 };
