@@ -11,7 +11,7 @@ This is the real, current priority list for the active engine (Unreal Engine 5.8
 - `fa1b858` / `1c6f957` (the Cowork session's unverified commits): now verified. The first-pulse no-flee grace is kept alongside starting Stability. Interact reach is ~3.7m (no prompt at spawn, confirmed on screen), and the Sigil has moved off the Mage.
 
 **Still open:**
-- **Wildlife AI has no StateTree asset** (`AAstralWildlifeController` starts an empty `UStateTreeAIComponent`), so wild Astrals do nothing. Needs editor authoring.
+- **Wildlife AI: native C++ behaviour in place** (`6ae9034`): Docile wander, Skittish flee, Aggressive chase, Territorial guard; Receptive Astrals hold still. Verified in a rendered run on the navmesh. Suite 61/61. A designer StateTree can replace it later (`bUseNativeBehavior` false).
 - ~~Navmesh was tried and backed out~~ **Fixed 2026-10-05** (`304a9f2` in the standalone repo, not yet pulled/pushed from a machine with real git access - see that repo's `NEXT_STEPS.md`). TJ placed a `NavMeshBoundsVolume` by hand in the editor (Location 0,0,150 / Scale 22,22,4.5), ran Build > Paths, and confirmed via the nav-display overlay (`P`) that the whole top of the central platform and all four ramps are walkable now, not just the floor. Done live, screen-guided by a Cowork session - not scripted, so re-verify by eye if the level geometry changes again. Root cause of the original dynamic-generation failure still unknown. Wildlife still won't use it until the StateTree item below is done.
 - The `Content/` Git LFS decision (TJ).
 - A human playtest for game feel.
