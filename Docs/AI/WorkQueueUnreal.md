@@ -2,7 +2,7 @@
 
 This is the real, current priority list for the active engine (Unreal Engine 5.8, C++, `Astral_Wilds_Unreal/Astral_Wilds/`). `Docs/AI/WorkQueue.md` is the old Unity-era queue, kept for history/design provenance only — its "Current priority"/"Status" sections describe the frozen Unity project, not this one. This file replaces it as the thing to read for "what's next" on Unreal, per the split multiple prior sessions recommended (`CoworkReview-20260918.md`, `CoworkReview-20260918-AutomationTests.md`) but never got around to doing.
 
-## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-05 by a Claude Code session with shell access)
+## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-05, navmesh item fixed via Cowork+TJ live editor session, see note below)
 
 **Project:** `C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\`, a standalone repo (`origin` branch `astral-wilds-unreal`). Its root `NEXT_STEPS.md` mirrors this block and has the exact, verified PowerShell commands for build, tests and the rendered bot playtest. Update both together.
 
@@ -12,7 +12,7 @@ This is the real, current priority list for the active engine (Unreal Engine 5.8
 
 **Still open:**
 - **Wildlife AI has no StateTree asset** (`AAstralWildlifeController` starts an empty `UStateTreeAIComponent`), so wild Astrals do nothing. Needs editor authoring.
-- **Navmesh was tried and backed out** (`4829ea9`). Runtime generation on this World Partition level only produced navmesh inside the hollow central platform. Next: Build > Paths in the editor, or the WP navigation builder. The spawner now has a root component, sits on the platform, and waits for navmesh when one exists.
+- ~~Navmesh was tried and backed out~~ **Fixed 2026-10-05** (`304a9f2` in the standalone repo, not yet pulled/pushed from a machine with real git access - see that repo's `NEXT_STEPS.md`). TJ placed a `NavMeshBoundsVolume` by hand in the editor (Location 0,0,150 / Scale 22,22,4.5), ran Build > Paths, and confirmed via the nav-display overlay (`P`) that the whole top of the central platform and all four ramps are walkable now, not just the floor. Done live, screen-guided by a Cowork session - not scripted, so re-verify by eye if the level geometry changes again. Root cause of the original dynamic-generation failure still unknown. Wildlife still won't use it until the StateTree item below is done.
 - The `Content/` Git LFS decision (TJ).
 - A human playtest for game feel.
 - If bonding now feels too forgiving, revisit `fa1b858`'s grace, since both first-pulse protections are active.
