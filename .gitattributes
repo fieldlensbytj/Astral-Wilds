@@ -5,5 +5,8 @@
 # (AstralAutoPlaytest.cpp) with no .gitattributes in place at all - the
 # source churn itself was harmless, but the absence of any binary
 # declaration for .uasset/.umap was not.
-*.uasset binary
-*.umap binary
+*.uasset filter=lfs diff=lfs merge=lfs -text
+*.umap filter=lfs diff=lfs merge=lfs -text
+
+# 2026-10-05: Unreal assets now stored in Git LFS (forward-only - history before
+# this commit keeps them as plain blobs). -text keeps the binary protection above.
