@@ -61,3 +61,14 @@ Both are still **unverified by a real build** - this session has no compiler or 
 **This needs a real build + ideally a PIE/`Astral.AutoPlaytest` re-run before being trusted** - flagging clearly rather than claiming it's done. Did not touch the other two findings (no navmesh for wildlife, Sigil screen position) - still out of scope for a session without editor access.
 
 Sync: `fa1b858` pushed-attempted, same credential-gap failure as every prior session. Standalone repo `master` is now 2 commits ahead of `origin/astral-wilds-unreal` (`7d83536`, `fa1b858`).
+
+## Addendum 2: Sigil reposition + flee-after-grace test coverage, code-only as asked
+
+TJ said to keep going code-only while he/another session handles the build+push side. Two more changes, both committed as `1c6f957` in the standalone repo:
+
+1. **Sigil moved off dead-center** (`AstralDebugHUD`): it was drawn at exact screen center, directly over the Mage - a documented playtest finding. Added a tunable `SigilVerticalFraction` (0.35 default) in place of the hardcoded 0.5. Pure canvas draw-position change; no automation tests cover HUD drawing, so nothing else needed updating. Lowest-risk change of the session.
+2. **Filled the TODO** from the earlier `fa1b858` commit: added `FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod`, proving a flighty Astral still flees on a LATER pulse failure after the first-pulse grace period is used up. Drove three pulses by hand (land / miss outright / miss misaligned), reusing the exact tick-count derivation and `LoseAlignment()` technique already proven by two existing tests in the same file, and hand-traced the Stability arithmetic at each step (25 → 8.2 → clamped 0). This one I debated adding at all, since I can't run it - decided the risk profile was acceptable because a wrong tick count fails loudly with a specific `TestEqual` on `PulseCallCount`, not silently.
+
+Standalone repo `master` is now 3 commits ahead of `origin/astral-wilds-unreal` (`7d83536`, `fa1b858`, `1c6f957`), all push-attempted and failing on the same known credential gap. Nothing in this repo ("Astral Wilds") changed further this addendum - this note is the only edit.
+
+**Everything from today that touches gameplay code (`fa1b858`, `1c6f957`) still needs a real build + test run before being trusted.** That's the single most important next step, ahead of any further code-only work.
