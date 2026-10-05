@@ -1,6 +1,18 @@
 // Astral Wilds - see AstralWildlifeController.h.
 #include "AstralWildlifeController.h"
+#include "AstralCharacter.h"
+#include "Astral_Wilds.h"
 #include "Components/StateTreeAIComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Navigation/PathFollowingComponent.h"
+#include "NavigationSystem.h"
+
+namespace
+{
+	constexpr float DecisionInterval = 0.25f;
+	constexpr float RepathInterval = 0.5f;
+}
 
 AAstralWildlifeController::AAstralWildlifeController()
 {
@@ -13,11 +25,201 @@ AAstralWildlifeController::AAstralWildlifeController()
 
 	// Necessary for EnvQueries/navigation queries to work correctly.
 	bAttachToPawn = true;
+
+	PrimaryActorTick.bCanEverTick = true;
 }
 
 void AAstralWildlifeController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
-	StateTreeAI->StartLogic();
+	HomeLocation = InPawn ? InPawn->GetActorLocation() : FVector::ZeroVector;
+	// Stagger decisions so a freshly spawned group doesn't move in lockstep.
+	DecisionTimer = FMath::FRandRange(0.f, DecisionInterval);
+	WanderPause = FMath::FRandRange(0.f, Tuning.WanderPauseMax);
+
+	if (!bUseNativeBehavior)
+	{
+		StateTreeAI->StartLogic();
+	}
+}
+
+EAstralWildlifeMode AAstralWildlifeController::ChooseMode(EAstralAIArchetype Archetype, EAstralWildState WildState, EAstralWildlifeMode Current,
+	float DistToPlayer, float DistFromHome, float PlayerDistFromHome, const FAstralWildlifeTuning& T)
+{
+	if (WildState == EAstralWildState::Receptive)
+	{
+		return EAstralWildlifeMode::Idle;
+	}
+
+	switch (Archetype)
+	{
+	case EAstralAIArchetype::Skittish:
+		if (DistToPlayer < T.AlertRange || (Current == EAstralWildlifeMode::Flee && DistToPlayer < T.CalmRange))
+		{
+			return EAstralWildlifeMode::Flee;
+		}
+		return EAstralWildlifeMode::Wander;
+
+	case EAstralAIArchetype::Aggressive:
+	{
+		const bool bCanChase = DistFromHome < T.MaxChaseFromHome;
+		if (bCanChase && (DistToPlayer < T.AlertRange || (Current == EAstralWildlifeMode::Chase && DistToPlayer < T.GiveUpRange)))
+		{
+			return EAstralWildlifeMode::Chase;
+		}
+		if ((Current == EAstralWildlifeMode::Chase || Current == EAstralWildlifeMode::ReturnHome) && DistFromHome > T.HomeRadius)
+		{
+			return EAstralWildlifeMode::ReturnHome;
+		}
+		return EAstralWildlifeMode::Wander;
+	}
+
+	case EAstralAIArchetype::Territorial:
+		if (PlayerDistFromHome < T.TerritoryRadius && DistFromHome < T.MaxChaseFromHome)
+		{
+			return EAstralWildlifeMode::Chase;
+		}
+		return DistFromHome > T.HomeRadius ? EAstralWildlifeMode::ReturnHome : EAstralWildlifeMode::Idle;
+
+	case EAstralAIArchetype::Docile:
+	default:
+		return EAstralWildlifeMode::Wander;
+	}
+}
+
+void AAstralWildlifeController::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	AAstralCharacter* Astral = Cast<AAstralCharacter>(GetPawn());
+	if (!bUseNativeBehavior || !Astral)
+	{
+		return;
+	}
+
+	ModeTime += DeltaSeconds;
+	RepathTimer += DeltaSeconds;
+	DecisionTimer -= DeltaSeconds;
+	if (DecisionTimer > 0.f)
+	{
+		return;
+	}
+	DecisionTimer = DecisionInterval;
+
+	const APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
+	const FVector Here = Astral->GetActorLocation();
+	const float DistToPlayer = Player ? FVector::Dist2D(Here, Player->GetActorLocation()) : TNumericLimits<float>::Max();
+	const float PlayerDistFromHome = Player ? FVector::Dist2D(HomeLocation, Player->GetActorLocation()) : TNumericLimits<float>::Max();
+	const EAstralAIArchetype Archetype = Astral->SpeciesData ? Astral->SpeciesData->AIArchetype : EAstralAIArchetype::Docile;
+
+	const EAstralWildlifeMode NewMode = ChooseMode(Archetype, Astral->WildState, Mode, DistToPlayer, FVector::Dist2D(Here, HomeLocation), PlayerDistFromHome, Tuning);
+	if (NewMode != Mode)
+	{
+		EnterMode(NewMode, Astral, DistToPlayer);
+	}
+	UpdateMode(Astral, Player);
+}
+
+void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCharacter* Astral, float DistToPlayer)
+{
+	UE_LOG(LogAstral_Wilds, Display, TEXT("%s (%s): %s -> %s (player %.0fcm)"), *Astral->GetName(),
+		Astral->SpeciesData ? *Astral->SpeciesData->SpeciesName.ToString() : TEXT("?"),
+		*UEnum::GetValueAsString(Mode), *UEnum::GetValueAsString(NewMode), DistToPlayer);
+
+	// Reflect reactions in WildState, but only ever between Calm and the
+	// reaction state - never stomp a state set by something else (e.g. Receptive).
+	if (Mode == EAstralWildlifeMode::Flee && Astral->WildState == EAstralWildState::Frightened)
+	{
+		Astral->SetWildState(EAstralWildState::Calm);
+	}
+	if (Mode == EAstralWildlifeMode::Chase && Astral->WildState == EAstralWildState::Territorial)
+	{
+		Astral->SetWildState(EAstralWildState::Calm);
+	}
+	if (Astral->WildState == EAstralWildState::Calm)
+	{
+		if (NewMode == EAstralWildlifeMode::Flee)
+		{
+			Astral->SetWildState(EAstralWildState::Frightened);
+		}
+		else if (NewMode == EAstralWildlifeMode::Chase)
+		{
+			Astral->SetWildState(EAstralWildState::Territorial);
+		}
+	}
+
+	Mode = NewMode;
+	ModeTime = 0.f;
+	RepathTimer = RepathInterval; // act on the new mode immediately
+	StopMovement();
+
+	float Speed = Tuning.WanderSpeed;
+	switch (NewMode)
+	{
+	case EAstralWildlifeMode::Flee:			Speed = Tuning.FleeSpeed; break;
+	case EAstralWildlifeMode::Chase:		Speed = Tuning.ChaseSpeed; break;
+	case EAstralWildlifeMode::ReturnHome:	Speed = Tuning.ChaseSpeed; break;
+	default: break;
+	}
+	if (UCharacterMovementComponent* Movement = Astral->GetCharacterMovement())
+	{
+		Movement->MaxWalkSpeed = Speed;
+	}
+}
+
+void AAstralWildlifeController::UpdateMode(AAstralCharacter* Astral, const APawn* Player)
+{
+	UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
+	const bool bMoving = GetMoveStatus() != EPathFollowingStatus::Idle;
+
+	switch (Mode)
+	{
+	case EAstralWildlifeMode::Wander:
+		if (bMoving)
+		{
+			ModeTime = 0.f; // the pause counts from arrival, not departure
+		}
+		else if (ModeTime >= WanderPause && NavSys)
+		{
+			FNavLocation Target;
+			if (NavSys->GetRandomReachablePointInRadius(HomeLocation, Tuning.RoamRadius, Target))
+			{
+				MoveToLocation(Target.Location, 50.f);
+			}
+			ModeTime = 0.f;
+			WanderPause = FMath::FRandRange(Tuning.WanderPauseMin, Tuning.WanderPauseMax);
+		}
+		break;
+
+	case EAstralWildlifeMode::Flee:
+		if (Player && (!bMoving || RepathTimer >= RepathInterval))
+		{
+			RepathTimer = 0.f;
+			const FVector Away = (Astral->GetActorLocation() - Player->GetActorLocation()).GetSafeNormal2D();
+			const FVector Desired = Astral->GetActorLocation() + Away * Tuning.FleeDistance;
+			FNavLocation Projected;
+			MoveToLocation(NavSys && NavSys->ProjectPointToNavigation(Desired, Projected) ? Projected.Location : Desired);
+		}
+		break;
+
+	case EAstralWildlifeMode::Chase:
+		if (Player && RepathTimer >= RepathInterval)
+		{
+			RepathTimer = 0.f;
+			MoveToLocation(Player->GetActorLocation(), Tuning.ChaseAcceptanceRadius);
+		}
+		break;
+
+	case EAstralWildlifeMode::ReturnHome:
+		if (!bMoving)
+		{
+			MoveToLocation(HomeLocation, Tuning.HomeRadius * 0.5f);
+		}
+		break;
+
+	case EAstralWildlifeMode::Idle:
+	default:
+		break;
+	}
 }
