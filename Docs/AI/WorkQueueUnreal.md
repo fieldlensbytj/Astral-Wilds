@@ -2,20 +2,23 @@
 
 This is the real, current priority list for the active engine (Unreal Engine 5.8, C++, `Astral_Wilds_Unreal/Astral_Wilds/`). `Docs/AI/WorkQueue.md` is the old Unity-era queue, kept for history/design provenance only — its "Current priority"/"Status" sections describe the frozen Unity project, not this one. This file replaces it as the thing to read for "what's next" on Unreal, per the split multiple prior sessions recommended (`CoworkReview-20260918.md`, `CoworkReview-20260918-AutomationTests.md`) but never got around to doing.
 
-## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-05, navmesh item fixed via Cowork+TJ live editor session, see note below)
+## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-05, after the Glacielle rig `a70cfe9`)
 
-**Project:** `C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\`, a standalone repo (`origin` branch `astral-wilds-unreal`). Its root `NEXT_STEPS.md` mirrors this block and has the exact, verified PowerShell commands for build, tests and the rendered bot playtest. Update both together.
+**Project:** `C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\`, a standalone repo (`origin` branch `astral-wilds-unreal`). Its root `NEXT_STEPS.md` mirrors this block in more detail and has the exact, verified PowerShell commands for build, tests and the rendered bot playtest. Update both together.
 
-**State:** everything is build-verified, tested and pushed. Suite **56/56**. Rendered `Astral.AutoPlaytest` bot: **4/4 bonded** (7.2-9.0s).
-- `a9b7fcf`: the weave now starts at 20 Stability (TJ's pick for the first-pulse cliff), capped at half of `RequiredStability`. Also fixes `1c6f957`'s new test, which failed 53/54 on its first real run because of a pulse-timer tick-count mistake.
-- `fa1b858` / `1c6f957` (the Cowork session's unverified commits): now verified. The first-pulse no-flee grace is kept alongside starting Stability. Interact reach is ~3.7m (no prompt at spawn, confirmed on screen), and the Sigil has moved off the Mage.
+**State:** everything is build-verified, tested and pushed. Suite **61/61**, 0 unloadable. Rendered `Astral.AutoPlaytest`: the bot bonds with the rigged Glacielle.
+- `43def68`: the six Meshy Astrals (Cindrel, Mossling, Ironbur, Ripplefin, Stormrook, Glacielle) replace the placeholder cylinders and spawn wild in the arena.
+- `68098cf`: procedural breathing, gait bob and turn lean for unrigged (static) Astrals.
+- `db19d63` / `a70cfe9`: scripted Blender rigging (22-bone quadruped, Idle/Walk/Run, played by ground speed). Glacielle is rigged. Cindrel went back to its static model (TJ: its curved paw needs hand animation). Rig scripts are in `ArtSource/Blender/Scripts/<name>_rig_*.py`, and the rigged .blend/.fbx files are in `ArtSource/Blender/Rigs/`.
+- `304a9f2`: the hand-placed navmesh volume is committed, and wildlife moves on it via the native AI (`6ae9034`).
+- `32bd598`: Git LFS for `*.uasset`/`*.umap`, done.
 
 **Still open:**
-- **Wildlife AI: native C++ behaviour in place** (`6ae9034`): Docile wander, Skittish flee, Aggressive chase, Territorial guard; Receptive Astrals hold still. Verified in a rendered run on the navmesh. Suite 61/61. A designer StateTree can replace it later (`bUseNativeBehavior` false).
-- ~~Navmesh was tried and backed out~~ **Fixed 2026-10-05** (`304a9f2` in the standalone repo, not yet pulled/pushed from a machine with real git access - see that repo's `NEXT_STEPS.md`). TJ placed a `NavMeshBoundsVolume` by hand in the editor (Location 0,0,150 / Scale 22,22,4.5), ran Build > Paths, and confirmed via the nav-display overlay (`P`) that the whole top of the central platform and all four ramps are walkable now, not just the floor. Done live, screen-guided by a Cowork session - not scripted, so re-verify by eye if the level geometry changes again. Root cause of the original dynamic-generation failure still unknown. Wildlife still won't use it until the StateTree item below is done.
-- The `Content/` Git LFS decision (TJ).
+- TJ to decide: keep the scripted rigging or rig by hand, based on Glacielle.
+- Rig more Astrals with the same pipeline (Mossling next, then possibly Ironbur and Stormrook). Ripplefin needs a different rig.
+- Rig rough edges (foot sliding from estimated walk/run speeds), and decimation of the ~100-135MB static Meshy meshes.
 - A human playtest for game feel.
-- If bonding now feels too forgiving, revisit `fa1b858`'s grace, since both first-pulse protections are active.
+- If bonding feels too forgiving, revisit `fa1b858`'s grace, since both first-pulse protections are active.
 
 ## RESOLVED 2026-10-04 (second firing, ~21:xx UTC) — blocker cleared, TJ confirmed canonical location and git setup
 
