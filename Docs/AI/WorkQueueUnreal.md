@@ -11,7 +11,8 @@ This is the real, current priority list for the active engine (Unreal Engine 5.8
 - `fa1b858` / `1c6f957` (the Cowork session's unverified commits): now verified. The first-pulse no-flee grace is kept alongside starting Stability. Interact reach is ~3.7m (no prompt at spawn, confirmed on screen), and the Sigil has moved off the Mage.
 
 **Still open:**
-- A NavMeshBoundsVolume for `Lvl_ThirdPerson`, so wildlife AI can path.
+- **Wildlife AI has no StateTree asset** (`AAstralWildlifeController` starts an empty `UStateTreeAIComponent`), so wild Astrals do nothing. Needs editor authoring.
+- **Navmesh was tried and backed out** (`4829ea9`). Runtime generation on this World Partition level only produced navmesh inside the hollow central platform. Next: Build > Paths in the editor, or the WP navigation builder. The spawner now has a root component, sits on the platform, and waits for navmesh when one exists.
 - The `Content/` Git LFS decision (TJ).
 - A human playtest for game feel.
 - If bonding now feels too forgiving, revisit `fa1b858`'s grace, since both first-pulse protections are active.
