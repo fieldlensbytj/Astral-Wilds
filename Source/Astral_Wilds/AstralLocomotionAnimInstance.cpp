@@ -32,7 +32,9 @@ void UAstralLocomotionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	// Targets: fade idle -> moving over the first half of walk speed, then
 	// walk -> run between the two authored speeds.
 	const float MoveTarget = !bCanMove ? 0.f : (IdleAnim ? FMath::SmoothStep(IdleThreshold, FMath::Max(IdleThreshold + 1.f, 0.5f * WalkSpeed), Speed) : 1.f);
-	const float RunTarget = !RunAnim ? 0.f : (!WalkAnim ? 1.f : FMath::SmoothStep(WalkSpeed, RunSpeed, Speed));
+	// Walk and Run use different footfall patterns (diagonal trot vs gallop), so
+	// mixing them reads as muddle: blend only in the gap between the two paces.
+	const float RunTarget = !RunAnim ? 0.f : (!WalkAnim ? 1.f : FMath::SmoothStep(FMath::Lerp(WalkSpeed, RunSpeed, 0.25f), FMath::Lerp(WalkSpeed, RunSpeed, 0.75f), Speed));
 	if (DeltaSeconds > 0.f)
 	{
 		MoveAlpha = FMath::FInterpTo(MoveAlpha, MoveTarget, DeltaSeconds, 8.f);
@@ -52,7 +54,23 @@ void UAstralLocomotionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	const float IdleLen = IdleAnim ? FMath::Max(IdleAnim->GetPlayLength(), 0.01f) : 1.f;
 	IdleTime = FMath::Fmod(IdleTime + DeltaSeconds, IdleLen);
 
+	// Body bend into turns: ~0.1 deg of bend per deg/s of yaw rate, capped,
+	// eased so it builds into a turn and unwinds after it.
+	const float Yaw = Pawn ? Pawn->GetActorRotation().Yaw : 0.f;
+	float YawRate = 0.f;
+	if (bHasLastYaw && DeltaSeconds > 0.f)
+	{
+		YawRate = FMath::FindDeltaAngleDegrees(LastYaw, Yaw) / DeltaSeconds;
+	}
+	LastYaw = Yaw;
+	bHasLastYaw = Pawn != nullptr;
+	if (DeltaSeconds > 0.f)
+	{
+		TurnBend = FMath::FInterpTo(TurnBend, FMath::Clamp(YawRate * 0.1f, -22.f, 22.f), DeltaSeconds, 4.f);
+	}
+
 	FAstralLocomotionProxy& Proxy = GetProxyOnGameThread<FAstralLocomotionProxy>();
+	Proxy.TurnBend = TurnBend;
 	Proxy.Layers.Reset();
 	auto Add = [&Proxy](const UAnimSequence* Seq, float Time, float Weight)
 	{
@@ -90,6 +108,7 @@ bool FAstralLocomotionProxy::Evaluate(FPoseContext& Output)
 	{
 		FAnimationPoseData PoseData(Output);
 		Layers[0].Sequence->GetAnimationPose(PoseData, FAnimExtractContext(static_cast<double>(Layers[0].Time), false, {}, true));
+		ApplyTurnBend(Output);
 		return true;
 	}
 
@@ -111,5 +130,57 @@ bool FAstralLocomotionProxy::Evaluate(FPoseContext& Output)
 	}
 	FAnimationPoseData OutData(Output);
 	FAnimationRuntime::BlendPosesTogether(Poses, Curves, Attributes, Weights, OutData);
+	ApplyTurnBend(Output);
 	return true;
+}
+
+void FAstralLocomotionProxy::CacheBendBones(const FBoneContainer& Bones)
+{
+	BendBones.Reset();
+	BendBonesFor = &Bones;
+	BendBonesSerial = Bones.GetSerialNumber();
+
+	// Front of the body leads into the turn; the tail swings to the inside of
+	// the arc too, which for a backward-pointing chain is the opposite sign.
+	static const TPair<const TCHAR*, float> Shares[] = {
+		{ TEXT("spine_01"), 0.15f }, { TEXT("chest"), 0.25f }, { TEXT("neck"), 0.3f }, { TEXT("head"), 0.3f },
+		{ TEXT("tail_01"), -0.2f }, { TEXT("tail_02"), -0.2f }, { TEXT("tail_03"), -0.15f }, { TEXT("tail_04"), -0.15f },
+	};
+	const FReferenceSkeleton& Ref = Bones.GetReferenceSkeleton();
+	for (const TPair<const TCHAR*, float>& S : Shares)
+	{
+		const int32 MeshIndex = Ref.FindBoneIndex(FName(S.Key));
+		if (MeshIndex == INDEX_NONE)
+		{
+			continue;
+		}
+		const FCompactPoseBoneIndex Compact = Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIndex));
+		const int32 ParentIndex = Ref.GetParentIndex(MeshIndex);
+		if (Compact == INDEX_NONE || ParentIndex == INDEX_NONE)
+		{
+			continue;
+		}
+		// Component up expressed in the parent's reference-pose frame; the
+		// clips only rotate these bones a few degrees, so the ref frame is close enough.
+		const FTransform ParentRef = FAnimationRuntime::GetComponentSpaceTransformRefPose(Ref, ParentIndex);
+		BendBones.Add({ Compact, ParentRef.GetRotation().UnrotateVector(FVector::UpVector).GetSafeNormal(), S.Value });
+	}
+}
+
+void FAstralLocomotionProxy::ApplyTurnBend(FPoseContext& Output)
+{
+	if (FMath::Abs(TurnBend) < 0.05f)
+	{
+		return;
+	}
+	const FBoneContainer& Bones = Output.Pose.GetBoneContainer();
+	if (BendBonesFor != &Bones || BendBonesSerial != Bones.GetSerialNumber())
+	{
+		CacheBendBones(Bones);
+	}
+	for (const FBendBone& B : BendBones)
+	{
+		FTransform& Local = Output.Pose[B.Index];
+		Local.SetRotation((FQuat(B.Axis, FMath::DegreesToRadians(TurnBend * B.Share)) * Local.GetRotation()).GetNormalized());
+	}
 }

@@ -42,10 +42,17 @@ Rendered bot playtest. It opens a game window for about 30s, then logs `[AutoPla
 & "D:\Games\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe" "C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\Astral_Wilds.uproject" /Game/ThirdPerson/Lvl_ThirdPerson -game -windowed -ResX=1280 -ResY=720 "-ExecCmds=Astral.AutoPlaytest"
 ```
 
+
+Motion review: films one Astral wandering (or fleeing, for skittish ones near the Mage) with a side camera. It writes frames to `Saved\AutoPlaytest\motion\NNN.png` (15/s) and logs per-frame speed, yaw rate and blend weights (`[MotionCapture]` lines). To build a contact sheet from the frames, run `blender -b --python "C:SERSMERASTRAL WILDSARTSOURCEBLENDERSCRIPTSNTACT_SHEET.PY" -- <MOTION DIR> <FIRST> <COUNT> <COLS> <OUT.PNG> [CROP] [STEP]`.
+
+```powershell
+& "D:\Games\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe" "C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\Astral_Wilds.uproject" /Game/ThirdPerson/Lvl_ThirdPerson -game -windowed -ResX=960 -ResY=540 -benchmark -fps=30 "-ExecCmds=Astral.MotionCapture Mossling 10"
+```
+
 ## Still open
 
 - **Rig more Astrals** with the Glacielle pipeline where the body shape allows (Glacielle and Mossling done). Ironbur and Stormrook are next candidates. Ripplefin (a fish) needs a different rig, and Cindrel waits for hand animation.
-- **Wild Astral speeds vs. legs:** wander (200 cm/s) is faster than the authored walk (~130-150), so wandering plays walk sped up and partly blended toward run. If that reads as scurrying, lower `WanderSpeed` or lengthen strides.
+- **Locomotion tuning (2026-10-05):** `WanderSpeed` 200 -> 140 (TJ to confirm; 200 read as scurrying on these short legs). Wild Astrals use acceleration-driven paths with a 1.5m braking zone, low braking friction (stops glide rather than snap), 240 deg/s turns, and a spine bend into turns from the anim instance. Judge changes with `Astral.MotionCapture` (see How to verify), not just the bot.
 - **Mesh weight:** the static Meshy models are ~100-135MB each and due for retopology or decimation.
 - **Wildlife AI: native C++ behaviour in place** (`AAstralWildlifeController::bUseNativeBehavior`, on by default). Docile wander, Skittish flee within 6m, Aggressive chase (slower than the player, gives up at 12m), Territorial guard home; Receptive Astrals always hold still. A designer StateTree can replace it later: author it, assign it to `StateTreeAI`, and set `bUseNativeBehavior` false.
 - **Git LFS: done** (`32bd598`, forward-only). `*.uasset`/`*.umap` are LFS-tracked. Any clone or pull needs Git LFS installed, otherwise assets check out as text pointers and Unreal can't load them. The Meshy plugin is installed engine-wide, not in the project, so other machines need it too (`b06f5f7`).

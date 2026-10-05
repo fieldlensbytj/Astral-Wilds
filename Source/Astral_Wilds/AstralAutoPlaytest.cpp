@@ -22,6 +22,9 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "AstralSpeciesData.h"
 #include "AstralResonanceWeaveComponent.h"
+#include "AstralLocomotionAnimInstance.h"
+#include "Camera/CameraActor.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Containers/Ticker.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
@@ -400,6 +403,93 @@ namespace AstralAutoPlaytest
 				const FString Name = FString::Printf(TEXT("lineup_%s"), *Species[Index]->SpeciesName.ToString());
 				// Delay the shot a moment so the new mesh is on screen.
 				FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Name](float) { Shot(*Name); return false; }), 2.5f);
+				return true;
+			}));
+		}));
+
+	// Astral.MotionCapture [Species] [Seconds]: for judging locomotion by eye.
+	// Spawns one wild Astral of the species (default Mossling) next to the
+	// Mage with its AI running, hides everything else, follows it with a
+	// side camera that keeps a fixed world direction (so turns show), and
+	// screenshots every other frame to Saved/AutoPlaytest/motion/NNN.png
+	// while logging speed, yaw and blend weights per frame. Run with
+	// "-benchmark -fps=30" for a fixed 30Hz step (15 shots per second).
+	FAutoConsoleCommandWithWorldAndArgs GMotionCaptureCommand(
+		TEXT("Astral.MotionCapture"),
+		TEXT("Films one wandering Astral as a frame sequence for animation review, then quits."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			const FString Want = Args.Num() > 0 ? Args[0] : TEXT("Mossling");
+			const float Seconds = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 8.f;
+			UAstralSpeciesData* Species = nullptr;
+			for (TActorIterator<AAstralWildSpawner> It(World); It; ++It)
+			{
+				for (UAstralSpeciesData* S : It->PossibleSpecies)
+				{
+					if (S && S->SpeciesName.ToString() == Want)
+					{
+						Species = S;
+					}
+				}
+				It->SpawnCount = 0;
+			}
+			for (TActorIterator<AAstralCharacter> It(World); It; ++It)
+			{
+				It->Destroy();
+			}
+			APlayerController* PC = World->GetFirstPlayerController();
+			APawn* Mage = PC ? PC->GetPawn() : nullptr;
+			if (!Species || !Mage)
+			{
+				UE_LOG(LogAstralAutoPlaytest, Error, TEXT("[MotionCapture] no species '%s' or no player"), *Want);
+				return;
+			}
+			Mage->SetActorHiddenInGame(true);
+			const FTransform Xf(FRotator(0.f, 90.f, 0.f), Mage->GetActorLocation() + FVector(0.f, 250.f, 0.f));
+			AAstralCharacter* A = World->SpawnActorDeferred<AAstralCharacter>(AAstralCharacter::StaticClass(), Xf, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+			A->SpeciesData = Species;
+			A->FinishSpawning(Xf);
+			ACameraActor* Cam = World->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), FTransform::Identity);
+			PC->SetViewTarget(Cam);
+
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakWorld = TWeakObjectPtr<UWorld>(World), Weak = TWeakObjectPtr<AAstralCharacter>(A), WeakCam = TWeakObjectPtr<ACameraActor>(Cam), Seconds, T = 0.f, Frame = 0, Shots = 0, LastYaw = 0.f, CamYaw = 90.f](float Dt) mutable
+			{
+				UWorld* W = WeakWorld.Get();
+				AAstralCharacter* Astral = Weak.Get();
+				ACameraActor* C = WeakCam.Get();
+				if (!W || !Astral || !C)
+				{
+					return false;
+				}
+				T += Dt;
+				// Side view: camera off the Astral's right flank, following its
+				// heading slowly so turns still show as the body swinging round.
+				const FVector At = Astral->GetActorLocation();
+				CamYaw += FMath::FindDeltaAngleDegrees(CamYaw, Astral->GetActorRotation().Yaw) * FMath::Min(1.f, Dt * 0.8f);
+				const FRotator Look(-8.f, CamYaw - 90.f, 0.f);
+				C->SetActorLocationAndRotation(At - Look.Vector() * 340.f, Look);
+				if (T < 1.5f)
+				{
+					return true;   // settle: mesh streams in, AI picks a goal
+				}
+				const float Yaw = Astral->GetActorRotation().Yaw;
+				const UAstralLocomotionAnimInstance* Anim = Cast<UAstralLocomotionAnimInstance>(Astral->GetMesh()->GetAnimInstance());
+				UE_LOG(LogAstralAutoPlaytest, Display, TEXT("[MotionCapture] f=%d t=%.3f speed=%.1f yaw=%.1f yawrate=%.1f move=%.2f run=%.2f"),
+					Frame, T, Astral->GetVelocity().Size2D(), Yaw, Dt > 0.f ? FMath::FindDeltaAngleDegrees(LastYaw, Yaw) / Dt : 0.f,
+					Anim ? Anim->GetMoveAlpha() : -1.f, Anim ? Anim->GetRunAlpha() : -1.f);
+				LastYaw = Yaw;
+				if (Frame++ % 2 == 0)
+				{
+					Shot(*FString::Printf(TEXT("motion/%03d"), Shots++));
+				}
+				if (T > 1.5f + Seconds)
+				{
+					if (APlayerController* P = W->GetFirstPlayerController())
+					{
+						P->ConsoleCommand(TEXT("quit"));
+					}
+					return false;
+				}
 				return true;
 			}));
 		}));

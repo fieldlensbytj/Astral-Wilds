@@ -27,7 +27,17 @@ AAstralCharacter::AAstralCharacter()
 	// the locomotion blend can follow rather than snaps.
 	GetCharacterMovement()->RotationRate = FRotator(0.f, 240.f, 0.f);
 	GetCharacterMovement()->MaxAcceleration = 900.f;
-	GetCharacterMovement()->BrakingDecelerationWalking = 900.f;
+	GetCharacterMovement()->BrakingDecelerationWalking = 600.f;
+	// Default braking also applies ground friction (8 x 2), which halves speed
+	// every frame - a 450 cm/s flee stopped in 0.1s. Brake on deceleration instead.
+	GetCharacterMovement()->bUseSeparateBrakingFriction = true;
+	GetCharacterMovement()->BrakingFriction = 0.5f;
+	// AI paths: accelerate/brake like player input instead of snapping velocity,
+	// and ease to a stop over the last 1.5m of a path.
+	FNavMovementProperties* NavMove = GetCharacterMovement()->GetNavMovementProperties();
+	NavMove->bUseAccelerationForPaths = true;
+	NavMove->bUseFixedBrakingDistanceForPaths = true;
+	NavMove->FixedPathBrakingDistance = 150.f;
 
 	PlaceholderMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderMesh"));
 	PlaceholderMesh->SetupAttachment(RootComponent);

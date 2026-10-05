@@ -76,7 +76,7 @@ struct FAstralWildlifeTuning
 	float WanderPauseMax = 5.f;
 
 	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife", meta = (Units = "cm/s"))
-	float WanderSpeed = 200.f;
+	float WanderSpeed = 140.f;   // a calm walk for the Astrals' leg length (200 read as scurrying)
 
 	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife", meta = (Units = "cm/s"))
 	float FleeSpeed = 450.f;

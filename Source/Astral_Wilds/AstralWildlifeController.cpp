@@ -27,6 +27,10 @@ AAstralWildlifeController::AAstralWildlifeController()
 	bAttachToPawn = true;
 
 	PrimaryActorTick.bCanEverTick = true;
+
+	// Arriving or switching mode lets the Astral brake (see AAstralCharacter's
+	// movement setup) rather than zeroing its velocity in one frame.
+	GetPathFollowingComponent()->SetStopMovementOnFinish(false);
 }
 
 void AAstralWildlifeController::OnPossess(APawn* InPawn)
@@ -262,7 +266,7 @@ void AAstralWildlifeController::UpdateMode(AAstralCharacter* Astral, const APawn
 			FVector Target;
 			if (PickPoint(HomeLocation, Tuning.RoamRadius, Player, /*bFarthestFromPlayer*/ false, Target))
 			{
-				MoveToLocation(Target, 50.f);
+				MoveToLocation(Target, 15.f);   // small radius: the path's braking zone, not the radius, ends the walk
 			}
 			ModeTime = 0.f;
 			WanderPause = FMath::FRandRange(Tuning.WanderPauseMin, Tuning.WanderPauseMax);
