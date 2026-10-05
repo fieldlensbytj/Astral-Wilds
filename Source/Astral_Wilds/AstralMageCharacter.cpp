@@ -131,6 +131,8 @@ void AAstralMageCharacter::OnResonanceWeaveResult(EAstralWeaveResult Result)
 
 	AAstralCharacter* Target = CurrentWeaveTarget.Get();
 	CurrentWeaveTarget = nullptr;
+	UE_LOG(LogAstral_Wilds, Display, TEXT("Resonance Weave with %s ended: %s"), *GetNameSafe(Target), *UEnum::GetValueAsString(Result));
+
 
 	switch (Result)
 	{

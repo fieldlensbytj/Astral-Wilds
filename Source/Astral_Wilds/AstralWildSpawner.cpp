@@ -4,6 +4,7 @@
 #include "AstralSpeciesData.h"
 #include "NavigationSystem.h"
 #include "Engine/World.h"
+#include "Components/CapsuleComponent.h"
 
 AAstralWildSpawner::AAstralWildSpawner()
 {
@@ -35,12 +36,29 @@ AAstralCharacter* AAstralWildSpawner::SpawnOneAstral() const
 	}
 
 	FVector SpawnLocation = GetActorLocation();
+	bool bFoundNavPoint = false;
 	if (UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld()))
 	{
 		FNavLocation RandomLocation;
 		if (NavSys->GetRandomReachablePointInRadius(GetActorLocation(), SpawnRadius, RandomLocation))
 		{
 			SpawnLocation = RandomLocation.Location;
+			bFoundNavPoint = true;
+		}
+	}
+	if (!bFoundNavPoint)
+	{
+		// No navmesh (or nothing reachable): pick a random point in the radius
+		// and drop it onto whatever ground is there, rather than stacking every
+		// Astral on the spawner itself.
+		const FVector2D Offset = FMath::RandPointInCircle(SpawnRadius);
+		const FVector Probe = GetActorLocation() + FVector(Offset.X, Offset.Y, 0.f);
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(AstralWildSpawnerGround), false, this);
+		if (GetWorld()->LineTraceSingleByChannel(Hit, Probe + FVector(0.f, 0.f, 2000.f), Probe - FVector(0.f, 0.f, 2000.f), ECC_Visibility, Params))
+		{
+			const AAstralCharacter* DefaultAstral = AstralCharacterClass->GetDefaultObject<AAstralCharacter>();
+			SpawnLocation = Hit.Location + FVector(0.f, 0.f, DefaultAstral->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight() + 2.f);
 		}
 	}
 
