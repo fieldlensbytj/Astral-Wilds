@@ -188,3 +188,31 @@ Next up from the carried-over list: #4 (real Input Action / Mapping Context asse
 - **Deprecation warnings: nothing to do.** A full rebuild shows 42 warnings, all inside UE 5.7's own engine headers; none are in project code. Drop this from the list.
 
 **Playtest is now ready (#3):** Play `Lvl_ThirdPerson` → walk toward the Galevine at (300, 300) until the prompt appears → E → keep the white cross on the yellow square while holding LMB, and press Space when the Sigil turns red. Tune the weave input scales in `IMC_ResonanceWeave` from feel. Remaining open items are only #3 (needs a human) and #7 (TJ's LFS decision).
+
+### 2026-10-05 — first rendered playtest, via a scripted bot (`d37147d`)
+
+`Astral.AutoPlaytest` (dev-only console command) plays the bonding loop in a real rendered `-game` window. It sends simulated key and mouse events through the PlayerController, so the input mapping contexts, modifiers and HUD are all exercised. It screenshots each stage to `Saved/AutoPlaytest/` and logs the weave state every 0.25s. Re-run it any time with:
+`UnrealEditor.exe Astral_Wilds.uproject /Game/ThirdPerson/Lvl_ThirdPerson -game -windowed -ResX=1280 -ResY=720 -ExecCmds="Astral.AutoPlaytest"`
+
+**Verified working on screen:**
+- Spawn and possession.
+- Walking with W.
+- The HUD prompt.
+- E starting the weave.
+- The Sigil rendering, with the reticle following the mouse through `Mouse2D` ×0.005.
+- Channel on LMB and Harmonize on Space, with the red pulse state showing.
+- Success adding to the party ("Party 1/6", "Bond formed"), with the Astral removed from the world.
+
+**Found and fixed:** `Lvl_ThirdPerson` has **no navmesh**, so `AAstralWildSpawner` put every Astral at its own location — the origin, inside the floor, invisible. It now falls back to a random point within the radius, traced down to the ground.
+
+**Findings for TJ (design or tuning, not changed):**
+1. **First-pulse difficulty cliff.** Over 4 runs with the same "decent player" bot, 2 bonded in about 8.5s and **2 fled at the very first pulse (1.6s in)**.
+   - At that point Stability is only about 9–10%, because channeling at imperfect alignment builds slowly.
+   - A Harmonize counts as "well aligned" only within 0.15 units, half the 0.3 tolerance radius.
+   - Missing the pulse costs 16.8 and a misaligned press costs 14. Either can take Stability to 0, which makes a `bMayFleeOnFailure` species flee instantly.
+   - **Options:** start Stability above 0, add a grace period before the first pulse counts, don't allow fleeing before the first successful pulse, or soften the alignment threshold.
+2. **Interact reach is about 6.7m.** The 300cm probe + 120cm query sphere + the Astral's 250cm `InteractRadius` combine, so the prompt already shows from the PlayerStart, 4.25m from the Galevine. That's probably larger than intended.
+3. **Wildlife AI can't move.** There's no navmesh, so it can't path. Add a NavMeshBoundsVolume to `Lvl_ThirdPerson` (with runtime generation, or built paths) before judging wildlife behaviour.
+4. **The Sigil sits over the Mage.** It's drawn at screen centre, on top of the character. Fine for a debug HUD; worth considering when designing the real UI.
+
+Still needs a human: game feel, i.e. whether tracking and the pulse rhythm are fun. 53/53 tests pass.
