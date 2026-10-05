@@ -43,7 +43,7 @@ Rendered bot playtest. It opens a game window for about 30s, then logs `[AutoPla
 ```
 
 
-Motion review: films one Astral wandering (or fleeing, for skittish ones near the Mage) with a side camera. It writes frames to `Saved\AutoPlaytest\motion\NNN.png` (15/s) and logs per-frame speed, yaw rate and blend weights (`[MotionCapture]` lines). To build a contact sheet from the frames, run `blender -b --python "C:SERSMERASTRAL WILDSARTSOURCEBLENDERSCRIPTSNTACT_SHEET.PY" -- <MOTION DIR> <FIRST> <COUNT> <COLS> <OUT.PNG> [CROP] [STEP]`.
+Motion review: films one Astral wandering (or fleeing, for skittish ones near the Mage) with a side camera. It writes frames to `Saved\AutoPlaytest\motion\NNN.png` (15/s) and logs per-frame speed, yaw rate and blend weights (`[MotionCapture]` lines). To tile the frames into one contact sheet, run `blender -b --python "C:\Users\camer\Astral Wilds\ArtSource\Blender\Scripts\contact_sheet.py" -- <motion dir> <first> <count> <cols> <out.png> [crop] [step]`.
 
 ```powershell
 & "D:\Games\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe" "C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\Astral_Wilds.uproject" /Game/ThirdPerson/Lvl_ThirdPerson -game -windowed -ResX=960 -ResY=540 -benchmark -fps=30 "-ExecCmds=Astral.MotionCapture Mossling 10"
