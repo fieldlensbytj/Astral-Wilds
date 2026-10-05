@@ -64,14 +64,27 @@ void AAstralWildSpawner::SpawnBatch()
 	}
 }
 
-AAstralCharacter* AAstralWildSpawner::SpawnOneAstral() const
+UAstralSpeciesData* AAstralWildSpawner::DrawSpecies()
+{
+	if (SpeciesBag.Num() == 0)
+	{
+		SpeciesBag = PossibleSpecies;
+		for (int32 i = SpeciesBag.Num() - 1; i > 0; --i)
+		{
+			SpeciesBag.Swap(i, FMath::RandRange(0, i));
+		}
+	}
+	return SpeciesBag.Num() > 0 ? SpeciesBag.Pop().Get() : nullptr;
+}
+
+AAstralCharacter* AAstralWildSpawner::SpawnOneAstral()
 {
 	if (PossibleSpecies.Num() == 0 || !IsValid(AstralCharacterClass))
 	{
 		return nullptr;
 	}
 
-	UAstralSpeciesData* ChosenSpecies = PossibleSpecies[FMath::RandRange(0, PossibleSpecies.Num() - 1)];
+	UAstralSpeciesData* ChosenSpecies = DrawSpecies();
 	if (!ChosenSpecies)
 	{
 		return nullptr;

@@ -45,7 +45,7 @@ void AAstralWildlifeController::OnPossess(APawn* InPawn)
 }
 
 EAstralWildlifeMode AAstralWildlifeController::ChooseMode(EAstralAIArchetype Archetype, EAstralWildState WildState, EAstralWildlifeMode Current,
-	float DistToPlayer, float DistFromHome, float PlayerDistFromHome, const FAstralWildlifeTuning& T)
+	float DistToPlayer, float DistFromHome, float PlayerDistFromHome, const FAstralWildlifeTuning& T, bool bFleeStalled, bool bRecentlyCornered)
 {
 	if (WildState == EAstralWildState::Receptive)
 	{
@@ -55,7 +55,14 @@ EAstralWildlifeMode AAstralWildlifeController::ChooseMode(EAstralAIArchetype Arc
 	switch (Archetype)
 	{
 	case EAstralAIArchetype::Skittish:
-		if (DistToPlayer < T.AlertRange || (Current == EAstralWildlifeMode::Flee && DistToPlayer < T.CalmRange))
+		if (Current == EAstralWildlifeMode::Flee)
+		{
+			// Keep fleeing until calm - unless it has stopped gaining distance
+			// (cornered), in which case it settles where it is.
+			return (DistToPlayer < T.CalmRange && !bFleeStalled) ? EAstralWildlifeMode::Flee : EAstralWildlifeMode::Wander;
+		}
+		// A recently cornered Astral only spooks again if the player comes much closer.
+		if (DistToPlayer < (bRecentlyCornered ? T.AlertRange * 0.5f : T.AlertRange))
 		{
 			return EAstralWildlifeMode::Flee;
 		}
@@ -113,10 +120,35 @@ void AAstralWildlifeController::Tick(float DeltaSeconds)
 	const float PlayerDistFromHome = Player ? FVector::Dist2D(HomeLocation, Player->GetActorLocation()) : TNumericLimits<float>::Max();
 	const EAstralAIArchetype Archetype = Astral->SpeciesData ? Astral->SpeciesData->AIArchetype : EAstralAIArchetype::Docile;
 
-	const EAstralWildlifeMode NewMode = ChooseMode(Archetype, Astral->WildState, Mode, DistToPlayer, FVector::Dist2D(Here, HomeLocation), PlayerDistFromHome, Tuning);
+	bool bFleeStalled = false;
+	if (Mode == EAstralWildlifeMode::Flee)
+	{
+		if (DistToPlayer > FleeBestDist + 50.f)
+		{
+			FleeBestDist = DistToPlayer;
+			FleeLastProgressTime = ModeTime;
+		}
+		bFleeStalled = ModeTime > 4.f && ModeTime - FleeLastProgressTime > 2.f;
+		if (bFleeStalled)
+		{
+			bRecentlyCornered = true;
+		}
+	}
+	if (DistToPlayer > Tuning.CalmRange)
+	{
+		bRecentlyCornered = false;
+	}
+
+	const EAstralWildlifeMode NewMode = ChooseMode(Archetype, Astral->WildState, Mode, DistToPlayer, FVector::Dist2D(Here, HomeLocation), PlayerDistFromHome, Tuning,
+		bFleeStalled, bRecentlyCornered);
 	if (NewMode != Mode)
 	{
 		EnterMode(NewMode, Astral, DistToPlayer);
+	}
+	else if (Mode == EAstralWildlifeMode::Flee && FMath::FloorToInt(ModeTime / 2.f) != FMath::FloorToInt((ModeTime - DecisionInterval) / 2.f))
+	{
+		UE_LOG(LogAstral_Wilds, Display, TEXT("%s still fleeing after %.0fs: player %.0fcm, at %s, moving: %s"), *Astral->GetName(), ModeTime, DistToPlayer,
+			*Here.ToCompactString(), GetMoveStatus() != EPathFollowingStatus::Idle ? TEXT("yes") : TEXT("no"));
 	}
 	UpdateMode(Astral, Player);
 }
@@ -126,6 +158,13 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 	UE_LOG(LogAstral_Wilds, Display, TEXT("%s (%s): %s -> %s (player %.0fcm)"), *Astral->GetName(),
 		Astral->SpeciesData ? *Astral->SpeciesData->SpeciesName.ToString() : TEXT("?"),
 		*UEnum::GetValueAsString(Mode), *UEnum::GetValueAsString(NewMode), DistToPlayer);
+
+	// A Skittish Astral that has calmed down settles where it ended up rather
+	// than wandering straight back to the player it just fled from.
+	if (Mode == EAstralWildlifeMode::Flee)
+	{
+		HomeLocation = Astral->GetActorLocation();
+	}
 
 	// Reflect reactions in WildState, but only ever between Calm and the
 	// reaction state - never stomp a state set by something else (e.g. Receptive).
@@ -151,6 +190,8 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 
 	Mode = NewMode;
 	ModeTime = 0.f;
+	FleeBestDist = DistToPlayer;
+	FleeLastProgressTime = 0.f;
 	RepathTimer = RepathInterval; // act on the new mode immediately
 	StopMovement();
 
@@ -168,9 +209,45 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 	}
 }
 
-void AAstralWildlifeController::UpdateMode(AAstralCharacter* Astral, const APawn* Player)
+bool AAstralWildlifeController::PickPoint(const FVector& Origin, float Radius, const APawn* Player, bool bFarthestFromPlayer, FVector& OutPoint) const
 {
 	UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
+	if (!NavSys)
+	{
+		return false;
+	}
+
+	bool bFound = false;
+	float BestScore = -1.f;
+	for (int32 Attempt = 0; Attempt < 8; ++Attempt)
+	{
+		FNavLocation Candidate;
+		if (!NavSys->GetRandomReachablePointInRadius(Origin, Radius, Candidate))
+		{
+			continue;
+		}
+		const float PlayerDist = Player ? FVector::Dist2D(Candidate.Location, Player->GetActorLocation()) : TNumericLimits<float>::Max();
+		if (bFarthestFromPlayer)
+		{
+			if (PlayerDist > BestScore)
+			{
+				BestScore = PlayerDist;
+				OutPoint = Candidate.Location;
+				bFound = true;
+			}
+		}
+		else if (PlayerDist >= Tuning.AlertRange)
+		{
+			// Wandering: any point outside the player's alert range will do.
+			OutPoint = Candidate.Location;
+			return true;
+		}
+	}
+	return bFound;
+}
+
+void AAstralWildlifeController::UpdateMode(AAstralCharacter* Astral, const APawn* Player)
+{
 	const bool bMoving = GetMoveStatus() != EPathFollowingStatus::Idle;
 
 	switch (Mode)
@@ -180,12 +257,12 @@ void AAstralWildlifeController::UpdateMode(AAstralCharacter* Astral, const APawn
 		{
 			ModeTime = 0.f; // the pause counts from arrival, not departure
 		}
-		else if (ModeTime >= WanderPause && NavSys)
+		else if (ModeTime >= WanderPause)
 		{
-			FNavLocation Target;
-			if (NavSys->GetRandomReachablePointInRadius(HomeLocation, Tuning.RoamRadius, Target))
+			FVector Target;
+			if (PickPoint(HomeLocation, Tuning.RoamRadius, Player, /*bFarthestFromPlayer*/ false, Target))
 			{
-				MoveToLocation(Target.Location, 50.f);
+				MoveToLocation(Target, 50.f);
 			}
 			ModeTime = 0.f;
 			WanderPause = FMath::FRandRange(Tuning.WanderPauseMin, Tuning.WanderPauseMax);
@@ -196,10 +273,13 @@ void AAstralWildlifeController::UpdateMode(AAstralCharacter* Astral, const APawn
 		if (Player && (!bMoving || RepathTimer >= RepathInterval))
 		{
 			RepathTimer = 0.f;
-			const FVector Away = (Astral->GetActorLocation() - Player->GetActorLocation()).GetSafeNormal2D();
-			const FVector Desired = Astral->GetActorLocation() + Away * Tuning.FleeDistance;
-			FNavLocation Projected;
-			MoveToLocation(NavSys && NavSys->ProjectPointToNavigation(Desired, Projected) ? Projected.Location : Desired);
+			// Best of several reachable escape points, so a wall behind it
+			// doesn't leave it stuck trying to run straight through it.
+			FVector Target;
+			if (PickPoint(Astral->GetActorLocation(), Tuning.FleeDistance, Player, /*bFarthestFromPlayer*/ true, Target))
+			{
+				MoveToLocation(Target);
+			}
 		}
 		break;
 

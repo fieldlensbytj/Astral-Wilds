@@ -114,7 +114,8 @@ public:
 	 * Astrals always hold still so bonding is never a chase.
 	 */
 	static EAstralWildlifeMode ChooseMode(EAstralAIArchetype Archetype, EAstralWildState WildState, EAstralWildlifeMode Current,
-		float DistToPlayer, float DistFromHome, float PlayerDistFromHome, const FAstralWildlifeTuning& Tuning);
+		float DistToPlayer, float DistFromHome, float PlayerDistFromHome, const FAstralWildlifeTuning& Tuning,
+		bool bFleeStalled = false, bool bRecentlyCornered = false);
 
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -125,6 +126,9 @@ protected:
 private:
 
 	void EnterMode(EAstralWildlifeMode NewMode, AAstralCharacter* Astral, float DistToPlayer);
+
+	/** Of several reachable points around Origin, the one farthest from the player (or any, with no player); false if none found. */
+	bool PickPoint(const FVector& Origin, float Radius, const APawn* Player, bool bFarthestFromPlayer, FVector& OutPoint) const;
 	void UpdateMode(AAstralCharacter* Astral, const APawn* Player);
 
 	EAstralWildlifeMode Mode = EAstralWildlifeMode::Idle;
@@ -133,4 +137,10 @@ private:
 	float ModeTime = 0.f;
 	float WanderPause = 0.f;
 	float RepathTimer = 0.f;
+
+	/** Flee progress tracking: a fleeing Astral that stops gaining distance is cornered and settles instead of jittering in place. */
+	float FleeBestDist = 0.f;
+	float FleeLastProgressTime = 0.f;
+	/** Set when a flee stalls; the Astral then only re-spooks inside half the alert range, until the player is past CalmRange. */
+	bool bRecentlyCornered = false;
 };

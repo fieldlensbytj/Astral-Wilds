@@ -57,5 +57,11 @@ protected:
 	FTimerHandle NavigationWaitTimer;
 
 	/** Picks a random species/level/nav-valid point and spawns one AAstralCharacter. Returns null if PossibleSpecies is empty or the class is invalid. */
-	AAstralCharacter* SpawnOneAstral() const;
+	AAstralCharacter* SpawnOneAstral();
+
+	/** Next species from a shuffled bag of PossibleSpecies, refilled when empty - every species appears once before any repeats. */
+	UAstralSpeciesData* DrawSpecies();
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UAstralSpeciesData>> SpeciesBag;
 };

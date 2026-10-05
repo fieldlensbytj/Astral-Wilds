@@ -13,9 +13,9 @@ namespace AstralWildlifeControllerTests
 	const FAstralWildlifeTuning T; // defaults: alert 600, calm 1000, give up 1200, max chase from home 1500, territory 500, home 200
 
 	EMode Choose(EAstralAIArchetype Arch, EMode Current, float DistToPlayer, float DistFromHome = 0.f, float PlayerDistFromHome = 5000.f,
-		EAstralWildState State = EAstralWildState::Calm)
+		EAstralWildState State = EAstralWildState::Calm, bool bFleeStalled = false, bool bRecentlyCornered = false)
 	{
-		return AAstralWildlifeController::ChooseMode(Arch, State, Current, DistToPlayer, DistFromHome, PlayerDistFromHome, T);
+		return AAstralWildlifeController::ChooseMode(Arch, State, Current, DistToPlayer, DistFromHome, PlayerDistFromHome, T, bFleeStalled, bRecentlyCornered);
 	}
 }
 
@@ -48,6 +48,9 @@ bool FAstralWildlife_SkittishFleesWithHysteresis::RunTest(const FString& Paramet
 	TestEqual(TEXT("Flees once the player is inside alert range"), Choose(EAstralAIArchetype::Skittish, EMode::Wander, 500.f), EMode::Flee);
 	TestEqual(TEXT("Keeps fleeing between alert and calm range"), Choose(EAstralAIArchetype::Skittish, EMode::Flee, 800.f), EMode::Flee);
 	TestEqual(TEXT("Calms down beyond calm range"), Choose(EAstralAIArchetype::Skittish, EMode::Flee, 1100.f), EMode::Wander);
+	TestEqual(TEXT("Stalled flee: settles instead of fleeing in place"), Choose(EAstralAIArchetype::Skittish, EMode::Flee, 520.f, 0.f, 5000.f, EAstralWildState::Calm, true, true), EMode::Wander);
+	TestEqual(TEXT("Recently cornered: a player at 5.2m doesn't re-spook it (the 2026-10-05 loop)"), Choose(EAstralAIArchetype::Skittish, EMode::Wander, 520.f, 0.f, 5000.f, EAstralWildState::Calm, false, true), EMode::Wander);
+	TestEqual(TEXT("Recently cornered: a player inside 3m still does"), Choose(EAstralAIArchetype::Skittish, EMode::Wander, 250.f, 0.f, 5000.f, EAstralWildState::Calm, false, true), EMode::Flee);
 	return true;
 }
 
