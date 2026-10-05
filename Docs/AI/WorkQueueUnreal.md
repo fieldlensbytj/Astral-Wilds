@@ -2,6 +2,41 @@
 
 This is the real, current priority list for the active engine (Unreal Engine 5.8, C++, `Astral_Wilds_Unreal/Astral_Wilds/`). `Docs/AI/WorkQueue.md` is the old Unity-era queue, kept for history/design provenance only — its "Current priority"/"Status" sections describe the frozen Unity project, not this one. This file replaces it as the thing to read for "what's next" on Unreal, per the split multiple prior sessions recommended (`CoworkReview-20260918.md`, `CoworkReview-20260918-AutomationTests.md`) but never got around to doing.
 
+## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-05 by the Cowork daily session)
+
+**For a Claude Code session running in PowerShell on tjs-laptop with real shell access.** This block is maintained in place each session; the dated sections below it are the permanent historical log (append-only, oldest first).
+
+**Project path:** `C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\` - its own standalone git repo, `origin` = `https://github.com/fieldlensbytj/Astral-Wilds`, branch `astral-wilds-unreal`. Not the same repo as this file lives in.
+
+**Current state:** local `master` is **3 commits ahead of `origin/astral-wilds-unreal`**, none of them build-verified yet (today's Cowork session had no compiler/PIE access - see `CoworkReview-2026-10-05.md`). Oldest to newest:
+1. `7d83536` - adds `.gitattributes` (marks `*.uasset`/`*.umap` binary). Zero risk, not gameplay code.
+2. `fa1b858` - Resonance Weave first-pulse grace period (no flee on a weave's very first pulse, win or lose) + tightened interact reach (~6.7m -> ~3.7m). Updates 2 existing tests' expected result to match.
+3. `1c6f957` - Sigil debug-HUD draw position moved off dead-center + new test `FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod` (fills a TODO `fa1b858` left; proves flee still works on a later pulse after the grace is used up).
+
+Full reasoning for each commit, including the exact numbers and why, is in the commit messages themselves (`git log -3 -p`) and in `CoworkReview-2026-10-05.md`'s two addenda.
+
+**Do this, in order:**
+```powershell
+cd "C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds"
+git pull   # in case anything else landed since
+git log --oneline -5   # confirm you see 7d83536 / fa1b858 / 1c6f957 at the top
+```
+Build (engine is 5.7 - `Astral_Wilds.uproject`'s `EngineAssociation`; confirm the install path below is still right before running, it's inferred from the sibling UE_5.8 path a 2026-09-18 session logged, not re-verified today):
+```powershell
+& "D:\Games\Epic Games\UE_5.7\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.exe" Astral_WildsEditor Win64 Development -project="C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\Astral_Wilds.uproject"
+```
+Then run the suite headless (should be **54/54** - 53 going into today, +1 new):
+```powershell
+& "D:\Games\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\Astral_Wilds.uproject" -ExecCmds="Automation RunTests AstralWilds; Quit" -unattended -nopause -nosplash
+```
+If both are green: `git push origin master:astral-wilds-unreal`, then update this block to say so (commits pushed, suite green, date).
+
+If the build or a test fails: it's almost certainly in `fa1b858` or `1c6f957` (both touch `AstralResonanceWeaveComponent`/its tests), not `7d83536` (docs/config only, can't break a build). `git revert <hash>` the specific bad one - each commit is self-contained and was written to be independently revertable. If it's specifically `FAstralResonanceWeave_Tick_FleeResumesAfterGracePeriod` failing on a `PulseCallCount` assertion, the commit message says which stage's tick count to re-derive.
+
+**After that's confirmed, still open** (see the dated sections below for full context): a `NavMeshBoundsVolume` for `Lvl_ThirdPerson` so wildlife can path (needs the editor open - a Cowork session can't do this blind), the `Content/` Git LFS decision (TJ's call), and a real human PIE playtest for game feel now that the tuning's landed.
+
+---
+
 ## RESOLVED 2026-10-04 (second firing, ~21:xx UTC) — blocker cleared, TJ confirmed canonical location and git setup
 
 TJ came online mid-session and resolved all three open questions from 2026-09-30 directly:
