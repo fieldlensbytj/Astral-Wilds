@@ -9,8 +9,8 @@
 # - Feet are driven by IK along authored foot paths: planted and still during
 #   stance (no skating), a smooth C1 arc during swing, heel lift at toe-off.
 # - Every curve is smooth (no |sin| or max(0, x) kinks), sampled at 60 fps.
-# - Overlapping body motion: pelvis/chest counter-rotate, the spine flexes in
-#   the gallop, the head is partly stabilised in world space (it floats rather
+# - Overlapping body motion: pelvis/chest counter-rotate and roll with each
+#   diagonal, the head is partly stabilised in world space (it floats rather
 #   than bobbing with the body), and the tail is a travelling wave.
 # - Walk/Run speeds come from the foot paths, so the engine can match cadence
 #   to ground speed exactly (written to <out_dir>/speeds.txt, model metres/s).
@@ -207,17 +207,17 @@ def body_walk(t, g):
     return poses, Vector((0, 0, bob)), 0.6, look
 
 def body_run(t, g):
+    """Fast trot: two beats per cycle, one per diagonal pair."""
     poses = {}
-    # Extended as the hind legs push off (t ~0.45), gathered as they land
-    # under the belly (t ~0.95).
-    flex = math.sin(TAU * (t - 0.2))
-    bob = -g["drop"] + g["bob"] * math.cos(TAU * (t - 0.85))             # suspension after the front push-off
-    poses["pelvis"] = wrot("pelvis", X, 10.0 * flex)
-    poses["spine_01"] = wrot("spine_01", X, -5.0 * flex)
-    poses["chest"] = wrot("chest", X, -6.0 * flex) @ wrot("chest", Y, 1.5 * math.sin(TAU * t))
-    poses["neck"] = wrot("neck", X, 6.0 * math.sin(TAU * (t - 0.3)))
-    tail_wave(poses, t, 4.0, 10.0, lag=0.7)
-    return poses, Vector((0, 0, bob)), 0.5, Quaternion()
+    bob = -g["drop"] - g["bob"] * math.cos(2 * TAU * (t - 0.2))         # lowest mid-stance of each diagonal
+    sway = math.sin(TAU * t)
+    poses["pelvis"] = wrot("pelvis", Y, 4.0 * sway) @ wrot("pelvis", Z, 3.0 * math.sin(TAU * t + 0.6))
+    poses["spine_01"] = wrot("spine_01", Z, -1.5 * math.sin(TAU * t + 0.9))
+    poses["chest"] = (wrot("chest", Y, -4.5 * sway) @ wrot("chest", Z, -3.0 * math.sin(TAU * t + 1.2))
+                      @ wrot("chest", X, 2.0 * math.sin(2 * TAU * (t - 0.1))))
+    poses["neck"] = wrot("neck", X, 3.0 * math.sin(2 * TAU * (t - 0.25)))
+    tail_wave(poses, t, 6.0, 6.0, freq=2, lag=0.6)
+    return poses, Vector((0, 0, bob)), 0.6, Quaternion()
 
 def body_idle(t, g):
     poses = {}
@@ -245,18 +245,21 @@ GAITS = {
     # a trotting pace for their size.
     "Walk": dict(frames=30, phase={"bl": 0.0, "fr": 0.06, "br": 0.5, "fl": 0.56}, beta=0.5,
                  S=2 * min(hs_walk, 0.26), lift=0.07, toeoff=28.0, drop=0.055, bob=0.012, body=body_walk),
-    # Run is a rotary gallop: hind pair, then fore pair, then suspension.
-    "Run":  dict(frames=24, phase={"bl": 0.0, "br": 0.1, "fl": 0.42, "fr": 0.52}, beta=0.3,
+    # Run is a fast trot: diagonal pairs alternate (bl+fr, then br+fl). The
+    # front feet land a little after their hind partner so the two share a
+    # mid-stance (the hind stance is longer, see below).
+    "Run":  dict(frames=24, phase={"bl": 0.0, "fr": 0.91, "br": 0.5, "fl": 0.41}, beta=0.3,
                  S=2 * min(hs_run, 0.32), lift=0.12, toeoff=40.0, drop=0.075, bob=0.03, body=body_run),
     "Idle": dict(frames=360, phase=None, drop=0.0, body=body_idle),
 }
-# Hind legs gallop like a deer's: a longer stroke reaching under the belly,
-# a folded hock in the swing. They stay down for a matching share of the
-# cycle so they slide back at the same speed as the front feet.
+# Hind legs get a longer stroke than the front (reaching under the belly,
+# pushing off well behind) and fold the hock in the swing, so they visibly
+# drive. They stay down for a matching share of the cycle so they slide
+# back at the same speed as the front feet.
 run = GAITS["Run"]
 hS, hoff = hind_stroke(run["drop"], land=-12.0, push=45.0)
 run["hind"] = dict(S=hS, off=hoff, beta=run["beta"] * hS / run["S"],
-                   land=-12.0, push=45.0, fold=85.0, lift=0.13)
+                   land=-12.0, push=45.0, fold=65.0, lift=0.13)
 log.append("Run hind stroke %.3f m (front %.3f), centre %+.3f m from rest toe, duty %.2f"
            % (hS, run["S"], hoff, run["hind"]["beta"]))
 
