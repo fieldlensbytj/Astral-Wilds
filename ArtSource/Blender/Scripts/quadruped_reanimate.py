@@ -76,10 +76,39 @@ def max_half_stride(drop):
         m = min(m, math.sqrt(max(reach * reach - vert * vert, 0.0)))
     return m
 
+def hind_stroke(drop, land, push, margin=0.93):
+    """Gallop stroke for the hind legs: (stride, offset of its centre from the rest toe).
+
+    A galloping hind leg reaches far forward under the belly and pushes off far
+    behind the hip, so its stroke is longer than the front legs' and sits
+    forward of where the foot stands. The limits come from how far the
+    hip-to-hock pair reaches (lowered by drop), with the cannon tilted to its
+    landing / push-off pitch, so every rig gets the longest stroke it can do."""
+    fwd = back = 1.0
+    off = []
+    for k in ("bl", "br"):
+        v = leg[k]
+        H, T0, A0 = v["H"], v["T"], v["A"]
+        reach = margin * (v["L1"] + v["L2"])
+        def toe_limit(pitch, sign):
+            c = Matrix.Rotation(math.radians(pitch), 3, 'X') @ (A0 - T0)   # toe -> hock
+            vert = (H.z - drop) - (T0.z + c.z)
+            horiz = math.sqrt(max(reach * reach - vert * vert, 0.0))
+            return (H.y + sign * horiz) - c.y                               # toe y with the hock at full reach
+        f, b = H.y - toe_limit(land, -1), toe_limit(push, +1) - H.y        # distances ahead of / behind the hip
+        fwd, back = min(fwd, f), min(back, b)
+        off.append(H.y - T0.y)
+    S = fwd + back
+    centre = (back - fwd) / 2                                               # relative to the hip
+    return S, centre + sum(off) / len(off)                                  # relative to the rest toe
+
 def foot_targets(k, u, g):
     """Toe and ankle targets for leg k at gait phase u (0..1)."""
     v = leg[k]
     T0, A0 = v["T"], v["A"]
+    h = g.get("hind") if not v["front"] else None
+    if h:
+        return hind_gallop_targets(T0, A0, u, g, h)
     S, b = g["S"], g["beta"]
     if u < b:                                   # stance: planted, sliding back at constant speed relative to the body
         s = u / b
@@ -92,6 +121,32 @@ def foot_targets(k, u, g):
         dy = h00 * (S / 2) + h10 * m + h01 * (-S / 2) + h11 * m
         dz = g["lift"] * math.sin(math.pi * s ** 0.8) ** 2
         pitch = g["toeoff"] * (1 - smooth(s / 0.55))
+    toe = Vector((T0.x, T0.y + dy, T0.z + dz))
+    ankle = toe + Matrix.Rotation(math.radians(pitch), 3, 'X') @ (A0 - T0)
+    return toe, ankle
+
+def hind_gallop_targets(T0, A0, u, g, h):
+    """Hind leg in the gallop. Stance: lands reaching under the belly with the
+    cannon sloped forward, rolls over the hoof, and pushes off far behind on
+    its toe. Swing: the hock folds (hoof tucked up and back, cannon near level)
+    while the leg comes through, then unfolds and reaches for the next landing."""
+    S, b, off = h["S"], h["beta"], h["off"]
+    if u < b:
+        s = u / b
+        dy, dz = off + S * (s - 0.5), 0.0
+        pitch = h["land"] * (1 - smooth(s / 0.4)) + h["push"] * smooth((s - 0.55) / 0.45)
+    else:
+        s = (u - b) / (1 - b)
+        m = S / b * (1 - b) * 0.25
+        # The hoof lingers behind while the hock folds, then sweeps forward.
+        w = s * s * (3 - 2 * s) * 0.6 + s * 0.4
+        h00, h10, h01, h11 = 2*w**3 - 3*w**2 + 1, w**3 - 2*w**2 + w, -2*w**3 + 3*w**2, w**3 - w**2
+        dy = off + h00 * (S / 2) + h10 * m + h01 * (-S / 2) + h11 * m
+        dz = h["lift"] * math.sin(math.pi * s ** 0.75) ** 2
+        fold = math.sin(math.pi * min(s / 0.8, 1.0)) ** 2 * h["fold"]
+        pitch = (h["push"] * (1 - smooth(s / 0.3))            # off the toe ...
+                 + fold                                       # ... hock folds, hoof tucked ...
+                 + h["land"] * smooth((s - 0.6) / 0.4))       # ... and reaches out to land
     toe = Vector((T0.x, T0.y + dy, T0.z + dz))
     ankle = toe + Matrix.Rotation(math.radians(pitch), 3, 'X') @ (A0 - T0)
     return toe, ankle
@@ -153,11 +208,13 @@ def body_walk(t, g):
 
 def body_run(t, g):
     poses = {}
-    flex = math.sin(TAU * (t - 0.1))                                     # gather / extend
+    # Extended as the hind legs push off (t ~0.45), gathered as they land
+    # under the belly (t ~0.95).
+    flex = math.sin(TAU * (t - 0.2))
     bob = -g["drop"] + g["bob"] * math.cos(TAU * (t - 0.85))             # suspension after the front push-off
-    poses["pelvis"] = wrot("pelvis", X, 7.0 * flex)
-    poses["spine_01"] = wrot("spine_01", X, -4.0 * flex)
-    poses["chest"] = wrot("chest", X, -5.0 * flex) @ wrot("chest", Y, 1.5 * math.sin(TAU * t))
+    poses["pelvis"] = wrot("pelvis", X, 10.0 * flex)
+    poses["spine_01"] = wrot("spine_01", X, -5.0 * flex)
+    poses["chest"] = wrot("chest", X, -6.0 * flex) @ wrot("chest", Y, 1.5 * math.sin(TAU * t))
     poses["neck"] = wrot("neck", X, 6.0 * math.sin(TAU * (t - 0.3)))
     tail_wave(poses, t, 4.0, 10.0, lag=0.7)
     return poses, Vector((0, 0, bob)), 0.5, Quaternion()
@@ -193,6 +250,15 @@ GAITS = {
                  S=2 * min(hs_run, 0.32), lift=0.12, toeoff=40.0, drop=0.075, bob=0.03, body=body_run),
     "Idle": dict(frames=360, phase=None, drop=0.0, body=body_idle),
 }
+# Hind legs gallop like a deer's: a longer stroke reaching under the belly,
+# a folded hock in the swing. They stay down for a matching share of the
+# cycle so they slide back at the same speed as the front feet.
+run = GAITS["Run"]
+hS, hoff = hind_stroke(run["drop"], land=-12.0, push=45.0)
+run["hind"] = dict(S=hS, off=hoff, beta=run["beta"] * hS / run["S"],
+                   land=-12.0, push=45.0, fold=85.0, lift=0.13)
+log.append("Run hind stroke %.3f m (front %.3f), centre %+.3f m from rest toe, duty %.2f"
+           % (hS, run["S"], hoff, run["hind"]["beta"]))
 
 # ---------------- bake ----------------
 speeds = {}
