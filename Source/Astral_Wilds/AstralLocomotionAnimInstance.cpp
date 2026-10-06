@@ -32,8 +32,8 @@ void UAstralLocomotionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	// Targets: fade idle -> moving over the first half of walk speed, then
 	// walk -> run between the two authored speeds.
 	const float MoveTarget = !bCanMove ? 0.f : (IdleAnim ? FMath::SmoothStep(IdleThreshold, FMath::Max(IdleThreshold + 1.f, 0.5f * WalkSpeed), Speed) : 1.f);
-	// Walk and Run use different footfall patterns (diagonal trot vs gallop), so
-	// mixing them reads as muddle: blend only in the gap between the two paces.
+	// Walk and Run differ in stride and footfall timing, so mixing them reads
+	// as muddle: blend only in the gap between the two paces.
 	const float RunTarget = !RunAnim ? 0.f : (!WalkAnim ? 1.f : FMath::SmoothStep(FMath::Lerp(WalkSpeed, RunSpeed, 0.25f), FMath::Lerp(WalkSpeed, RunSpeed, 0.75f), Speed));
 	if (DeltaSeconds > 0.f)
 	{
