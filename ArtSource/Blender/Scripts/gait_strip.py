@@ -25,7 +25,8 @@ cam = scn.camera
 if cam is None:
     cd = bpy.data.cameras.new("c")
     cam = bpy.data.objects.new("c", cd); scn.collection.objects.link(cam); scn.camera = cam
-cam.data.type = 'ORTHO'; cam.data.ortho_scale = 2.4
+mesh = [o for o in scn.objects if o.type == 'MESH'][0]
+cam.data.type = 'ORTHO'; cam.data.ortho_scale = max(2.4, mesh.dimensions.y + 0.4)   # Ironbur is ~2.8m long
 cam.location = Vector((5, 0, 0.95)); cam.rotation_euler = (math.radians(90), 0, math.radians(90))
 
 def px(p):

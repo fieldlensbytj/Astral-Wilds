@@ -58,6 +58,13 @@ for k in LEGS:
     H, K = bones[k + "_upper"].head_local.copy(), bones[k + "_lower"].head_local.copy()
     A, T = bones[k + "_foot"].head_local.copy(), bones[k + "_foot"].tail_local.copy()
     L1, L2 = (K - H).length, (A - K).length
+    # A rig modelled mid-stride (Ironbur's lifted right fore paw) stores where
+    # that toe stands as "plant_<leg>" on the armature. Gaits and Idle plant it
+    # there instead of at the rest pose.
+    if arm.get("plant_" + k) is not None:
+        shift = Vector(arm["plant_" + k]) - T
+        T, A = T + shift, A + shift
+        log.append("%s planted: toe moved %s" % (k, tuple(round(c, 3) for c in shift)))
     d = A - H
     front = k[0] == "f"
     # Anatomical bend in the sagittal plane: elbow back for front legs,
@@ -75,6 +82,23 @@ def max_half_stride(drop):
         reach = 0.985 * (v["L1"] + v["L2"])
         m = min(m, math.sqrt(max(reach * reach - vert * vert, 0.0)))
     return m
+
+def stance_centres(drop, hs, margin=0.985):
+    """Per-leg shift (m along Y) of the stance stroke's centre from the rest toe.
+
+    The ankle's stroke (rest ankle +/- hs) has to stay within the hip's
+    horizontal reach. Zero when it already does (paws under the hips, as on
+    Glacielle and Mossling). Ironbur leans onto fore paws ~0.36m ahead of the
+    shoulders, so its front stance is pulled back just far enough to fit."""
+    c = {}
+    for k, v in leg.items():
+        vert = (v["H"].z - drop) - v["A"].z
+        reach = margin * (v["L1"] + v["L2"])
+        horiz = math.sqrt(max(reach * reach - vert * vert, 0.0))
+        lo = v["H"].y - horiz + hs - v["A"].y
+        hi = v["H"].y + horiz - hs - v["A"].y
+        c[k] = min(max(0.0, lo), hi) if lo <= hi else (lo + hi) / 2
+    return c
 
 def hind_stroke(drop, land, push, margin=0.93):
     """Gallop stroke for the hind legs: (stride, offset of its centre from the rest toe).
@@ -121,6 +145,7 @@ def foot_targets(k, u, g):
         dy = h00 * (S / 2) + h10 * m + h01 * (-S / 2) + h11 * m
         dz = g["lift"] * math.sin(math.pi * s ** 0.8) ** 2
         pitch = g["toeoff"] * (1 - smooth(s / 0.55))
+    dy += g["centre"][k]
     toe = Vector((T0.x, T0.y + dy, T0.z + dz))
     ankle = toe + Matrix.Rotation(math.radians(pitch), 3, 'X') @ (A0 - T0)
     return toe, ankle
@@ -256,6 +281,13 @@ GAITS = {
 # pushing off well behind) and fold the hock in the swing, so they visibly
 # drive. They stay down for a matching share of the cycle so they slide
 # back at the same speed as the front feet.
+for name, g in GAITS.items():
+    if g["phase"] is not None:
+        # Opt-in ("fit_stance" on the armature): Glacielle/Mossling's approved
+        # gaits keep their strides centred on the rest paws.
+        g["centre"] = (stance_centres(g["drop"], g["S"] / 2) if arm.get("fit_stance")
+                       else {k: 0.0 for k in LEGS})
+        log.append("%s stance centres: %s" % (name, {k: round(c, 3) for k, c in g["centre"].items()}))
 run = GAITS["Run"]
 hS, hoff = hind_stroke(run["drop"], land=-12.0, push=45.0)
 run["hind"] = dict(S=hS, off=hoff, beta=run["beta"] * hS / run["S"],
@@ -314,7 +346,7 @@ cam = scn.camera
 if cam is None:
     cd = bpy.data.cameras.new("c"); cd.type = 'ORTHO'
     cam = bpy.data.objects.new("c", cd); scn.collection.objects.link(cam); scn.camera = cam
-cam.data.type = 'ORTHO'; cam.data.ortho_scale = 2.4
+cam.data.type = 'ORTHO'; cam.data.ortho_scale = max(2.4, mesh.dimensions.y + 0.4)   # Ironbur is ~2.8m long
 cam.location = Vector((5, 0, 0.95)); cam.rotation_euler = (math.radians(90), 0, math.radians(90))
 import numpy as np
 COLS, R = 6, scn.render.resolution_x

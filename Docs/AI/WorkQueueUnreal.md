@@ -2,7 +2,7 @@
 
 This is the real, current priority list for the active engine (Unreal Engine 5.8, C++, `Astral_Wilds_Unreal/Astral_Wilds/`). `Docs/AI/WorkQueue.md` is the old Unity-era queue, kept for history/design provenance only — its "Current priority"/"Status" sections describe the frozen Unity project, not this one. This file replaces it as the thing to read for "what's next" on Unreal, per the split multiple prior sessions recommended (`CoworkReview-20260918.md`, `CoworkReview-20260918-AutomationTests.md`) but never got around to doing.
 
-## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-06, after the Run trot `8de7430` / `92c4081`)
+## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-08, after rigging Ironbur `37465d1`)
 
 **Project:** `C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\`, a standalone repo (`origin` branch `astral-wilds-unreal`). Its root `NEXT_STEPS.md` mirrors this block in more detail and has the exact, verified PowerShell commands for build, tests and the rendered bot playtest. Update both together.
 
@@ -11,13 +11,15 @@ This is the real, current priority list for the active engine (Unreal Engine 5.8
 - `68098cf`: procedural breathing, gait bob and turn lean for unrigged (static) Astrals.
 - `db19d63` / `a70cfe9`: scripted Blender rigging (22-bone quadruped, Idle/Walk/Run, played by ground speed). Glacielle is rigged. Cindrel went back to its static model (TJ: its curved paw needs hand animation). Rig scripts are in `ArtSource/Blender/Scripts/<name>_rig_*.py`, and the rigged .blend/.fbx files are in `ArtSource/Blender/Rigs/`.
 - `3eb5666` (art repo `feec1bd`): Mossling rigged the same way; antlers and leaf crest pinned to the head bone. Its facing had to be set by hand (`mossling_rig_rotate.py -- -126`).
-- `8de7430` (art repo `92c4081`), 2026-10-06: TJ approved the new Run, a fast trot with alternating diagonal legs, on Glacielle + Mossling. A deer-style gallop was tried first (`00bf915` / `cb6a3d7`) and rejected: the hind pair moving together read as static back legs. Hind legs get a longer stroke than the fronts and fold the hock. Gait review tool: `ArtSource/Blender/Scripts/gait_strip.py` (side-view strip with leg bones drawn on). UE re-import + wiring scripts now live in the Unreal repo at `Tools/RigImport/`. Nothing is in flight; both repos are clean and pushed.
+- `8de7430` (art repo `92c4081`), 2026-10-06: TJ approved the new Run, a fast trot with alternating diagonal legs, on Glacielle + Mossling. A deer-style gallop was tried first (`00bf915` / `cb6a3d7`) and rejected: the hind pair moving together read as static back legs. Hind legs get a longer stroke than the fronts and fold the hock. Gait review tool: `ArtSource/Blender/Scripts/gait_strip.py` (side-view strip with leg bones drawn on). UE re-import + wiring scripts now live in the Unreal repo at `Tools/RigImport/`.
+- `37465d1` (art repo: the commit after it), 2026-10-08: **Ironbur rigged**, awaiting TJ's review. It's a long, low boar modelled mid-stride (right fore paw lifted under the jaw, fore paws ~0.36m ahead of the shoulders), so `quadruped_reanimate.py` gained two opt-in armature properties: `plant_<leg>` (where a lifted paw stands) and `fit_stance` (pull a stance back until the stride fits the leg's reach). Glacielle and Mossling don't set them, so their approved clips are unchanged. `Astral.MotionCapture <Name> <Seconds> <Archetype>` films Territorial Ironbur walking (e.g. `Ironbur 10 Docile`).
 - `304a9f2`: the hand-placed navmesh volume is committed, and wildlife moves on it via the native AI (`6ae9034`).
 - `32bd598`: Git LFS for `*.uasset`/`*.umap`, done.
 
 **Still open:**
-- TJ to decide: keep the scripted rigging or rig by hand, based on Glacielle and Mossling.
-- Rig more Astrals with the same pipeline (Ironbur and Stormrook are the next candidates). Ripplefin needs a different rig.
+- TJ to review Ironbur's Walk/Run.
+- TJ to decide: keep the scripted rigging or rig by hand, based on Glacielle, Mossling and Ironbur.
+- Rig more Astrals with the same pipeline (Stormrook is the next candidate). Ripplefin needs a different rig.
 - Decimation of the ~100-135MB static Meshy meshes.
 - A human playtest for game feel.
 - If bonding feels too forgiving, revisit `fa1b858`'s grace, since both first-pulse protections are active.
