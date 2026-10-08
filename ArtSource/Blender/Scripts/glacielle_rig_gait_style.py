@@ -12,7 +12,8 @@
 # joints soft, the stride stays inside 92% of reach, and the feet lift higher.
 import bpy
 RIG = r"C:/Users/camer/Astral Wilds/ArtSource/Blender/Rigs/Glacielle_Rigged.blend"
-STYLE = dict(crouch=0.04, reach_margin=0.92, lift_scale=1.6, fit_stance=True)
+STYLE = dict(crouch=0.04, reach_margin=0.92, lift_scale=1.6, fit_stance=True,
+             run_style="reindeer")   # TJ: she is a reindeer; see quadruped_reanimate.py
 bpy.ops.wm.open_mainfile(filepath=RIG)
 arm = [o for o in bpy.context.scene.objects if o.type == 'ARMATURE'][0]
 for k, v in STYLE.items():

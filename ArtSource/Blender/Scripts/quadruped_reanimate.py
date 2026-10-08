@@ -146,6 +146,13 @@ def foot_targets(k, u, g):
         dy = h00 * (S / 2) + h10 * m + h01 * (-S / 2) + h11 * m
         dz = g["lift"] * math.sin(math.pi * s ** 0.8) ** 2
         pitch = g["toeoff"] * (1 - smooth(s / 0.55))
+        ka = g.get("knee_action") if v["front"] else None
+        if ka:
+            # Reindeer's high-stepping trot ("rivals a prize hackney"): the
+            # wrist snaps up early in the swing, folding the hoof up and back
+            # under the forearm, then unfolds to reach for the landing.
+            dz = ka["lift"] * math.sin(math.pi * s ** 0.6) ** 2
+            pitch += ka["fold"] * math.sin(math.pi * min(s / 0.85, 1.0) ** 0.8) ** 2
     dy += g["centre"][k]
     toe = Vector((T0.x, T0.y + dy, T0.z + dz))
     ankle = toe + Matrix.Rotation(math.radians(pitch), 3, 'X') @ (A0 - T0)
@@ -242,8 +249,15 @@ def body_run(t, g):
     poses["chest"] = (wrot("chest", Y, -4.5 * sway) @ wrot("chest", Z, -3.0 * math.sin(TAU * t + 1.2))
                       @ wrot("chest", X, 2.0 * math.sin(2 * TAU * (t - 0.1))))
     poses["neck"] = wrot("neck", X, 3.0 * math.sin(2 * TAU * (t - 0.25)))
+    st = g.get("style")
+    if st:
+        # Reindeer: the withers rise and fall over each foreleg (shoulder
+        # blades working), while the heavy antlered neck stays still against it.
+        roll = st["withers"] * math.sin(TAU * t + 0.3)
+        poses["chest"] = poses["chest"] @ wrot("chest", Y, -roll) @ wrot("chest", X, st["withers"] * 0.6 * math.sin(2 * TAU * (t - 0.15)))
+        poses["neck"] = wrot("neck", X, -st["withers"] * 0.5 * math.sin(2 * TAU * (t - 0.15)))
     tail_wave(poses, t, 6.0, 6.0, freq=2, lag=0.6)
-    return poses, Vector((0, 0, bob)), 0.6, Quaternion()
+    return poses, Vector((0, 0, bob)), (st["head_steady"] if st else 0.6), Quaternion()
 
 def body_idle(t, g):
     poses = {}
@@ -301,6 +315,16 @@ for name, g in GAITS.items():
                        else {k: 0.0 for k in LEGS})
         log.append("%s stance centres: %s" % (name, {k: round(c, 3) for k, c in g["centre"].items()}))
 run = GAITS["Run"]
+# run_style "reindeer" (Glacielle, TJ 2026-10-08: "based off of a reindeer"):
+# still a trot, which is the caribou's own fast gait (Pecora gait study,
+# UWaterloo 2019), but in reindeer style: hackney-like high fore action with
+# the hoof tucked up, a light, level body (hooves "hardly appear to touch the
+# ground"), withers rising and falling, and a steadier antlered head.
+if arm.get("run_style") == "reindeer":
+    run["knee_action"] = dict(lift=run["lift"] * 1.7, fold=95.0)
+    run["bob"] *= 0.5
+    run["style"] = dict(withers=3.0, head_steady=0.85)
+    log.append("Run style: reindeer (fore lift %.3f m, fold 95 deg)" % run["knee_action"]["lift"])
 hS, hoff = hind_stroke(run["drop"], land=-12.0, push=45.0)
 run["hind"] = dict(S=hS, off=hoff, beta=run["beta"] * hS / run["S"],
                    land=-12.0, push=45.0, fold=65.0, lift=0.13 * LIFT)
