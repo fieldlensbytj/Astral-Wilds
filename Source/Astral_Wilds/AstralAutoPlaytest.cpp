@@ -407,7 +407,7 @@ namespace AstralAutoPlaytest
 			}));
 		}));
 
-	// Astral.MotionCapture [Species] [Seconds]: for judging locomotion by eye.
+	// Astral.MotionCapture [Species] [Seconds] [Archetype]: for judging locomotion by eye.
 	// Spawns one wild Astral of the species (default Mossling) next to the
 	// Mage with its AI running, hides everything else, follows it with a
 	// side camera that keeps a fixed world direction (so turns show), and
@@ -443,6 +443,20 @@ namespace AstralAutoPlaytest
 			{
 				UE_LOG(LogAstralAutoPlaytest, Error, TEXT("[MotionCapture] no species '%s' or no player"), *Want);
 				return;
+			}
+			// Optional third arg overrides the AI archetype (e.g. Docile) on a
+			// transient copy of the species, so Territorial Astrals that hold
+			// their ground can still be filmed walking.
+			if (Args.Num() > 2)
+			{
+				const int64 Arch = StaticEnum<EAstralAIArchetype>()->GetValueByNameString(Args[2]);
+				if (Arch == INDEX_NONE)
+				{
+					UE_LOG(LogAstralAutoPlaytest, Error, TEXT("[MotionCapture] unknown archetype '%s'"), *Args[2]);
+					return;
+				}
+				Species = DuplicateObject<UAstralSpeciesData>(Species, GetTransientPackage());
+				Species->AIArchetype = static_cast<EAstralAIArchetype>(Arch);
 			}
 			Mage->SetActorHiddenInGame(true);
 			const FTransform Xf(FRotator(0.f, 90.f, 0.f), Mage->GetActorLocation() + FVector(0.f, 250.f, 0.f));
