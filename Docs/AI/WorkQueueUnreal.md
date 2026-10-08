@@ -2,7 +2,7 @@
 
 This is the real, current priority list for the active engine (Unreal Engine 5.8, C++, `Astral_Wilds_Unreal/Astral_Wilds/`). `Docs/AI/WorkQueue.md` is the old Unity-era queue, kept for history/design provenance only — its "Current priority"/"Status" sections describe the frozen Unity project, not this one. This file replaces it as the thing to read for "what's next" on Unreal, per the split multiple prior sessions recommended (`CoworkReview-20260918.md`, `CoworkReview-20260918-AutomationTests.md`) but never got around to doing.
 
-## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-08, after rigging Ironbur `37465d1`)
+## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-08, after the Glacielle naturalness pass `d2e7827`)
 
 **Project:** `C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\`, a standalone repo (`origin` branch `astral-wilds-unreal`). Its root `NEXT_STEPS.md` mirrors this block in more detail and has the exact, verified PowerShell commands for build, tests and the rendered bot playtest. Update both together.
 
@@ -12,12 +12,13 @@ This is the real, current priority list for the active engine (Unreal Engine 5.8
 - `db19d63` / `a70cfe9`: scripted Blender rigging (22-bone quadruped, Idle/Walk/Run, played by ground speed). Glacielle is rigged. Cindrel went back to its static model (TJ: its curved paw needs hand animation). Rig scripts are in `ArtSource/Blender/Scripts/<name>_rig_*.py`, and the rigged .blend/.fbx files are in `ArtSource/Blender/Rigs/`.
 - `3eb5666` (art repo `feec1bd`): Mossling rigged the same way; antlers and leaf crest pinned to the head bone. Its facing had to be set by hand (`mossling_rig_rotate.py -- -126`).
 - `8de7430` (art repo `92c4081`), 2026-10-06: TJ approved the new Run, a fast trot with alternating diagonal legs, on Glacielle + Mossling. A deer-style gallop was tried first (`00bf915` / `cb6a3d7`) and rejected: the hind pair moving together read as static back legs. Hind legs get a longer stroke than the fronts and fold the hock. Gait review tool: `ArtSource/Blender/Scripts/gait_strip.py` (side-view strip with leg bones drawn on). UE re-import + wiring scripts now live in the Unreal repo at `Tools/RigImport/`.
-- `37465d1` (art repo: the commit after it), 2026-10-08: **Ironbur rigged**, awaiting TJ's review. It's a long, low boar modelled mid-stride (right fore paw lifted under the jaw, fore paws ~0.36m ahead of the shoulders), so `quadruped_reanimate.py` gained two opt-in armature properties: `plant_<leg>` (where a lifted paw stands) and `fit_stance` (pull a stance back until the stride fits the leg's reach). Glacielle and Mossling don't set them, so their approved clips are unchanged. `Astral.MotionCapture <Name> <Seconds> [Alone|<Archetype>]` films it walking (`Ironbur 20 Alone`). Territorial Astrals now patrol around home instead of standing still (TJ asked for Ironbur to travel further).
+- `37465d1` (art repo: the commit after it), 2026-10-08: **Ironbur rigged**, awaiting TJ's review. It's a long, low boar modelled mid-stride (right fore paw lifted under the jaw, fore paws ~0.36m ahead of the shoulders), so `quadruped_reanimate.py` gained two opt-in armature properties: `plant_<leg>` (where a lifted paw stands) and `fit_stance` (pull a stance back until the stride fits the leg's reach). Glacielle and Mossling don't set them, so their approved clips are unchanged. `Astral.MotionCapture <Name> <Seconds> [Alone|<Archetype>]` films it walking (`Ironbur 20 Alone`). Territorial Astrals now patrol around home instead of standing still (TJ asked for Ironbur to travel further). TJ loves Ironbur ("the best so far").
+- `d2e7827`, 2026-10-08: TJ said Glacielle feels less natural than Ironbur: stiff/robotic legs, and starts/stops/turns. Fixes, awaiting TJ's verdict: `glacielle_rig_gait_style.py` sets opt-in `crouch` / `reach_margin` / `lift_scale` (her front legs were modelled dead straight and locked in stance), wander targets prefer points ahead (no spinning on the spot), and an ending flee eases into a 4m walk-on instead of braking hard. The bot playtest now steers round Astrals that box the Mage in.
 - `304a9f2`: the hand-placed navmesh volume is committed, and wildlife moves on it via the native AI (`6ae9034`).
 - `32bd598`: Git LFS for `*.uasset`/`*.umap`, done.
 
 **Still open:**
-- TJ to review Ironbur's Walk/Run.
+- TJ to judge Glacielle's new legs/starts/stops (`d2e7827`).
 - TJ to decide: keep the scripted rigging or rig by hand, based on Glacielle, Mossling and Ironbur.
 - Rig more Astrals with the same pipeline (Stormrook is the next candidate). Ripplefin needs a different rig.
 - Decimation of the ~100-135MB static Meshy meshes.

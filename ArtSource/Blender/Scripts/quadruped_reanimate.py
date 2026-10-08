@@ -79,17 +79,18 @@ def max_half_stride(drop):
     m = 1.0
     for v in leg.values():
         vert = (v["H"].z - drop) - v["A"].z
-        reach = 0.985 * (v["L1"] + v["L2"])
+        reach = REACH * (v["L1"] + v["L2"])
         m = min(m, math.sqrt(max(reach * reach - vert * vert, 0.0)))
     return m
 
-def stance_centres(drop, hs, margin=0.985):
+def stance_centres(drop, hs, margin=None):
     """Per-leg shift (m along Y) of the stance stroke's centre from the rest toe.
 
     The ankle's stroke (rest ankle +/- hs) has to stay within the hip's
     horizontal reach. Zero when it already does (paws under the hips, as on
     Glacielle and Mossling). Ironbur leans onto fore paws ~0.36m ahead of the
     shoulders, so its front stance is pulled back just far enough to fit."""
+    margin = REACH if margin is None else margin
     c = {}
     for k, v in leg.items():
         vert = (v["H"].z - drop) - v["A"].z
@@ -263,19 +264,30 @@ def body_idle(t, g):
 # The Meshy models stand on near-straight legs, so stride length comes from
 # lowering the body a little in each gait (drop), like a real animal's
 # flexed stance.
-hs_walk = max_half_stride(0.055)
-hs_run = max_half_stride(0.075)
+# Per-rig gait style, opt-in via armature properties (defaults = the gaits TJ
+# approved on Glacielle/Mossling before 2026-10-08):
+# - crouch: extra body drop (m) in every clip, so legs that are modelled
+#   dead straight (Glacielle's fronts) stay softly bent instead of locking.
+# - reach_margin: the most of its length a leg may straighten to at the ends
+#   of a stride (also used by fit_stance).
+# - lift_scale: multiplies foot lift in the swing (higher, springier steps).
+CROUCH = float(arm.get("crouch", 0.0))
+REACH = float(arm.get("reach_margin", 0.985))
+LIFT = float(arm.get("lift_scale", 1.0))
+log.append("style: crouch %.3f, reach_margin %.3f, lift_scale %.2f" % (CROUCH, REACH, LIFT))
+hs_walk = max_half_stride(0.055 + CROUCH)
+hs_run = max_half_stride(0.075 + CROUCH)
 GAITS = {
     # Walk is a brisk diagonal walk/trot: wild Astrals wander at 200 cm/s,
     # a trotting pace for their size.
     "Walk": dict(frames=30, phase={"bl": 0.0, "fr": 0.06, "br": 0.5, "fl": 0.56}, beta=0.5,
-                 S=2 * min(hs_walk, 0.26), lift=0.07, toeoff=28.0, drop=0.055, bob=0.012, body=body_walk),
+                 S=2 * min(hs_walk, 0.26), lift=0.07 * LIFT, toeoff=28.0, drop=0.055 + CROUCH, bob=0.012, body=body_walk),
     # Run is a fast trot: diagonal pairs alternate (bl+fr, then br+fl). The
     # front feet land a little after their hind partner so the two share a
     # mid-stance (the hind stance is longer, see below).
     "Run":  dict(frames=24, phase={"bl": 0.0, "fr": 0.91, "br": 0.5, "fl": 0.41}, beta=0.3,
-                 S=2 * min(hs_run, 0.32), lift=0.12, toeoff=40.0, drop=0.075, bob=0.03, body=body_run),
-    "Idle": dict(frames=360, phase=None, drop=0.0, body=body_idle),
+                 S=2 * min(hs_run, 0.32), lift=0.12 * LIFT, toeoff=40.0, drop=0.075 + CROUCH, bob=0.03, body=body_run),
+    "Idle": dict(frames=360, phase=None, drop=0.6 * CROUCH, body=body_idle),
 }
 # Hind legs get a longer stroke than the front (reaching under the belly,
 # pushing off well behind) and fold the hock in the swing, so they visibly
@@ -291,7 +303,7 @@ for name, g in GAITS.items():
 run = GAITS["Run"]
 hS, hoff = hind_stroke(run["drop"], land=-12.0, push=45.0)
 run["hind"] = dict(S=hS, off=hoff, beta=run["beta"] * hS / run["S"],
-                   land=-12.0, push=45.0, fold=65.0, lift=0.13)
+                   land=-12.0, push=45.0, fold=65.0, lift=0.13 * LIFT)
 log.append("Run hind stroke %.3f m (front %.3f), centre %+.3f m from rest toe, duty %.2f"
            % (hS, run["S"], hoff, run["hind"]["beta"]))
 
