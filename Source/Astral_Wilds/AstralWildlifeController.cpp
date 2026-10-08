@@ -199,6 +199,7 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 		}
 	}
 
+	const bool bWasFleeing = Mode == EAstralWildlifeMode::Flee;
 	Mode = NewMode;
 	ModeTime = 0.f;
 	FleeBestDist = DistToPlayer;
@@ -218,6 +219,20 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 	{
 		Movement->MaxWalkSpeed = Speed;
 	}
+
+	// A flee that ends doesn't brake to a dead stop: the Astral eases down to
+	// a walk and carries on a few metres the way it was going, then pauses
+	// as usual (it used to go 450 -> 0 cm/s in about a second).
+	if (bWasFleeing && NewMode == EAstralWildlifeMode::Wander)
+	{
+		const FVector Dir = Astral->GetVelocity().GetSafeNormal2D();
+		UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
+		FNavLocation RunOut;
+		if (!Dir.IsZero() && NavSys && NavSys->ProjectPointToNavigation(Astral->GetActorLocation() + Dir * Tuning.FleeRunOut, RunOut))
+		{
+			MoveToLocation(RunOut.Location, 15.f);
+		}
+	}
 }
 
 bool AAstralWildlifeController::PickPoint(const FVector& Origin, float Radius, const APawn* Player, bool bFarthestFromPlayer, FVector& OutPoint) const
@@ -227,6 +242,14 @@ bool AAstralWildlifeController::PickPoint(const FVector& Origin, float Radius, c
 	{
 		return false;
 	}
+
+	// Wandering prefers points ahead of the Astral, so it sets off forward and
+	// curves rather than spinning on the spot first (TJ, 2026-10-08: starts
+	// and turns read as unnatural). Points behind are only a fallback.
+	const APawn* Self = GetPawn();
+	const FVector Facing = Self ? Self->GetActorForwardVector().GetSafeNormal2D() : FVector::ZeroVector;
+	constexpr float AheadCos = 0.26f;   // within ~75 deg of facing
+	float BestAhead = -2.f;
 
 	bool bFound = false;
 	float BestScore = -1.f;
@@ -249,9 +272,21 @@ bool AAstralWildlifeController::PickPoint(const FVector& Origin, float Radius, c
 		}
 		else if (PlayerDist >= Tuning.AlertRange)
 		{
-			// Wandering: any point outside the player's alert range will do.
-			OutPoint = Candidate.Location;
-			return true;
+			// Wandering: any point outside the player's alert range, the
+			// first one ahead if there is one, else the most nearly ahead.
+			const FVector To = (Candidate.Location - (Self ? Self->GetActorLocation() : Origin)).GetSafeNormal2D();
+			const float Ahead = Facing.IsZero() ? 1.f : FVector::DotProduct(Facing, To);
+			if (Ahead >= AheadCos)
+			{
+				OutPoint = Candidate.Location;
+				return true;
+			}
+			if (Ahead > BestAhead)
+			{
+				BestAhead = Ahead;
+				OutPoint = Candidate.Location;
+				bFound = true;
+			}
 		}
 	}
 	return bFound;

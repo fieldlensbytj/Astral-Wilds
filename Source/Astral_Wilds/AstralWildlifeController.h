@@ -66,6 +66,10 @@ struct FAstralWildlifeTuning
 	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife", meta = (Units = "cm"))
 	float FleeDistance = 500.f;
 
+	/** When a flee ends, the Astral walks on this far in the direction it was fleeing (slowing to a walk) before pausing. */
+	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife", meta = (Units = "cm"))
+	float FleeRunOut = 400.f;
+
 	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife", meta = (Units = "cm"))
 	float ChaseAcceptanceRadius = 150.f;
 

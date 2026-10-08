@@ -165,7 +165,26 @@ namespace AstralAutoPlaytest
 			}
 			const FVector ToTarget = Run.Target->GetActorLocation() - Mage->GetActorLocation();
 			// Face the camera at the target; W then walks "forward" relative to it.
-			PC->SetControlRotation(FRotator(-15.f, ToTarget.Rotation().Yaw, 0.f));
+			// Other Astrals close ahead (an Aggressive and a Territorial one
+			// chasing the Mage can box it in) push the heading sideways, so the
+			// bot walks round them like a player would instead of into them.
+			FVector Heading = ToTarget.GetSafeNormal2D();
+			for (TActorIterator<AAstralCharacter> It(World); It; ++It)
+			{
+				if (*It == Run.Target.Get())
+				{
+					continue;
+				}
+				const FVector Away = (Mage->GetActorLocation() - It->GetActorLocation()) * FVector(1.f, 1.f, 0.f);
+				const float Dist = Away.Size();
+				const FVector Dir = ToTarget.GetSafeNormal2D();
+				if (Dist < 300.f && FVector::DotProduct(Dir, -Away) > 0.f)
+				{
+					const FVector Side = FVector(-Dir.Y, Dir.X, 0.f) * FMath::Sign(FVector::DotProduct(FVector(-Dir.Y, Dir.X, 0.f), Away) + KINDA_SMALL_NUMBER);
+					Heading += Side * 1.5f * (300.f - Dist) / 300.f;
+				}
+			}
+			PC->SetControlRotation(FRotator(-15.f, Heading.Rotation().Yaw, 0.f));
 			const bool bInReach = Mage->GetInteractableWildAstral() == Run.Target.Get();
 			if (ToTarget.Size2D() < 200.f)
 			{
