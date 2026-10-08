@@ -28,6 +28,7 @@
 #include "Containers/Ticker.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "InputCoreTypes.h"
@@ -444,10 +445,12 @@ namespace AstralAutoPlaytest
 				UE_LOG(LogAstralAutoPlaytest, Error, TEXT("[MotionCapture] no species '%s' or no player"), *Want);
 				return;
 			}
-			// Optional third arg overrides the AI archetype (e.g. Docile) on a
-			// transient copy of the species, so Territorial Astrals that hold
-			// their ground can still be filmed walking.
-			if (Args.Num() > 2)
+			// Optional third arg: an AI archetype (e.g. Docile) overrides the
+			// species' on a transient copy, or "Alone" parks the (hidden) Mage
+			// 50m away, frozen, so the Astral does what it does with nobody
+			// around (e.g. a Territorial patrol rather than a chase).
+			const bool bAlone = Args.Num() > 2 && Args[2] == TEXT("Alone");
+			if (Args.Num() > 2 && !bAlone)
 			{
 				const int64 Arch = StaticEnum<EAstralAIArchetype>()->GetValueByNameString(Args[2]);
 				if (Arch == INDEX_NONE)
@@ -463,6 +466,14 @@ namespace AstralAutoPlaytest
 			AAstralCharacter* A = World->SpawnActorDeferred<AAstralCharacter>(AAstralCharacter::StaticClass(), Xf, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
 			A->SpeciesData = Species;
 			A->FinishSpawning(Xf);
+			if (bAlone)
+			{
+				if (ACharacter* MageChar = Cast<ACharacter>(Mage))
+				{
+					MageChar->GetCharacterMovement()->DisableMovement();
+				}
+				Mage->SetActorLocation(Mage->GetActorLocation() + FVector(5000.f, 0.f, 0.f));
+			}
 			ACameraActor* Cam = World->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), FTransform::Identity);
 			PC->SetViewTarget(Cam);
 

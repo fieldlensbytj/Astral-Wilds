@@ -91,7 +91,14 @@ EAstralWildlifeMode AAstralWildlifeController::ChooseMode(EAstralAIArchetype Arc
 		{
 			return EAstralWildlifeMode::Chase;
 		}
-		return DistFromHome > T.HomeRadius ? EAstralWildlifeMode::ReturnHome : EAstralWildlifeMode::Idle;
+		// Patrols its territory (wanders around home); only heads straight
+		// back after a chase. It used to stand still at home, which read as
+		// a statue.
+		if ((Current == EAstralWildlifeMode::Chase || Current == EAstralWildlifeMode::ReturnHome) && DistFromHome > T.HomeRadius)
+		{
+			return EAstralWildlifeMode::ReturnHome;
+		}
+		return EAstralWildlifeMode::Wander;
 
 	case EAstralAIArchetype::Docile:
 	default:

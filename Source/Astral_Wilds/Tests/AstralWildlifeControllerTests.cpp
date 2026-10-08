@@ -72,10 +72,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralWildlife_TerritorialGuardsHome, "AstralW
 bool FAstralWildlife_TerritorialGuardsHome::RunTest(const FString& Parameters)
 {
 	using namespace AstralWildlifeControllerTests;
-	TestEqual(TEXT("Idles at home while the player stays out of its territory"), Choose(EAstralAIArchetype::Territorial, EMode::Idle, 400.f, 0.f, 600.f), EMode::Idle);
-	TestEqual(TEXT("Chases a player inside its territory"), Choose(EAstralAIArchetype::Territorial, EMode::Idle, 300.f, 0.f, 300.f), EMode::Chase);
+	TestEqual(TEXT("Patrols while the player stays out of its territory"), Choose(EAstralAIArchetype::Territorial, EMode::Idle, 400.f, 0.f, 600.f), EMode::Wander);
+	TestEqual(TEXT("Keeps patrolling away from home (no pull back)"), Choose(EAstralAIArchetype::Territorial, EMode::Wander, 900.f, 600.f, 800.f), EMode::Wander);
+	TestEqual(TEXT("Chases a player inside its territory"), Choose(EAstralAIArchetype::Territorial, EMode::Wander, 300.f, 0.f, 300.f), EMode::Chase);
 	TestEqual(TEXT("Returns home once the player leaves its territory"), Choose(EAstralAIArchetype::Territorial, EMode::Chase, 900.f, 450.f, 800.f), EMode::ReturnHome);
-	TestEqual(TEXT("Idles again once home"), Choose(EAstralAIArchetype::Territorial, EMode::ReturnHome, 900.f, 150.f, 800.f), EMode::Idle);
+	TestEqual(TEXT("Patrols again once home"), Choose(EAstralAIArchetype::Territorial, EMode::ReturnHome, 900.f, 150.f, 800.f), EMode::Wander);
 	return true;
 }
 
