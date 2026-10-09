@@ -324,6 +324,31 @@ def ground_pose(t, g):
 # ---------------- flight clips ----------------
 FLY_PITCH = 72.0   # pitch the upright model forward to fly level
 
+# Legs in the air keep the ankle at its modelled bend (TJ, 2026-10-09: in
+# flight "i cant see its full legs it glitches out and i only see the sky").
+# The leg is many small rigid scale pieces, and the skin weights switch from
+# shin to foot above the ankle pivot, so any ankle fold (the old tuck swung
+# the foot ~80 deg back, even 40% of that) opens a gap there and the toes
+# come apart. The hip and knee are hidden in feathers, so the pose comes
+# from them: foot_deg is where the foot (tarsus + toes) points, in the
+# side plane, 0 = straight back, -90 = straight down, -180 = forward.
+def _side_deg(v):
+    return math.degrees(math.atan2(v[2], v[1]))
+REST_THIGH_DEG = _side_deg(Vector(B["leg_l_thigh"][1]) - Vector(B["leg_l_thigh"][0]))
+REST_KNEE = _side_deg(Vector(B["leg_l_shin"][1]) - Vector(B["leg_l_shin"][0])) - REST_THIGH_DEG
+REST_ANKLE_DEG = _side_deg(Vector(B["leg_l_foot"][1]) - Vector(B["leg_l_foot"][0])) - REST_THIGH_DEG - REST_KNEE
+
+def air_leg(side, s, foot_deg, knee_extra):
+    """Aim thigh and shin so the foot, at its rest bend to the shin, points
+    along foot_deg; knee_extra bends the knee past its rest angle."""
+    thigh = foot_deg - REST_ANKLE_DEG - REST_KNEE - knee_extra
+    shin = thigh + REST_KNEE + knee_extra
+    for bone, deg in (("thigh", thigh), ("shin", shin)):
+        a = math.radians(deg)
+        aim("leg_%s_%s" % (side, bone), Vector((s * 0.03, math.cos(a), math.sin(a))))
+    pb["leg_%s_foot" % side].rotation_quaternion = Quaternion()
+    upd()
+
 def wing_dirs(s, raise_deg, fold, sweep=0.0):
     """Wing segment directions (armature space, body level) for a wing raised
     raise_deg above horizontal (per segment), folded 0..1 at the wrist."""
@@ -350,9 +375,7 @@ def flare_pose(t):
     for i, dz in enumerate((-0.6, -0.5, -0.45, -0.4)):
         aim("tail_0%d" % (i + 1), Vector((0, 0.8, dz)))
     for side, s in SIDE.items():
-        aim("leg_%s_thigh" % side, Vector((s * 0.05, -0.35, -0.94)))
-        aim("leg_%s_shin" % side, Vector((s * 0.03, -0.45, -0.9)))
-        aim("leg_%s_foot" % side, Vector((0, -1, -0.15)))
+        air_leg(side, s, -165, -10)   # feet reaching forward for the landing, knee a touch straighter
         ph = [(t - lag) % 1.0 for lag in (0.0, 0.05, 0.1)]
         raise_deg = [15 + 30 * math.cos(2 * math.pi * u) for u in ph]
         dirs = wing_dirs(s, raise_deg, 0.0, sweep=-38)   # swept forward
@@ -377,9 +400,7 @@ def flight_pose(t, flap):
     for i, dz in enumerate((-0.15, -0.08, -0.04, 0.0)):
         aim("tail_0%d" % (i + 1), Vector((0, 1, dz + (0.05 * math.sin(2 * math.pi * t - 0.6 * i) if flap else 0.02 * math.sin(2 * math.pi * t)))))
     for side, s in SIDE.items():
-        aim("leg_%s_thigh" % side, Vector((s * 0.03, 0.25, -0.97)))   # thighs down, shins and feet folded back under the belly (hidden from above, not trailing)
-        aim("leg_%s_shin" % side, Vector((0, 1, 0.12)))
-        aim("leg_%s_foot" % side, Vector((0, 1, 0.05)))
+        air_leg(side, s, -60, 20)   # tucked: knee drawn up, feet trailing back under the tail
         if flap:
             # Downstroke over the first 55% (spread, sweeping down, tip
             # lagging), upstroke over the rest (folded at the wrist).
