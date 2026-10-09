@@ -12,6 +12,7 @@ namespace
 {
 	constexpr float DecisionInterval = 0.25f;
 	constexpr float RepathInterval = 0.5f;
+	constexpr float FlyerWalkSpeed = 70.f;   // cm/s: Stormrook's walk clip is authored at ~60
 }
 
 AAstralWildlifeController::AAstralWildlifeController()
@@ -116,6 +117,22 @@ void AAstralWildlifeController::Tick(float DeltaSeconds)
 		return;
 	}
 
+	// Flyers steer every frame while off the ground (input is consumed each
+	// movement tick); the 0.25s decisions below only pick what to do.
+	const bool bFlyer = Astral->SpeciesData && Astral->SpeciesData->bCanFly;
+	if (bFlyer)
+	{
+		if (FlightRestTime < 0.f)
+		{
+			FlightRestTime = FMath::FRandRange(1.5f, 4.f);   // just spawned on the ground: take off soon
+		}
+		FlightPhaseTime += DeltaSeconds;
+		if (FlightPhase != EAstralFlightPhase::Grounded)
+		{
+			SteerFlight(Astral, UGameplayStatics::GetPlayerPawn(this, 0), DeltaSeconds);
+		}
+	}
+
 	ModeTime += DeltaSeconds;
 	RepathTimer += DeltaSeconds;
 	DecisionTimer -= DeltaSeconds;
@@ -161,7 +178,232 @@ void AAstralWildlifeController::Tick(float DeltaSeconds)
 		UE_LOG(LogAstral_Wilds, Display, TEXT("%s still fleeing after %.0fs: player %.0fcm, at %s, moving: %s"), *Astral->GetName(), ModeTime, DistToPlayer,
 			*Here.ToCompactString(), GetMoveStatus() != EPathFollowingStatus::Idle ? TEXT("yes") : TEXT("no"));
 	}
+
+	if (bFlyer)
+	{
+		float GroundZ = 0.f;
+		const float Height = GroundBelow(Astral, GroundZ) ? Here.Z - Astral->GetSimpleCollisionHalfHeight() - GroundZ : TNumericLimits<float>::Max();
+		const EAstralFlightPhase NewPhase = ChooseFlightPhase(FlightPhase, Mode, FlightPhaseTime, FlightRestTime, Height,
+			Astral->SpeciesData->Flight.CruiseHeight, bTouchedDown);
+		if (NewPhase != FlightPhase)
+		{
+			EnterFlightPhase(NewPhase, Astral);
+		}
+		if (FlightPhase != EAstralFlightPhase::Grounded)
+		{
+			return;   // steered per frame by SteerFlight, not along nav paths
+		}
+	}
 	UpdateMode(Astral, Player);
+}
+
+EAstralFlightPhase AAstralWildlifeController::ChooseFlightPhase(EAstralFlightPhase Current, EAstralWildlifeMode Mode, float PhaseTime, float RestTime,
+	float HeightAboveGround, float CruiseHeight, bool bTouchedDown)
+{
+	const bool bReceptive = Mode == EAstralWildlifeMode::Idle;
+	const bool bNeedsAir = Mode == EAstralWildlifeMode::Chase || Mode == EAstralWildlifeMode::Flee || Mode == EAstralWildlifeMode::ReturnHome;
+	switch (Current)
+	{
+	case EAstralFlightPhase::Grounded:
+		if (bReceptive)
+		{
+			return Current;
+		}
+		return (bNeedsAir || PhaseTime >= RestTime) ? EAstralFlightPhase::TakingOff : Current;
+
+	case EAstralFlightPhase::TakingOff:
+		if (bReceptive)
+		{
+			return EAstralFlightPhase::Landing;
+		}
+		return (HeightAboveGround >= CruiseHeight * 0.6f || PhaseTime > 3.f) ? EAstralFlightPhase::Airborne : Current;
+
+	case EAstralFlightPhase::Airborne:
+		if (bReceptive || (Mode == EAstralWildlifeMode::Wander && PhaseTime >= RestTime))
+		{
+			return EAstralFlightPhase::Landing;
+		}
+		return Current;
+
+	case EAstralFlightPhase::Landing:
+	default:
+		if (bTouchedDown)
+		{
+			return EAstralFlightPhase::Grounded;
+		}
+		// Disturbed on the way down: back up.
+		return (Mode == EAstralWildlifeMode::Chase || Mode == EAstralWildlifeMode::Flee) ? EAstralFlightPhase::Airborne : Current;
+	}
+}
+
+FVector AAstralWildlifeController::OrbitTarget(const FVector& Here, const FVector& Home, float Radius, float Sign)
+{
+	const FVector Off(Here.X - Home.X, Here.Y - Home.Y, 0.f);
+	const float Angle = (Off.IsNearlyZero() ? 0.f : FMath::Atan2(Off.Y, Off.X)) + (Sign >= 0.f ? 0.6f : -0.6f);   // aim ~35 deg round the circle ahead
+	return FVector(Home.X + FMath::Cos(Angle) * Radius, Home.Y + FMath::Sin(Angle) * Radius, Here.Z);
+}
+
+bool AAstralWildlifeController::GroundBelow(const AAstralCharacter* Astral, float& OutGroundZ) const
+{
+	FHitResult Hit;
+	const FVector From = Astral->GetActorLocation();
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(AstralGroundBelow), false, Astral);
+	if (GetWorld()->LineTraceSingleByObjectType(Hit, From, From - FVector(0.f, 0.f, 5000.f), FCollisionObjectQueryParams(ECC_WorldStatic), Params))
+	{
+		OutGroundZ = Hit.ImpactPoint.Z;
+		return true;
+	}
+	return false;
+}
+
+void AAstralWildlifeController::EnterFlightPhase(EAstralFlightPhase NewPhase, AAstralCharacter* Astral)
+{
+	UE_LOG(LogAstral_Wilds, Display, TEXT("%s flight: %s -> %s"), *Astral->GetName(), *UEnum::GetValueAsString(FlightPhase), *UEnum::GetValueAsString(NewPhase));
+	const FAstralFlightTuning& F = Astral->SpeciesData->Flight;
+	UCharacterMovementComponent* Move = Astral->GetCharacterMovement();
+	FlightPhase = NewPhase;
+	FlightPhaseTime = 0.f;
+	bTouchedDown = false;
+
+	switch (NewPhase)
+	{
+	case EAstralFlightPhase::Grounded:
+		FlightRestTime = FMath::FRandRange(F.GroundTimeMin, F.GroundTimeMax);
+		Move->MaxWalkSpeed = FlyerWalkSpeed;
+		ModeTime = 0.f;   // a short look round before it walks anywhere
+		WanderPause = FMath::FRandRange(1.f, 2.5f);
+		break;
+
+	case EAstralFlightPhase::TakingOff:
+		// Raven take-off: a crouch-and-leap with a big first wingbeat, then a
+		// shallow climb away.
+		StopMovement();
+		Move->SetMovementMode(MOVE_Flying);
+		Move->MaxFlySpeed = F.CruiseSpeed;
+		Move->Velocity += FVector(0.f, 0.f, 300.f);
+		break;
+
+	case EAstralFlightPhase::Airborne:
+		FlightRestTime = FMath::FRandRange(F.AirTimeMin, F.AirTimeMax);
+		OrbitSign = FMath::RandBool() ? 1.f : -1.f;
+		break;
+
+	case EAstralFlightPhase::Landing:
+	{
+		// Somewhere walkable near home (it rests on its own patch).
+		FVector Spot;
+		UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
+		FNavLocation Nav;
+		if (PickPoint(HomeLocation, Tuning.RoamRadius, UGameplayStatics::GetPlayerPawn(this, 0), /*bFarthestFromPlayer*/ false, Spot))
+		{
+			LandingSpot = Spot;
+		}
+		else if (NavSys && NavSys->ProjectPointToNavigation(HomeLocation, Nav, FVector(500.f, 500.f, 2000.f)))
+		{
+			LandingSpot = Nav.Location;
+		}
+		else
+		{
+			LandingSpot = HomeLocation;
+		}
+		break;
+	}
+	}
+}
+
+void AAstralWildlifeController::SteerFlight(AAstralCharacter* Astral, const APawn* Player, float DeltaSeconds)
+{
+	const FAstralFlightTuning& F = Astral->SpeciesData->Flight;
+	UCharacterMovementComponent* Move = Astral->GetCharacterMovement();
+	const FVector Here = Astral->GetActorLocation();
+	const float Half = Astral->GetSimpleCollisionHalfHeight();
+	float GroundZ = 0.f;
+	const float GroundRef = GroundBelow(Astral, GroundZ) ? GroundZ : Here.Z - Half - F.CruiseHeight;
+
+	if (bTouchedDown)
+	{
+		return;   // dropping onto its feet; the next decision makes it Grounded
+	}
+	if (!Move->IsFlying())
+	{
+		Move->SetMovementMode(MOVE_Flying);   // e.g. knocked into falling by a collision
+	}
+
+	FVector Target = Here;
+	float DesiredZ = Here.Z;
+	float Speed = F.CruiseSpeed;
+	switch (FlightPhase)
+	{
+	case EAstralFlightPhase::TakingOff:
+	{
+		Move->MaxFlySpeed = F.CruiseSpeed * 0.8f;
+		const FVector Fwd = Astral->GetActorForwardVector().GetSafeNormal2D();
+		Astral->AddMovementInput((Fwd + FVector(0.f, 0.f, 0.9f)).GetSafeNormal());
+		return;
+	}
+
+	case EAstralFlightPhase::Landing:
+	{
+		// Eagle landing: a descending glide down a ~24 deg slope, slowing
+		// into the flare over the last few metres, then touchdown.
+		const float Dist = FVector::Dist2D(Here, LandingSpot);
+		Target = LandingSpot;
+		DesiredZ = LandingSpot.Z + Half + GlideSlopeHeight(Dist, F.CruiseHeight);
+		Speed = FMath::Lerp(140.f, F.CruiseSpeed, FMath::Clamp(Dist / 900.f, 0.f, 1.f));
+		const float FootClearance = Here.Z - Half - FMath::Max(GroundRef, LandingSpot.Z);
+		if ((Dist < 150.f && FootClearance < 70.f) || FlightPhaseTime > 25.f)
+		{
+			Move->SetMovementMode(MOVE_Falling);   // drops the last bit onto its feet, then walks
+			bTouchedDown = true;
+			return;
+		}
+		break;
+	}
+
+	case EAstralFlightPhase::Airborne:
+	default:
+		if (Mode == EAstralWildlifeMode::Chase && Player)
+		{
+			// Swoops low over the player; the arc turning carries it past and
+			// round for another pass.
+			Target = Player->GetActorLocation();
+			DesiredZ = Target.Z + 150.f + Half;
+			Speed = F.ChaseSpeed;
+		}
+		else if (Mode == EAstralWildlifeMode::Flee && Player)
+		{
+			Target = Here + (Here - Player->GetActorLocation()).GetSafeNormal2D() * 1500.f;
+			DesiredZ = GroundRef + Half + F.CruiseHeight * 1.3f;
+			Speed = F.FleeSpeed;
+		}
+		else
+		{
+			// Soaring circles round home, with a slow rise and fall.
+			Target = OrbitTarget(Here, HomeLocation, F.SoarRadius, OrbitSign);
+			DesiredZ = GroundRef + Half + F.CruiseHeight + 80.f * FMath::Sin(FlightPhaseTime * 0.5f);
+		}
+		break;
+	}
+
+	Move->MaxFlySpeed = Speed;
+	FVector Dir = FVector(Target.X - Here.X, Target.Y - Here.Y, 0.f).GetSafeNormal();
+	if (Dir.IsZero())
+	{
+		Dir = Astral->GetActorForwardVector().GetSafeNormal2D();
+	}
+	// Gentle height corrections (a hard clamp made it porpoise: climb, overshoot, dive).
+	float Vertical = FMath::Clamp((DesiredZ - Here.Z) / 500.f - Move->Velocity.Z / 800.f, -0.5f, 0.6f);
+
+	// Something solid ahead (a wall, the central block): pull up and head for home.
+	FHitResult Hit;
+	const FVector Ahead = Move->Velocity.GetSafeNormal2D().IsZero() ? Dir : Move->Velocity.GetSafeNormal2D();
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(AstralFlightAhead), false, Astral);
+	if (GetWorld()->LineTraceSingleByObjectType(Hit, Here, Here + Ahead * 450.f, FCollisionObjectQueryParams(ECC_WorldStatic), Params))
+	{
+		Vertical = 1.f;
+		Dir = (Dir + (HomeLocation - Here).GetSafeNormal2D()).GetSafeNormal();
+	}
+	Astral->AddMovementInput((Dir + FVector(0.f, 0.f, Vertical)).GetSafeNormal());
 }
 
 void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCharacter* Astral, float DistToPlayer)
@@ -215,6 +457,11 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 	case EAstralWildlifeMode::ReturnHome:	Speed = Tuning.ChaseSpeed; break;
 	default: break;
 	}
+	// A raptor on the ground ambles a few steps between flights.
+	if (NewMode == EAstralWildlifeMode::Wander && Astral->SpeciesData && Astral->SpeciesData->bCanFly)
+	{
+		Speed = FlyerWalkSpeed;
+	}
 	if (UCharacterMovementComponent* Movement = Astral->GetCharacterMovement())
 	{
 		Movement->MaxWalkSpeed = Speed;
@@ -223,7 +470,7 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 	// A flee that ends doesn't brake to a dead stop: the Astral eases down to
 	// a walk and carries on a few metres the way it was going, then pauses
 	// as usual (it used to go 450 -> 0 cm/s in about a second).
-	if (bWasFleeing && NewMode == EAstralWildlifeMode::Wander)
+	if (bWasFleeing && NewMode == EAstralWildlifeMode::Wander && !Astral->GetCharacterMovement()->IsFlying())
 	{
 		const FVector Dir = Astral->GetVelocity().GetSafeNormal2D();
 		UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());

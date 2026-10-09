@@ -29,6 +29,12 @@ for n in os.environ.get("ASTRAL_RIGS", "Glacielle,Mossling").split(","):
     for clip in ("Idle", "Walk", "Run"):
         anims[clip] = eal.load_asset(R + "%s_Rigged%sRig_%s" % (n, n, clip))
         cdo.set_editor_property(clip.lower() + "_anim", anims[clip])
+    # Flying species (Stormrook) also have Fly / Glide / Flare clips.
+    for clip in ("Fly", "Glide", "Flare"):
+        a = eal.load_asset(R + "%s_Rigged%sRig_%s" % (n, n, clip)) if eal.does_asset_exist(R + "%s_Rigged%sRig_%s" % (n, n, clip)) else None
+        if a:
+            anims[clip] = a
+            cdo.set_editor_property(clip.lower() + "_anim", a)
     cdo.set_editor_property("display_yaw_offset", -90.0)
     speeds = dict(l.split() for l in open(os.path.join(speeds_dir, n, "speeds.txt")).read().splitlines())
     k = cdo.get_editor_property("display_height") / 190.0

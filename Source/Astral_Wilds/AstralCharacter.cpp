@@ -12,8 +12,11 @@
 #include "UObject/ConstructorHelpers.h"
 #include "AstralWildlifeController.h"
 #include "AstralLocomotionAnimInstance.h"
+#include "AstralMovementComponent.h"
 
-AAstralCharacter::AAstralCharacter()
+AAstralCharacter::AAstralCharacter(const FObjectInitializer& ObjectInitializer)
+	// Turns carve arcs at speed (see AstralMovementComponent.h).
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UAstralMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
 	// Wild Astrals roam under AI control by default (see AstralWildlifeController.h);
 	// a future bonded/party representation can override this once that system exists.
@@ -169,6 +172,9 @@ void AAstralCharacter::ApplySpeciesVisuals()
 				LoadedIdle = SpeciesData->IdleAnim.LoadSynchronous();
 				LoadedWalk = SpeciesData->WalkAnim.LoadSynchronous();
 				LoadedRun = SpeciesData->RunAnim.LoadSynchronous();
+				LoadedFly = SpeciesData->FlyAnim.LoadSynchronous();
+				LoadedGlide = SpeciesData->GlideAnim.LoadSynchronous();
+				LoadedFlare = SpeciesData->FlareAnim.LoadSynchronous();
 				bHasRiggedDisplay = LoadedIdle || LoadedWalk || LoadedRun;
 				if (bHasRiggedDisplay)
 				{
@@ -249,8 +255,19 @@ void AAstralCharacter::Tick(float DeltaSeconds)
 		BindLocomotionClips();
 		if (bProceduralMotion)
 		{
-			UpdateTurnLean(DeltaSeconds, SmoothedSpeedAlpha);
-			GetMesh()->SetRelativeRotation(FQuat(FRotator(0.f, 0.f, SmoothedLean)) * FQuat(DisplayRestRotation));
+			// Flying: the clips beat the wings; the body banks into turns,
+			// pitches with its climb/dive and flares nose-up when slow.
+			const bool bFlying = GetCharacterMovement()->IsFlying();
+			UpdateTurnLean(DeltaSeconds, bFlying ? 1.f : SmoothedSpeedAlpha);
+			float Target = 0.f;
+			if (bFlying)
+			{
+				const FVector V = GetVelocity();
+				const float Climb = FMath::RadiansToDegrees(FMath::Atan2(V.Z, FMath::Max(V.Size2D(), 50.f)));
+				Target = FMath::Clamp(Climb * 0.7f, -25.f, 25.f) + 8.f * FMath::Clamp(1.f - V.Size2D() / 250.f, 0.f, 1.f);   // the Flare clip carries the nose-up
+			}
+			FlightPitch = FMath::FInterpTo(FlightPitch, Target, DeltaSeconds, 3.f);
+			GetMesh()->SetRelativeRotation(FQuat(FRotator(FlightPitch, 0.f, SmoothedLean)) * FQuat(DisplayRestRotation));
 		}
 		return;
 	}
@@ -259,6 +276,13 @@ void AAstralCharacter::Tick(float DeltaSeconds)
 	{
 		return;
 	}
+
+	if (GetCharacterMovement()->IsFlying())
+	{
+		UpdateFlightPose(DeltaSeconds);
+		return;
+	}
+	FlightPitch = FMath::FInterpTo(FlightPitch, 0.f, DeltaSeconds, 4.f);
 
 	const float MaxSpeed = FMath::Max(GetCharacterMovement()->MaxWalkSpeed, 1.f);
 
@@ -277,8 +301,60 @@ void AAstralCharacter::Tick(float DeltaSeconds)
 	// Offsets are in actor space; DisplayRestRotation already carries the model's yaw fix.
 	PlaceholderMesh->SetRelativeLocation(DisplayRestLocation + FVector(0.f, 0.f, Bob));
 	// Compose in actor space (left-multiply): the model's own axes are yawed by DisplayRestRotation.
-	PlaceholderMesh->SetRelativeRotation(FQuat(FRotator(GaitPitch + RunPitch, 0.f, SmoothedLean)) * FQuat(DisplayRestRotation));
+	PlaceholderMesh->SetRelativeRotation(FQuat(FRotator(GaitPitch + RunPitch + FlightPitch, 0.f, SmoothedLean)) * FQuat(DisplayRestRotation));
 	PlaceholderMesh->SetRelativeScale3D(FVector(DisplayRestScale * (1.f - Breath * 0.5f), DisplayRestScale * (1.f - Breath * 0.5f), DisplayRestScale * (1.f + Breath)));
+}
+
+void AAstralCharacter::UpdateFlightPose(float DeltaSeconds)
+{
+	// Bird references (art repo Docs/Design/TurnReference.md): a soaring bird
+	// banks hard into its circles and holds the bank; it pitches with its
+	// climb or dive; it flaps hard taking off, climbing and flaring to land
+	// (body pitched up, slowing), and glides with only a gentle rise and fall
+	// in between. The static model has no wings to beat (it needs a wing rig
+	// for that), so the flapping shows as the body's quick heave.
+	const FVector V = GetVelocity();
+	const float Horizontal = V.Size2D();
+	UpdateTurnLean(DeltaSeconds, 1.f);
+
+	// Pitch: follow the climb/dive angle, plus a flare (nose up) when slow.
+	const float Climb = FMath::RadiansToDegrees(FMath::Atan2(V.Z, FMath::Max(Horizontal, 50.f)));
+	const float Flare = 25.f * FMath::Clamp(1.f - Horizontal / 250.f, 0.f, 1.f);
+	FlightPitch = FMath::FInterpTo(FlightPitch, FMath::Clamp(Climb * 0.7f, -25.f, 25.f) + Flare, DeltaSeconds, 3.f);
+
+	// Flapping (climbing, slow, or accelerating) vs gliding.
+	const bool bFlapping = V.Z > 60.f || Horizontal < 300.f;
+	FlapAlpha = FMath::FInterpTo(FlapAlpha, bFlapping ? 1.f : 0.f, DeltaSeconds, 3.f);
+	FlapPhase = FMath::Fmod(FlapPhase + DeltaSeconds * 2.f * PI * FMath::Lerp(0.5f, 3.5f, FlapAlpha), 2.f * PI);
+	const float Heave = FMath::Sin(FlapPhase) * FMath::Lerp(4.f, 9.f, FlapAlpha);
+	const float FlapPitch = FMath::Cos(FlapPhase) * 4.f * FlapAlpha;   // the body rocks with each beat
+
+	PlaceholderMesh->SetRelativeLocation(DisplayRestLocation + FVector(0.f, 0.f, Heave));
+	PlaceholderMesh->SetRelativeRotation(FQuat(FRotator(FlightPitch + FlapPitch, 0.f, SmoothedLean)) * FQuat(DisplayRestRotation));
+	PlaceholderMesh->SetRelativeScale3D(FVector(DisplayRestScale));
+}
+
+void AAstralCharacter::ApplySpeciesMovement()
+{
+	if (!SpeciesData)
+	{
+		return;
+	}
+	MaxTurnLean = SpeciesData->MaxTurnLean;
+	UAstralMovementComponent* Move = Cast<UAstralMovementComponent>(GetCharacterMovement());
+	if (!Move)
+	{
+		return;
+	}
+	Move->MaxTurnAcceleration = SpeciesData->TurnAcceleration;
+	if (SpeciesData->bCanFly)
+	{
+		const FAstralFlightTuning& F = SpeciesData->Flight;
+		Move->MaxFlightTurnAcceleration = F.TurnAcceleration;
+		Move->MaxFlySpeed = F.CruiseSpeed;
+		Move->BrakingDecelerationFlying = 400.f;
+		Move->GetNavAgentPropertiesRef().bCanFly = true;
+	}
 }
 
 void AAstralCharacter::BindLocomotionClips()
@@ -289,6 +365,8 @@ void AAstralCharacter::BindLocomotionClips()
 		return;   // not created yet (e.g. in the constructor), or already bound
 	}
 	Instance->SetClips(LoadedIdle, LoadedWalk, LoadedRun, SpeciesData->WalkAnimSpeed, SpeciesData->RunAnimSpeed, SpeciesData->IdleSpeedThreshold);
+	Instance->HeadLeadMax = SpeciesData->HeadLeadMax;
+	Instance->SetFlightClips(LoadedFly, LoadedGlide, LoadedFlare);
 	BoundLocomotionInstance = Instance;
 }
 
@@ -297,7 +375,17 @@ void AAstralCharacter::UpdateTurnLean(float DeltaSeconds, float SpeedAlpha)
 	const float Yaw = GetActorRotation().Yaw;
 	const float YawRate = FMath::FindDeltaAngleDegrees(LastYaw, Yaw) / DeltaSeconds;
 	LastYaw = Yaw;
-	SmoothedLean = FMath::FInterpTo(SmoothedLean, FMath::Clamp(-YawRate * 0.04f, -MaxTurnLean, MaxTurnLean) * SpeedAlpha, DeltaSeconds, 5.f);
+	// Bank like a runner rounding a base: the lean balances the sideways
+	// (centripetal) acceleration, speed x turn rate, so a fast arc banks hard
+	// and a slow pivot hardly at all. Half the physical bank angle reads as
+	// poised rather than a motorbike; SpeedAlpha keeps walks nearly upright.
+	const float Lateral = GetVelocity().Size2D() * FMath::DegreesToRadians(YawRate);
+	// A flyer banks at the full physical angle, up to its species' MaxBank.
+	const bool bFlying = GetCharacterMovement()->IsFlying();
+	const float BankShare = bFlying ? 1.f : 0.5f;
+	const float MaxLean = bFlying && SpeciesData ? SpeciesData->Flight.MaxBank : MaxTurnLean;
+	const float Bank = -BankShare * FMath::RadiansToDegrees(FMath::Atan2(Lateral, 980.f));
+	SmoothedLean = FMath::FInterpTo(SmoothedLean, FMath::Clamp(Bank, -MaxLean, MaxLean) * SpeedAlpha, DeltaSeconds, bFlying ? 2.5f : 5.f);
 }
 
 void AAstralCharacter::BeginPlay()
@@ -305,6 +393,7 @@ void AAstralCharacter::BeginPlay()
 	Super::BeginPlay();
 	RecomputeStatsForLevel();
 	ApplySpeciesVisuals();
+	ApplySpeciesMovement();
 }
 
 #if WITH_EDITOR

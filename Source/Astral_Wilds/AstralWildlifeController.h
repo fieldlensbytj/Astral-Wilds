@@ -30,6 +30,20 @@ enum class EAstralWildlifeMode : uint8
 	ReturnHome
 };
 
+/**
+ * Flying species only (UAstralSpeciesData::bCanFly): where it is in its
+ * soar / land / rest / take-off cycle. Layered under EAstralWildlifeMode,
+ * which still says what it wants (wander, chase, flee, go home).
+ */
+UENUM(BlueprintType)
+enum class EAstralFlightPhase : uint8
+{
+	Grounded,
+	TakingOff,
+	Airborne,
+	Landing
+};
+
 /** Distances (cm) and speeds (cm/s) for the native wildlife behavior. Defaults match the StateTree task defaults where one exists. */
 USTRUCT(BlueprintType)
 struct FAstralWildlifeTuning
@@ -121,6 +135,26 @@ public:
 		float DistToPlayer, float DistFromHome, float PlayerDistFromHome, const FAstralWildlifeTuning& Tuning,
 		bool bFleeStalled = false, bool bRecentlyCornered = false);
 
+	UFUNCTION(BlueprintPure, Category = "Astral|Wildlife")
+	EAstralFlightPhase GetFlightPhase() const { return FlightPhase; }
+
+	/**
+	 * Pure decision rule for a flyer's phase. Anything that needs it in the
+	 * air (a chase, a flee, heading home) gets it airborne; a wandering flyer
+	 * soars for its air time then lands to rest for its ground time; a
+	 * Receptive one (Mode Idle) lands and stays down so it can be bonded.
+	 * RestTime is the current phase's air or ground time; bTouchedDown means
+	 * a landing has reached the ground.
+	 */
+	static EAstralFlightPhase ChooseFlightPhase(EAstralFlightPhase Current, EAstralWildlifeMode Mode, float PhaseTime, float RestTime,
+		float HeightAboveGround, float CruiseHeight, bool bTouchedDown);
+
+	/** Height a landing flyer should be at, Distance (cm, horizontal) from its landing spot: a ~24 deg glide slope, capped at CruiseHeight. */
+	static float GlideSlopeHeight(float Distance, float CruiseHeight) { return FMath::Clamp(Distance * 0.45f, 0.f, CruiseHeight); }
+
+	/** A point on the soaring circle round Home, ahead of Here in the direction of travel (OrbitSign +1 anticlockwise, -1 clockwise). */
+	static FVector OrbitTarget(const FVector& Here, const FVector& Home, float Radius, float OrbitSign);
+
 	virtual void Tick(float DeltaSeconds) override;
 
 protected:
@@ -147,4 +181,17 @@ private:
 	float FleeLastProgressTime = 0.f;
 	/** Set when a flee stalls; the Astral then only re-spooks inside half the alert range, until the player is past CalmRange. */
 	bool bRecentlyCornered = false;
+
+	/** Flight (bCanFly species only). */
+	void EnterFlightPhase(EAstralFlightPhase NewPhase, AAstralCharacter* Astral);
+	/** Per-frame flight steering: climb out, soar/chase/flee at height, glide down and flare to land. */
+	void SteerFlight(AAstralCharacter* Astral, const APawn* Player, float DeltaSeconds);
+	/** Ground height under the Astral (trace down), and false if there is no ground within reach. */
+	bool GroundBelow(const AAstralCharacter* Astral, float& OutGroundZ) const;
+	EAstralFlightPhase FlightPhase = EAstralFlightPhase::Grounded;
+	float FlightPhaseTime = 0.f;
+	float FlightRestTime = -1.f;   // < 0: not started yet (set on the first tick, once SpeciesData is known)
+	float OrbitSign = 1.f;
+	FVector LandingSpot = FVector::ZeroVector;
+	bool bTouchedDown = false;
 };

@@ -23,6 +23,10 @@
 #include "AstralSpeciesData.h"
 #include "AstralResonanceWeaveComponent.h"
 #include "AstralLocomotionAnimInstance.h"
+#include "AstralWildlifeController.h"
+#include "AstralMovementComponent.h"
+#include "Navigation/PathFollowingComponent.h"
+#include "NavigationSystem.h"
 #include "Camera/CameraActor.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Containers/Ticker.h"
@@ -427,7 +431,7 @@ namespace AstralAutoPlaytest
 			}));
 		}));
 
-	// Astral.MotionCapture [Species] [Seconds] [Archetype]: for judging locomotion by eye.
+	// Astral.MotionCapture [Species] [Seconds] [Archetype|Alone|Circuit]: for judging locomotion by eye.
 	// Spawns one wild Astral of the species (default Mossling) next to the
 	// Mage with its AI running, hides everything else, follows it with a
 	// side camera that keeps a fixed world direction (so turns show), and
@@ -468,7 +472,18 @@ namespace AstralAutoPlaytest
 			// species' on a transient copy, or "Alone" parks the (hidden) Mage
 			// 50m away, frozen, so the Astral does what it does with nobody
 			// around (e.g. a Territorial patrol rather than a chase).
-			const bool bAlone = Args.Num() > 2 && Args[2] == TEXT("Alone");
+			// "Circuit" turns the AI off and runs the Astral at flee speed round
+			// a course with 90 and 135 deg corners, for judging turns at speed.
+			// "CircuitPivot" is the same course with the arc turning off (the old pivot turns), for comparison.
+			// "Ramps" walks it down the central block's ramp to the ground and back up
+			// (foot IK on slopes), at a walk.
+			const bool bRamps = Args.Num() > 2 && Args[2] == TEXT("Ramps");
+			const bool bPivot = Args.Num() > 2 && Args[2] == TEXT("CircuitPivot");
+			const bool bCircuit = (Args.Num() > 2 && Args[2] == TEXT("Circuit")) || bPivot || bRamps;
+			const bool bAlone = (Args.Num() > 2 && Args[2] == TEXT("Alone")) || bCircuit;
+			// Optional fourth arg "Face": a close camera in front of the head
+			// (eyes, blinks, gaze) instead of the side view.
+			const bool bFace = Args.Num() > 3 && Args[3] == TEXT("Face");
 			if (Args.Num() > 2 && !bAlone)
 			{
 				const int64 Arch = StaticEnum<EAstralAIArchetype>()->GetValueByNameString(Args[2]);
@@ -493,10 +508,27 @@ namespace AstralAutoPlaytest
 				}
 				Mage->SetActorLocation(Mage->GetActorLocation() + FVector(5000.f, 0.f, 0.f));
 			}
+			if (bCircuit)
+			{
+				if (AAstralWildlifeController* AI = Cast<AAstralWildlifeController>(A->GetController()))
+				{
+					AI->bUseNativeBehavior = false;
+					AI->StopMovement();
+				}
+				A->GetCharacterMovement()->MaxWalkSpeed = bRamps ? 140.f : 450.f;
+				if (bPivot)
+				{
+					if (UAstralMovementComponent* Move = Cast<UAstralMovementComponent>(A->GetCharacterMovement()))
+					{
+						Move->MaxSteerAngle = 180.f;
+						Move->MaxTurnAcceleration = 1.e7f;
+					}
+				}
+			}
 			ACameraActor* Cam = World->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), FTransform::Identity);
 			PC->SetViewTarget(Cam);
 
-			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakWorld = TWeakObjectPtr<UWorld>(World), Weak = TWeakObjectPtr<AAstralCharacter>(A), WeakCam = TWeakObjectPtr<ACameraActor>(Cam), Seconds, T = 0.f, Frame = 0, Shots = 0, LastYaw = 0.f, CamYaw = 90.f](float Dt) mutable
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakWorld = TWeakObjectPtr<UWorld>(World), Weak = TWeakObjectPtr<AAstralCharacter>(A), WeakCam = TWeakObjectPtr<ACameraActor>(Cam), Seconds, T = 0.f, Frame = 0, Shots = 0, LastYaw = 0.f, CamYaw = 90.f, bCircuit, bRamps, bFace, Origin = Xf.GetLocation(), Waypoint = -1](float Dt) mutable
 			{
 				UWorld* W = WeakWorld.Get();
 				AAstralCharacter* Astral = Weak.Get();
@@ -512,15 +544,54 @@ namespace AstralAutoPlaytest
 				CamYaw += FMath::FindDeltaAngleDegrees(CamYaw, Astral->GetActorRotation().Yaw) * FMath::Min(1.f, Dt * 0.8f);
 				const FRotator Look(-8.f, CamYaw - 90.f, 0.f);
 				C->SetActorLocationAndRotation(At - Look.Vector() * 340.f, Look);
+				if (bFace && Astral->GetMesh()->GetBoneIndex(TEXT("head")) != INDEX_NONE)
+				{
+					const FVector HeadAt = Astral->GetMesh()->GetBoneLocation(TEXT("head"));
+					const FRotator FaceLook(-5.f, CamYaw + 180.f, 0.f);
+					C->SetActorLocationAndRotation(HeadAt - FaceLook.Vector() * 150.f, FaceLook);
+				}
+				if (bCircuit)
+				{
+					// A loop on the flat ground ring round Lvl_ThirdPerson's central block
+					// (11.5m out from the spawn on it): four 90 deg corners, then a
+					// hairpin back along the last side. Head for the next point 2.5m
+					// early, so the path's braking zone never kicks in.
+					static const FVector Course[] = { { 1150.f, -1150.f, 0.f }, { 1150.f, 1150.f, 0.f }, { -1150.f, 1150.f, 0.f }, { -1150.f, -1150.f, 0.f }, { 0.f, -1150.f, 0.f }, { -1150.f, -1150.f, 0.f } };
+					static const FVector RampCourse[] = { { 0.f, -1650.f, 0.f }, { 0.f, -300.f, 0.f } };
+					// Snapped onto the navmesh.
+					auto Corner = [&](int32 I)
+					{
+						const FVector C = bRamps ? RampCourse[I % UE_ARRAY_COUNT(RampCourse)] : Course[I % UE_ARRAY_COUNT(Course)];
+						FVector P = Origin + C;
+						FNavLocation Nav;
+						UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(W);
+						if (NavSys && NavSys->ProjectPointToNavigation(P, Nav, FVector(300.f, 300.f, 500.f)))
+						{
+							P = Nav.Location;
+						}
+						return P;
+					};
+					const FVector Goal = Corner(FMath::Max(Waypoint, 0));
+					AAIController* AI = Cast<AAIController>(Astral->GetController());
+					const bool bArrived = Waypoint < 0 || FVector::Dist2D(At, Goal) < 250.f;
+					if (AI && (bArrived || AI->GetMoveStatus() == EPathFollowingStatus::Idle))
+					{
+						Waypoint += bArrived ? 1 : 0;
+						const EPathFollowingRequestResult::Type R = AI->MoveToLocation(Corner(Waypoint), 50.f);
+						UE_LOG(LogAstralAutoPlaytest, Display, TEXT("[MotionCapture] circuit waypoint %d at %s (origin %s): move %s"), Waypoint, *Corner(Waypoint).ToString(), *Origin.ToString(), R == EPathFollowingRequestResult::Failed ? TEXT("FAILED") : TEXT("ok"));
+					}
+				}
 				if (T < 1.5f)
 				{
 					return true;   // settle: mesh streams in, AI picks a goal
 				}
 				const float Yaw = Astral->GetActorRotation().Yaw;
 				const UAstralLocomotionAnimInstance* Anim = Cast<UAstralLocomotionAnimInstance>(Astral->GetMesh()->GetAnimInstance());
-				UE_LOG(LogAstralAutoPlaytest, Display, TEXT("[MotionCapture] f=%d t=%.3f speed=%.1f yaw=%.1f yawrate=%.1f move=%.2f run=%.2f"),
-					Frame, T, Astral->GetVelocity().Size2D(), Yaw, Dt > 0.f ? FMath::FindDeltaAngleDegrees(LastYaw, Yaw) / Dt : 0.f,
-					Anim ? Anim->GetMoveAlpha() : -1.f, Anim ? Anim->GetRunAlpha() : -1.f);
+				UE_LOG(LogAstralAutoPlaytest, Display, TEXT("[MotionCapture] f=%d t=%.3f speed=%.1f yaw=%.1f yawrate=%.1f vyaw=%.1f move=%.2f run=%.2f fly=%.2f flap=%.2f brake=%.2f wingz=%.1f vz=%.0f drop=%.1f foot=%.1f tail=%.1f look=%.0f/%.0f blink=%.2f"),
+					Frame, T, Astral->GetVelocity().Size2D(), Yaw, Dt > 0.f ? FMath::FindDeltaAngleDegrees(LastYaw, Yaw) / Dt : 0.f, Astral->GetVelocity().Rotation().Yaw,
+					Anim ? Anim->GetMoveAlpha() : -1.f, Anim ? Anim->GetRunAlpha() : -1.f, Anim ? Anim->GetFlightAlpha() : -1.f, Anim ? Anim->GetFlapAlpha() : -1.f, Anim ? Anim->GetBrakeAlpha() : -1.f,
+					Astral->GetMesh()->GetBoneIndex(TEXT("wing_l_hand")) != INDEX_NONE ? (Astral->GetMesh()->GetBoneLocation(TEXT("wing_l_hand"), EBoneSpaces::ComponentSpace).Z) : -999.f, Astral->GetVelocity().Z,
+					Anim ? Anim->GetPelvisDrop() : 0.f, Anim ? Anim->GetMaxFootOffset() : 0.f, Anim ? Anim->GetTailYaw() : 0.f, Anim ? Anim->GetLookYaw() : 0.f, Anim ? Anim->GetLookPitch() : 0.f, Anim ? Anim->GetBlink() : 0.f);
 				LastYaw = Yaw;
 				if (Frame++ % 2 == 0)
 				{

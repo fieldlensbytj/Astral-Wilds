@@ -20,7 +20,8 @@ public class Astral_Wilds : ModuleRules
 			"GameplayTags",
 			"NavigationSystem",
 			"UMG",
-			"Slate"
+			"Slate",
+			"AnimationCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

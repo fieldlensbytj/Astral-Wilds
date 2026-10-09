@@ -34,6 +34,58 @@ enum class EAstralAIArchetype : uint8
 };
 
 /**
+ * How a flying species (Stormrook) flies: soars in circles round its home,
+ * lands to rest a while, and takes off when disturbed, to chase, or when
+ * rested. See AAstralWildlifeController's flight phases and the art repo's
+ * Docs/Design/TurnReference.md for the bird references.
+ */
+USTRUCT(BlueprintType)
+struct FAstralFlightTuning
+{
+	GENERATED_BODY()
+
+	/** Height above the ground it soars at. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "cm"))
+	float CruiseHeight = 650.f;
+
+	/** Radius of its soaring circle round home. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "cm"))
+	float SoarRadius = 900.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "cm/s"))
+	float CruiseSpeed = 520.f;
+
+	/** Kept below the Mage's 500 walk speed so the player can always get away. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "cm/s"))
+	float ChaseSpeed = 450.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "cm/s"))
+	float FleeSpeed = 650.f;
+
+	/** Sideways acceleration a flying turn may use (cm/s^2): speed^2 / this is its tightest circle. Birds bank into wide arcs. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "cm/s^2"))
+	float TurnAcceleration = 700.f;
+
+	/** Most roll into a flying turn, in degrees (birds bank far harder than runners lean). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight")
+	float MaxBank = 40.f;
+
+	/** How long it soars before coming down to rest, in seconds (random in range). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "s"))
+	float AirTimeMin = 18.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "s"))
+	float AirTimeMax = 30.f;
+
+	/** How long it rests on the ground before taking off again, in seconds (random in range). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "s"))
+	float GroundTimeMin = 8.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "s"))
+	float GroundTimeMax = 14.f;
+};
+
+/**
  * A species definition (not a runtime instance - see AAstralCharacter for
  * that). Create one Blueprint child of this class per species; no C++
  * required. PLACEHOLDER: all default values below are unbalanced placeholders
@@ -100,6 +152,30 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|AI")
 	EAstralAIArchetype AIArchetype = EAstralAIArchetype::Docile;
 
+	/**
+	 * Per-species turning feel (art repo Docs/Design/TurnReference.md): the
+	 * sideways acceleration a running turn may use, cm/s^2 - speed^2 / this
+	 * is its tightest arc. A heavy boar (Ironbur) swings wide, a fox
+	 * (Cindrel) cuts sharp. See UAstralMovementComponent::MaxTurnAcceleration.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Movement", meta = (Units = "cm/s^2", ClampMin = "100"))
+	float TurnAcceleration = 800.f;
+
+	/** Most it banks into a running turn, in degrees. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Movement", meta = (ClampMin = "0", ClampMax = "45"))
+	float MaxTurnLean = 14.f;
+
+	/** How far (deg) a rigged Astral's head and neck turn toward where it is steering, ahead of the body. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Movement", meta = (ClampMin = "0", ClampMax = "60"))
+	float HeadLeadMax = 35.f;
+
+	/** Flies (soars, lands to rest, takes off when disturbed) - see Flight. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Movement")
+	bool bCanFly = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Movement", meta = (EditCondition = "bCanFly"))
+	FAstralFlightTuning Flight;
+
 	/** Optional curve mapping Level (X) -> XP required for that level (Y). Null-safe - see ComputeXPRequiredForLevel. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Growth")
 	TSoftObjectPtr<UCurveFloat> LevelToXPCurve;
@@ -157,6 +233,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation")
 	TSoftObjectPtr<UAnimSequence> RunAnim;
 
+	/** Flying species: wings beating (taking off, climbing, slow), played while airborne. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation")
+	TSoftObjectPtr<UAnimSequence> FlyAnim;
+
+	/** Flying species: wings held spread (cruising, soaring, diving). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation")
+	TSoftObjectPtr<UAnimSequence> GlideAnim;
+
+	/** Flying species: braking (wings swept forward against the air, nose up, feet forward) while slowing in the air, e.g. coming in to land. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation")
+	TSoftObjectPtr<UAnimSequence> FlareAnim;
+
 	/** Ground speed (cm/s) at which WalkAnim's feet don't slide at 1x. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals|Animation", meta = (Units = "cm/s"))
 	float WalkAnimSpeed = 150.f;
@@ -178,5 +266,8 @@ public:
 		IdleAnim.Reset();
 		WalkAnim.Reset();
 		RunAnim.Reset();
+		FlyAnim.Reset();
+		GlideAnim.Reset();
+		FlareAnim.Reset();
 	}
 };

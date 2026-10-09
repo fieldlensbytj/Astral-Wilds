@@ -31,7 +31,7 @@ class AAstralCharacter : public ACharacter
 
 public:
 
-	AAstralCharacter();
+	AAstralCharacter(const FObjectInitializer& ObjectInitializer);
 
 	/** The species this instance belongs to. Assign a UAstralSpeciesData Blueprint child. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral")
@@ -120,9 +120,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals", meta = (Units = "cm"))
 	float GaitStride = 90.f;
 
-	/** Maximum roll when turning, in degrees. */
+	/** Maximum roll when banking into a turn, in degrees (raised from 10 on 2026-10-08 for the arc turns, see AstralMovementComponent.h). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals")
-	float MaxTurnLean = 10.f;
+	float MaxTurnLean = 14.f;
 
 protected:
 
@@ -169,6 +169,12 @@ protected:
 	TObjectPtr<UAnimSequence> LoadedWalk;
 	UPROPERTY(Transient)
 	TObjectPtr<UAnimSequence> LoadedRun;
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> LoadedFly;
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> LoadedGlide;
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> LoadedFlare;
 
 	/** The anim instance the clips were last handed to; rebinds if the mesh re-creates it. */
 	TWeakObjectPtr<UAnimInstance> BoundLocomotionInstance;
@@ -176,4 +182,13 @@ protected:
 
 	/** Eased roll into turns from the actor's yaw rate (shared by static and rigged displays). */
 	void UpdateTurnLean(float DeltaSeconds, float SpeedAlpha);
+
+	/** Static display while flying: bank, climb/dive pitch, landing flare, flapping heave vs glide. */
+	void UpdateFlightPose(float DeltaSeconds);
+	float FlightPitch = 0.f;
+	float FlapPhase = 0.f;
+	float FlapAlpha = 0.f;
+
+	/** Copies SpeciesData's turning feel (and flight setup for flyers) onto the movement component; on BeginPlay. */
+	void ApplySpeciesMovement();
 };
