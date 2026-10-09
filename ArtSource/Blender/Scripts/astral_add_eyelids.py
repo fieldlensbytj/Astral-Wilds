@@ -33,11 +33,11 @@ RIGS = r"C:/Users/camer/Astral Wilds/ArtSource/Blender/Rigs"
 # from face renders after the 2026-10-09 head straightening. Stormrook's eyes
 # sit on the sides of its head and are left without lids for now.
 EYES = {
-    "Cindrel":   [((-0.085, 1.091), 0.050), ((0.161, 1.072), 0.045)],
+    "Cindrel":   [((-0.193, 1.089), 0.050), ((0.075, 1.087), 0.045)],   # moved with the head-turn fix (48 deg, was 70)
     # Her left eye is big, round and mostly light blue, so the dark-texel
     # measure only found its upper-right outline: size set by hand (front
     # render, 2026-10-09).
-    "Ripplefin": [((-0.138, 1.039), 0.042, {"size": (0.059, 0.048)}), ((0.116, 1.060), 0.042)],
+    "Ripplefin": [((-0.169, 1.049), 0.042, {"size": (0.059, 0.048)}), ((0.093, 1.050), 0.042)],   # moved with the head-turn fix (50 deg, was 60)
     "Mossling":  [((-0.280, 1.161), 0.030), ((-0.093, 1.169), 0.034)],
     "Glacielle": [((-0.156, 1.231), 0.027), ((-0.044, 1.233), 0.027)],
     "Ironbur":   [((-0.186, 0.881), 0.045), ((0.058, 0.851), 0.050)],

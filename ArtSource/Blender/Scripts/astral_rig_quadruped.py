@@ -40,7 +40,8 @@ CONFIG = {
         pads={},   # no raised paw: all four stand
         # The model's head is turned ~45 deg to its right; turn it to face
         # forward (deg about world Z; + turns the face toward +X), pitch + = nose down.
-        head_turn=(70.0, 0.0, -12.0),   # yaw, pitch, roll (roll + = tips its right ear down); its head is also tilted
+        # 70 / -12 left it still ~22 deg round (face-symmetry measure, 2026-10-09: TJ "make sure their heads always face straight like mossling or glacielle").
+        head_turn=(48.0, 0.0, -16.0),   # yaw, pitch, roll (roll + = tips its right ear down); its head is also tilted
         head_pin=lambda v: v[2] > 0.98 and v[1] < -0.30,
         stance=dict(front_y=-0.70, hind_y=0.06, front_half=0.19, hind_half=0.24),
     ),
@@ -57,7 +58,7 @@ CONFIG = {
             "br": [(-0.17, 0.24, 0.66), (-0.22, 0.22, 0.46), (-0.25, 0.37, 0.24), (-0.25, 0.26, 0.02)],
         },
         pads={},
-        head_turn=(60.0, 12.0, 0.0),   # head turned ~60 deg to its right and tipped up
+        head_turn=(50.0, 12.0, 5.0),   # head turned ~50 deg to its right, tipped up and tilted (60 / 0 roll left it ~10 deg round, face-symmetry measure)
         head_pin=lambda v: v[2] > 0.88 and v[1] < -0.42,
         stance=dict(front_y=-0.52, hind_y=0.25, front_half=0.18, hind_half=0.23),
     ),
@@ -109,58 +110,129 @@ deform = [b for b in arm_data.bones if b.use_deform]
 names = [b.name for b in deform]
 H = np.array([tuple(b.head_local) for b in deform]); T = np.array([tuple(b.tail_local) for b in deform])
 V = np.array([tuple(v.co) for v in mesh.data.vertices])
-pr = np.arange(len(V))
-def find(a):
-    while pr[a] != a:
-        pr[a] = pr[pr[a]]; a = pr[a]
-    return a
-for e in mesh.data.edges:
-    a, b = find(e.vertices[0]), find(e.vertices[1])
-    if a != b:
-        pr[a] = b
-_, inv = np.unique([find(i) for i in range(len(V))], return_inverse=True)
-P = np.zeros((inv.max() + 1, 3)); np.add.at(P, inv, V); P /= np.bincount(inv)[:, None]
+def islands():
+    """inv: the piece (mesh island) index of each vertex."""
+    pr = np.arange(len(mesh.data.vertices))
+    def find(a):
+        while pr[a] != a:
+            pr[a] = pr[pr[a]]; a = pr[a]
+        return a
+    for e in mesh.data.edges:
+        a, b = find(e.vertices[0]), find(e.vertices[1])
+        if a != b:
+            pr[a] = b
+    return np.unique([find(i) for i in range(len(pr))], return_inverse=True)[1]
+inv = islands()
 seg = T - H
-D = np.empty((len(P), len(deform)))
-for i in range(len(deform)):
-    tt = np.clip(((P - H[i]) @ seg[i]) / max((seg[i] ** 2).sum(), 1e-9), 0, 1)
-    D[:, i] = np.sqrt(((P - (H[i] + tt[:, None] * seg[i])) ** 2).sum(1))
-W = 1.0 / np.maximum(D, 0.01) ** 4
 def sstep(a, b, x):
     k = np.clip((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k)
-for i, b in enumerate(deform):
-    if b.name.endswith("_upper"):
-        W[:, i] *= 1 - sstep(b.head_local.z - 0.02, b.head_local.z + 0.10, P[:, 2])
 hi = names.index("head")
-pin = np.array([C["head_pin"](p) for p in P])
-W[pin] = 0; W[pin, hi] = 1
-for pair, ztop in (("f", 0.55), ("b", 0.52)):
-    li = [i for i, n in enumerate(names) if n[:2] == pair + "l"]
-    ri = [i for i, n in enumerate(names) if n[:2] == pair + "r"]
-    low = P[:, 2] < ztop
-    left = D[:, li].min(1) < D[:, ri].min(1)
-    W[np.ix_(low & left, ri)] = 0
-    W[np.ix_(low & ~left, li)] = 0
-# Anything on the ground belongs to a planted paw, never the raised one
-# (Cindrel's right fore toes sit right under its curled left paw).
-ground = P[:, 2] < 0.12
-planted = [k for k in C["legs"] if k not in C["pads"]]
-toes = np.array([C["legs"][k][3][:2] for k in planted])
-near = np.argmin(((P[:, None, :2] - toes[None]) ** 2).sum(2), axis=1)
-for gi in np.where(ground)[0]:
-    W[gi] = 0
-    W[gi, names.index(planted[near[gi]] + "_foot")] = 1
+
+def piece_weights(V):
+    """Per-piece bone weights for mesh positions V: (W, P piece centres)."""
+    P = np.zeros((inv.max() + 1, 3)); np.add.at(P, inv, V); P /= np.bincount(inv)[:, None]
+    D = np.empty((len(P), len(deform)))
+    for i in range(len(deform)):
+        tt = np.clip(((P - H[i]) @ seg[i]) / max((seg[i] ** 2).sum(), 1e-9), 0, 1)
+        D[:, i] = np.sqrt(((P - (H[i] + tt[:, None] * seg[i])) ** 2).sum(1))
+    W = 1.0 / np.maximum(D, 0.01) ** 4
+    for i, b in enumerate(deform):
+        if b.name.endswith("_upper"):
+            W[:, i] *= 1 - sstep(b.head_local.z - 0.02, b.head_local.z + 0.10, P[:, 2])
+    pin = np.array([C["head_pin"](p) for p in P])
+    W[pin] = 0; W[pin, hi] = 1
+    for pair, ztop in (("f", 0.55), ("b", 0.52)):
+        li = [i for i, n in enumerate(names) if n[:2] == pair + "l"]
+        ri = [i for i, n in enumerate(names) if n[:2] == pair + "r"]
+        low = P[:, 2] < ztop
+        left = D[:, li].min(1) < D[:, ri].min(1)
+        W[np.ix_(low & left, ri)] = 0
+        W[np.ix_(low & ~left, li)] = 0
+    # Anything on the ground belongs to a planted paw, never the raised one
+    # (Cindrel's right fore toes sit right under its curled left paw).
+    ground = P[:, 2] < 0.12
+    planted = [k for k in C["legs"] if k not in C["pads"]]
+    toes = np.array([C["legs"][k][3][:2] for k in planted])
+    near = np.argmin(((P[:, None, :2] - toes[None]) ** 2).sum(2), axis=1)
+    for gi in np.where(ground)[0]:
+        W[gi] = 0
+        W[gi, names.index(planted[near[gi]] + "_foot")] = 1
+    return W, P, pin
+
+def blur_field(V, F, cell=0.02, sigma_cells=2.5):
+    """Per-vertex fields F (n x k) blurred over space (normalised Gaussian on
+    a voxel grid), so vertices close together get nearly the same value."""
+    lo = V.min(0) - 4 * cell
+    idx = np.floor((V - lo) / cell).astype(int)
+    shape = tuple(idx.max(0) + 1)
+    flat = np.ravel_multi_index(idx.T, shape)
+    r = int(math.ceil(3 * sigma_cells)); x = np.arange(-r, r + 1)
+    g = np.exp(-0.5 * (x / sigma_cells) ** 2); g /= g.sum()
+    def blur(grid):
+        for ax in range(3):
+            grid = np.apply_along_axis(lambda m: np.convolve(m, g, mode="same"), ax, grid)
+        return grid
+    cnt = np.bincount(flat, minlength=np.prod(shape)).reshape(shape).astype(float)
+    bc = blur(cnt)
+    out = np.empty_like(F)
+    for j in range(F.shape[1]):
+        s = np.bincount(flat, weights=F[:, j], minlength=np.prod(shape)).reshape(shape)
+        out[:, j] = (blur(s).ravel()[flat]) / np.maximum(bc.ravel()[flat], 1e-9)
+    return out
+
+# Face forward (TJ, 2026-10-09: "make all of their heads forward facing ...
+# mainly ripplefin and cindrel"): both models look off to their right. The
+# neck (45%) and head (55%) turn about world Z by head_turn[0], tip by
+# head_turn[1] about X and roll by head_turn[2] about Y. This used to be a
+# bone pose baked through the per-piece skin, which tore the throat and chest
+# ruff apart (TJ, 2026-10-09: "cindrels mesh is all jacked up"): each fur
+# piece moved rigidly with its own neck/head blend, so neighbours split. Now
+# it is a smooth twist of the mesh itself, before skinning: the neck/head
+# weights are blurred over ~5cm, so neighbouring pieces turn together.
+yaw, pitch, roll = C.get("head_turn", (0.0, 0.0, 0.0))
+if yaw or pitch or roll:
+    W0, _, _ = piece_weights(V)
+    Wv = W0[inv] / np.maximum(W0[inv].sum(1, keepdims=True), 1e-9)
+    ni = names.index("neck")
+    A = blur_field(V, Wv[:, [ni, hi]])
+    def rot(share):
+        return (Quaternion(Z, math.radians(yaw * share)) @ Quaternion(X, math.radians(pitch * share)) @ Quaternion(Y, math.radians(roll * share))).to_matrix()
+    Qn, Qh = np.array(rot(0.45)), np.array(rot(0.55))
+    pn, ph = H[ni], H[hi]
+    Tn = (V - pn) @ Qn.T + pn                       # carried by the neck
+    ph_n = (ph - pn) @ Qn.T + pn                     # the head's pivot, after the neck turn
+    Th = (Tn - ph_n) @ Qh.T + ph_n                   # carried by the head
+    an, ah = A[:, :1], A[:, 1:]
+    V = (1 - an - ah) * V + an * Tn + ah * Th
+    for v, co in zip(mesh.data.vertices, V):
+        v.co = Vector(co)
+    log.append("head turned %.0f deg, tipped %.0f, rolled %.0f (smooth twist, %d verts moved)" % (yaw, pitch, roll, int(((an + ah)[:, 0] > 0.01).sum())))
+
+def write_groups(Wv):
+    """Vertex groups from per-vertex weights (top 4 bones, normalised)."""
+    mesh.vertex_groups.clear()
+    groups = [mesh.vertex_groups.new(name=n) for n in names]
+    top = np.argsort(-Wv, axis=1)[:, :4]
+    for vi in range(len(Wv)):
+        idx = top[vi]; w = Wv[vi, idx]
+        if w.sum() <= 0:
+            continue
+        w = w / w.sum()
+        for j, wj in zip(idx, w):
+            if wj > 0.01:
+                groups[j].add([vi], float(wj), 'REPLACE')
+
+def per_vertex(W):
+    Wv = W[inv]
+    return Wv / np.maximum(Wv.sum(1, keepdims=True), 1e-9)
+
+W, P, pin = piece_weights(V)
 top = np.argsort(-W, axis=1)[:, :4]
-mesh.vertex_groups.clear()
-groups = [mesh.vertex_groups.new(name=n) for n in names]
-for vi in range(len(V)):
-    pi = inv[vi]; idx = top[pi]; w = W[pi, idx]
-    if w.sum() <= 0:
-        continue
-    w = w / w.sum()
-    for j, wj in zip(idx, w):
-        if wj > 0.01:
-            groups[j].add([vi], float(wj), 'REPLACE')
+# The re-stance bake below uses these weights blurred over ~5cm, so the fur
+# between the front legs and on the chest moves as one surface while the
+# legs are re-posed (rigid per-piece weights tore the chest ruff apart);
+# the animation skin is per piece again afterwards.
+write_groups(blur_field(V, per_vertex(W)))
 for m in list(mesh.modifiers):
     mesh.modifiers.remove(m)
 am = mesh.modifiers.new("Armature", 'ARMATURE'); am.object = arm
@@ -217,20 +289,6 @@ for k, (a_, kn, an, toe) in C["legs"].items():
     set_dir(k + "_foot", toe_t - pb[k + "_foot"].matrix.translation, pad_from=pad, pad_to=(0, 0, -1))
     log.append("%s: toe %s -> %s, reach %.2f/%.2f" % (k, tuple(round(c, 2) for c in toe), tuple(round(c, 2) for c in toe_t), d.length, L1 + L2))
 
-# Face forward (TJ, 2026-10-09: "make all of their heads forward facing ...
-# mainly ripplefin and cindrel"): both models look off to their right. Turn
-# the neck (45%) and head (55%) about world Z by head_turn[0], and tip by
-# head_turn[1] about X; it becomes part of the rest pose below.
-yaw, pitch, roll = C.get("head_turn", (0.0, 0.0, 0.0))
-for bn, share in (("neck", 0.45), ("head", 0.55)):
-    if yaw or pitch or roll:
-        p = pb[bn]
-        h = p.matrix.translation.copy()
-        q = Quaternion(Z, math.radians(yaw * share)) @ Quaternion(X, math.radians(pitch * share)) @ Quaternion(Y, math.radians(roll * share))
-        p.matrix = Matrix.Translation(h) @ q.to_matrix().to_4x4() @ Matrix.Translation(-h) @ p.matrix
-        p.scale = Vector((1, 1, 1)); upd()
-log.append("head turned %.0f deg, tipped %.0f, rolled %.0f" % (yaw, pitch, roll))
-
 # Apply: bake the posed mesh, then make the pose the armature's rest pose.
 bpy.ops.object.select_all(action='DESELECT')
 mesh.select_set(True); bpy.context.view_layer.objects.active = mesh
@@ -240,7 +298,39 @@ arm.select_set(True); bpy.context.view_layer.objects.active = arm
 bpy.ops.object.mode_set(mode='POSE')
 bpy.ops.pose.armature_apply(selected=False)
 bpy.ops.object.mode_set(mode='OBJECT')
+# Animation skin, on the new rest: each piece still moves as one unit (it
+# never shears), but takes the blurred weights around its centre, so
+# neighbouring pieces at a joint move together instead of splitting (the
+# shoulder and chest fur shed pieces in the Run).
+deform = [arm_data.bones[n] for n in names]
+H = np.array([tuple(b.head_local) for b in deform]); T = np.array([tuple(b.tail_local) for b in deform]); seg = T - H
+P0 = P
+V = np.array([tuple(v.co) for v in mesh.data.vertices])
+W, P, pin = piece_weights(V)
+Wb = blur_field(V, per_vertex(W), sigma_cells=1.5)
+Wp = np.zeros((len(P), Wb.shape[1])); np.add.at(Wp, inv, Wb); Wp /= np.bincount(inv)[:, None]
+Wp[pin] = 0; Wp[pin, hi] = 1
+# The face is a mosaic of plates: a few % of neck weight on the cheeks and
+# jaw slid them apart into red cracks when the head looked up (Cindrel in
+# UE, 2026-10-09). Pieces that are mostly head move wholly with it; the
+# head -> neck blend only happens under the chin, hidden by the ruff.
+Wp = Wp / np.maximum(Wp.sum(1, keepdims=True), 1e-9)
+h = Wp[:, hi].copy()
+k = sstep(0.15, 0.5, h)
+Wp *= ((1 - k) / np.maximum(1 - h, 1e-9))[:, None]   # the rest shrinks to fill 1 - the new head weight
+Wp[:, hi] = k
+# The throat has to stretch when the head looks up, and rigid plates can't:
+# they opened dark cracks under the chin. Pieces the neck carries any of are
+# skinned per vertex from a smooth field, so they bend and stretch with it;
+# everything else stays one rigid unit per piece.
+Wv = per_vertex(Wp)
+ni = names.index("neck")
+soft = (Wp[:, ni] > 0.03)[inv]
+Wv[soft] = blur_field(V, Wv, sigma_cells=2.0)[soft]
+log.append("throat: %d verts skinned smoothly" % int(soft.sum()))
+write_groups(Wv)
 am = mesh.modifiers.new("Armature", 'ARMATURE'); am.object = arm
+P = P0
 # Pieces flung clear of the body by the re-stance (a scale on the curled
 # paw whose centre sat nearer another bone): put each back where it was,
 # moved with the bone that carries most of its piece's neighbours - simplest
