@@ -15,6 +15,11 @@
 #include "AstralCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
+
+// Holds the eyelids at a fixed Blink value (0..1) so a capture can film them
+// shut from any angle; -1 (default) blinks normally.
+static TAutoConsoleVariable<float> CVarAstralForceBlink(TEXT("Astral.ForceBlink"), -1.f, TEXT("Hold the Blink morph at this value (0..1); -1 blinks normally."));
 
 const FAstralFootIKLeg FootIKLegs[6] = {
 	{ TEXT("fl_upper"), TEXT("fl_lower"), TEXT("fl_foot") },
@@ -203,6 +208,10 @@ void UAstralLocomotionAnimInstance::UpdateBlink(float Dt)
 	else
 	{
 		BlinkValue = 0.f;
+	}
+	if (CVarAstralForceBlink.GetValueOnGameThread() >= 0.f)
+	{
+		BlinkValue = FMath::Min(CVarAstralForceBlink.GetValueOnGameThread(), 1.f);
 	}
 	SetMorphTarget(TEXT("Blink"), BlinkValue);
 }

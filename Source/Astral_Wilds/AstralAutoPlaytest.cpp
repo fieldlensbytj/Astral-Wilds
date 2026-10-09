@@ -28,6 +28,7 @@
 #include "Navigation/PathFollowingComponent.h"
 #include "NavigationSystem.h"
 #include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Containers/Ticker.h"
 #include "EngineUtils.h"
@@ -527,6 +528,11 @@ namespace AstralAutoPlaytest
 			}
 			ACameraActor* Cam = World->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), FTransform::Identity);
 			PC->SetViewTarget(Cam);
+			if (bFace)
+			{
+				// Zoomed in: at 90 deg the face was ~60px across, too small to judge lids.
+				Cam->GetCameraComponent()->SetFieldOfView(30.f);
+			}
 
 			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakWorld = TWeakObjectPtr<UWorld>(World), Weak = TWeakObjectPtr<AAstralCharacter>(A), WeakCam = TWeakObjectPtr<ACameraActor>(Cam), Seconds, T = 0.f, Frame = 0, Shots = 0, LastYaw = 0.f, CamYaw = 90.f, bCircuit, bRamps, bFace, Origin = Xf.GetLocation(), Waypoint = -1](float Dt) mutable
 			{
@@ -548,7 +554,9 @@ namespace AstralAutoPlaytest
 				{
 					const FVector HeadAt = Astral->GetMesh()->GetBoneLocation(TEXT("head"));
 					const FRotator FaceLook(-5.f, CamYaw + 180.f, 0.f);
-					C->SetActorLocationAndRotation(HeadAt - FaceLook.Vector() * 150.f, FaceLook);
+					// Back off for big Astrals (Ironbur's head filled the frame at 150).
+					const float FaceDist = FMath::Max(150.f, Astral->GetMesh()->Bounds.SphereRadius * 1.2f);
+					C->SetActorLocationAndRotation(HeadAt - FaceLook.Vector() * FaceDist, FaceLook);
 				}
 				if (bCircuit)
 				{
