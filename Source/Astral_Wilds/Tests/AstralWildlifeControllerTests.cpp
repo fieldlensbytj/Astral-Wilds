@@ -93,3 +93,18 @@ bool FAstralWildlife_TerritorialGuardsHome::RunTest(const FString& Parameters)
 }
 
 #endif // WITH_AUTOMATION_TESTS
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralWildlife_QuarryScore, "AstralWilds.Wildlife.FlyerPicksMovingQuarry", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FAstralWildlife_QuarryScore::RunTest(const FString& Parameters)
+{
+	const float Range = 3000.f;
+	TestEqual(TEXT("Nothing out of range"), AAstralWildlifeController::QuarryScore(3100.f, Range, true, true), 0.f);
+	TestTrue(TEXT("Something in range is worth watching"), AAstralWildlifeController::QuarryScore(2900.f, Range, false, false) > 0.f);
+	TestTrue(TEXT("A moving Astral beats a still one a little nearer"),
+		AAstralWildlifeController::QuarryScore(1500.f, Range, true, false) > AAstralWildlifeController::QuarryScore(1000.f, Range, false, false));
+	TestTrue(TEXT("Nearer beats farther, all else equal"),
+		AAstralWildlifeController::QuarryScore(800.f, Range, false, false) > AAstralWildlifeController::QuarryScore(2000.f, Range, false, false));
+	TestTrue(TEXT("The Mage edges out an Astral at the same distance"),
+		AAstralWildlifeController::QuarryScore(1000.f, Range, true, true) > AAstralWildlifeController::QuarryScore(1000.f, Range, true, false));
+	return true;
+}

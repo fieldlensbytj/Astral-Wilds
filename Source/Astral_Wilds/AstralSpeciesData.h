@@ -85,6 +85,24 @@ struct FAstralFlightTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "s"))
 	float GroundTimeMax = 14.f;
+
+	/**
+	 * Hunting from the air (TJ, 2026-10-09: "track the monsters and people on
+	 * the ground when it is flying similar to a real bird"): while soaring it
+	 * picks something on the ground within this range (an Astral or the
+	 * Mage, moving ones first), keeps its head locked on it, and circles
+	 * over it, like a hawk working a field.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "cm"))
+	float QuarryRange = 3000.f;
+
+	/** The circle drifts over its quarry, but its centre stays within this of home. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "cm"))
+	float QuarryLeash = 1500.f;
+
+	/** Radius of the circle over a quarry (tighter than SoarRadius). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Flight", meta = (Units = "cm"))
+	float QuarryCircleRadius = 650.f;
 };
 
 /**

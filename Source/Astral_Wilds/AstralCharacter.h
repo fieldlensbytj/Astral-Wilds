@@ -124,6 +124,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Astral|Visuals")
 	float MaxTurnLean = 14.f;
 
+	/** Pitch and bank (deg) the display currently carries on top of the actor's facing (flight pitch, turn lean). */
+	FRotator GetBodyTilt() const { return FRotator(FlightPitch, 0.f, SmoothedLean); }
+
 protected:
 
 #if WITH_EDITOR

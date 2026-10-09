@@ -80,6 +80,13 @@ void UAstralLocomotionAnimInstance::UpdateGaze(float Dt)
 	{
 		GazeHold = 0.f;
 	}
+	// A hawk in the air works whatever it has picked out on the ground: a new
+	// quarry gets the eyes at once.
+	const AActor* Quarry = (bFlying && AI) ? AI->GetFlightQuarry() : nullptr;
+	if (Quarry && Gaze == EGaze::Watch && GazeActor.Get() != Quarry && Mode != EAstralWildlifeMode::Chase)
+	{
+		GazeHold = 0.f;
+	}
 	if (GazeHold <= 0.f)
 	{
 		Gaze = EGaze::Ahead;
@@ -99,6 +106,13 @@ void UAstralLocomotionAnimInstance::UpdateGaze(float Dt)
 		else if (Mode == EAstralWildlifeMode::Idle && Player)
 		{
 			Gaze = EGaze::Watch; GazeActor = Player; GazeHold = Rand(2.f, 4.f);              // receptive: attentive to the Mage
+		}
+		else if (Quarry)
+		{
+			// Hunting from the air: head locked on the quarry, the body
+			// circling under it; now and then a quick scan of the ground.
+			if (R < 0.85f) { Gaze = EGaze::Watch; GazeActor = Quarry; GazeHold = Rand(1.5f, 3.f); }
+			else { Gaze = EGaze::Glance; GazeYaw = Side() * Rand(20.f, 60.f); GazePitch = -Rand(25.f, 45.f); GazeHold = Rand(0.4f, 0.8f); }
 		}
 		else if (Player && PlayerDist < 1400.f && R < 0.45f)
 		{
@@ -150,10 +164,22 @@ void UAstralLocomotionAnimInstance::UpdateGaze(float Dt)
 	if (Gaze == EGaze::Watch && GazeActor.IsValid())
 	{
 		const FVector From = Mesh && Mesh->GetBoneIndex(TEXT("head")) != INDEX_NONE ? Mesh->GetBoneLocation(TEXT("head")) : Pawn->GetActorLocation();
-		LookAngles(Pawn->GetActorTransform(), From, GazeActor->GetActorLocation() + FVector(0.f, 0.f, 40.f), TargetYaw, TargetPitch);
+		// Measured from the body as it is displayed: a circling flyer is
+		// banked into its turn, so something below and inside the circle is
+		// mostly "down" for it, not a huge sideways twist of the neck (at
+		// 100 deg round, Stormrook's neck feathers tore open).
+		FTransform Body = Pawn->GetActorTransform();
+		if (const AAstralCharacter* Astral = Cast<AAstralCharacter>(Pawn))
+		{
+			Body.SetRotation(Body.GetRotation() * FQuat(Astral->GetBodyTilt()));
+		}
+		LookAngles(Body, From, GazeActor->GetActorLocation() + FVector(0.f, 0.f, 40.f), TargetYaw, TargetPitch);
 	}
 	// Running: shorter, smaller looks (the way ahead matters), except a fleeing look back.
-	const float Calm = (Mode == EAstralWildlifeMode::Flee) ? 1.f : 1.f - 0.5f * RunAlpha * MoveAlpha;
+	// A raptor in the air keeps its looks full length (it is hunting, not
+	// minding the way ahead).
+	const bool bHunting = bRaptor && bFlying;
+	const float Calm = (Mode == EAstralWildlifeMode::Flee || bHunting) ? 1.f : 1.f - 0.5f * RunAlpha * MoveAlpha;
 	TargetYaw = FMath::Clamp(TargetYaw, -75.f, 75.f) * Calm;
 	TargetPitch = FMath::Clamp(TargetPitch, -65.f, 38.f) * Calm;
 	StepSpring(LookYaw, LookYawVel, TargetYaw, Dt, bRaptor ? 22.f : 10.f, bRaptor ? 1.f : 0.85f);

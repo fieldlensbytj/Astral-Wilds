@@ -432,7 +432,7 @@ namespace AstralAutoPlaytest
 			}));
 		}));
 
-	// Astral.MotionCapture [Species] [Seconds] [Archetype|Alone|Circuit]: for judging locomotion by eye.
+	// Astral.MotionCapture [Species] [Seconds] [Archetype|Alone|Circuit] [Face|Prey]: for judging locomotion by eye.
 	// Spawns one wild Astral of the species (default Mossling) next to the
 	// Mage with its AI running, hides everything else, follows it with a
 	// side camera that keeps a fixed world direction (so turns show), and
@@ -447,6 +447,7 @@ namespace AstralAutoPlaytest
 			const FString Want = Args.Num() > 0 ? Args[0] : TEXT("Mossling");
 			const float Seconds = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 8.f;
 			UAstralSpeciesData* Species = nullptr;
+			UAstralSpeciesData* PreySpecies = nullptr;
 			for (TActorIterator<AAstralWildSpawner> It(World); It; ++It)
 			{
 				for (UAstralSpeciesData* S : It->PossibleSpecies)
@@ -454,6 +455,10 @@ namespace AstralAutoPlaytest
 					if (S && S->SpeciesName.ToString() == Want)
 					{
 						Species = S;
+					}
+					if (S && S->SpeciesName.ToString() == TEXT("Mossling"))
+					{
+						PreySpecies = S;
 					}
 				}
 				It->SpawnCount = 0;
@@ -484,7 +489,10 @@ namespace AstralAutoPlaytest
 			const bool bAlone = (Args.Num() > 2 && Args[2] == TEXT("Alone")) || bCircuit;
 			// Optional fourth arg "Face": a close camera in front of the head
 			// (eyes, blinks, gaze) instead of the side view.
-			const bool bFace = Args.Num() > 3 && Args[3] == TEXT("Face");
+			const bool bFace = Args.Num() > 3 && Args.Contains(TEXT("Face"));
+			// Optional fourth arg "Prey": two wandering Mosslings nearby, for
+			// a flyer to pick out and track from the air.
+			const bool bPrey = Args.Num() > 3 && Args.Contains(TEXT("Prey"));
 			if (Args.Num() > 2 && !bAlone)
 			{
 				const int64 Arch = StaticEnum<EAstralAIArchetype>()->GetValueByNameString(Args[2]);
@@ -501,6 +509,19 @@ namespace AstralAutoPlaytest
 			AAstralCharacter* A = World->SpawnActorDeferred<AAstralCharacter>(AAstralCharacter::StaticClass(), Xf, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
 			A->SpeciesData = Species;
 			A->FinishSpawning(Xf);
+			if (bPrey && PreySpecies)
+			{
+				UAstralSpeciesData* Prey = DuplicateObject<UAstralSpeciesData>(PreySpecies, GetTransientPackage());
+				Prey->AIArchetype = EAstralAIArchetype::Docile;
+				for (const FVector& Off : { FVector(600.f, 400.f, 0.f), FVector(-500.f, 700.f, 0.f) })
+				{
+					const FTransform PXf(FRotator::ZeroRotator, Xf.GetLocation() + Off);
+					AAstralCharacter* P = World->SpawnActorDeferred<AAstralCharacter>(AAstralCharacter::StaticClass(), PXf, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+					P->SpeciesData = Prey;
+					P->FinishSpawning(PXf);
+				}
+				UE_LOG(LogAstralAutoPlaytest, Display, TEXT("[MotionCapture] two Mosslings spawned as prey"));
+			}
 			if (bAlone)
 			{
 				if (ACharacter* MageChar = Cast<ACharacter>(Mage))

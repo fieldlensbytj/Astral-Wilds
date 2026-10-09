@@ -174,6 +174,12 @@ public:
 	/** Height a landing flyer should be at, Distance (cm, horizontal) from its landing spot: a ~24 deg glide slope, capped at CruiseHeight. */
 	static float GlideSlopeHeight(float Distance, float CruiseHeight) { return FMath::Clamp(Distance * 0.45f, 0.f, CruiseHeight); }
 
+	/** What a soaring flyer is watching on the ground (an Astral or the Mage), or null. The anim instance locks the head on it. */
+	const AActor* GetFlightQuarry() const { return Quarry.Get(); }
+
+	/** How interesting a candidate quarry is (0 = out of range): nearer is better, moving things much more so, the Mage a little. */
+	static float QuarryScore(float Distance, float Range, bool bMoving, bool bIsPlayer);
+
 	/** A point on the soaring circle round Home, ahead of Here in the direction of travel (OrbitSign +1 anticlockwise, -1 clockwise). */
 	static FVector OrbitTarget(const FVector& Here, const FVector& Home, float Radius, float OrbitSign);
 
@@ -216,4 +222,11 @@ private:
 	float OrbitSign = 1.f;
 	FVector LandingSpot = FVector::ZeroVector;
 	bool bTouchedDown = false;
+
+	/** Hunting from the air: the quarry it watches, when to look for another, and the (eased) centre of its circle. */
+	void UpdateQuarry(AAstralCharacter* Astral, const APawn* Player, float DeltaSeconds);
+	TWeakObjectPtr<const AActor> Quarry;
+	float QuarryTimer = 0.f;
+	FVector SoarCentre = FVector::ZeroVector;
+	bool bHasSoarCentre = false;
 };

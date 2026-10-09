@@ -3,6 +3,7 @@
 #include "AstralCharacter.h"
 #include "Astral_Wilds.h"
 #include "Components/StateTreeAIComponent.h"
+#include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Navigation/PathFollowingComponent.h"
@@ -254,6 +255,59 @@ EAstralFlightPhase AAstralWildlifeController::ChooseFlightPhase(EAstralFlightPha
 	}
 }
 
+float AAstralWildlifeController::QuarryScore(float Distance, float Range, bool bMoving, bool bIsPlayer)
+{
+	if (Distance > Range)
+	{
+		return 0.f;
+	}
+	return 0.1f + (1.f - Distance / Range) + (bMoving ? 0.6f : 0.f) + (bIsPlayer ? 0.3f : 0.f);
+}
+
+void AAstralWildlifeController::UpdateQuarry(AAstralCharacter* Astral, const APawn* Player, float DeltaSeconds)
+{
+	QuarryTimer -= DeltaSeconds;
+	const AActor* Current = Quarry.Get();
+	const float Range = Astral->SpeciesData->Flight.QuarryRange;
+	const FVector Here = Astral->GetActorLocation();
+	// Keep watching until it is time for a new look, unless it has gone (bonded, out of range, or taken off too).
+	const ACharacter* CurrentChar = Cast<ACharacter>(Current);
+	if (Current && QuarryTimer > 0.f && FVector::Dist2D(Current->GetActorLocation(), Here) < Range * 1.2f
+		&& !(CurrentChar && CurrentChar->GetCharacterMovement() && CurrentChar->GetCharacterMovement()->IsFlying()))
+	{
+		return;
+	}
+	QuarryTimer = FMath::FRandRange(4.f, 8.f);
+
+	// Score everything on the ground nearby; pick among the best few so it
+	// doesn't always fixate on the same one.
+	TArray<TPair<float, const AActor*>> Scored;
+	auto Consider = [&](const ACharacter* C, bool bIsPlayer)
+	{
+		if (!C || C == Astral || C->IsHidden() || (C->GetCharacterMovement() && C->GetCharacterMovement()->IsFlying()))
+		{
+			return;
+		}
+		const float Score = QuarryScore(FVector::Dist2D(C->GetActorLocation(), Here), Range, C->GetVelocity().Size2D() > 30.f, bIsPlayer);
+		if (Score > 0.f)
+		{
+			Scored.Emplace(Score * FMath::FRandRange(0.75f, 1.f), C);
+		}
+	};
+	Consider(Cast<ACharacter>(Player), true);
+	for (TActorIterator<AAstralCharacter> It(GetWorld()); It; ++It)
+	{
+		Consider(*It, false);
+	}
+	Scored.Sort([](const TPair<float, const AActor*>& A, const TPair<float, const AActor*>& B) { return A.Key > B.Key; });
+	const AActor* NewQuarry = Scored.Num() > 0 ? Scored[0].Value : nullptr;
+	if (NewQuarry != Current)
+	{
+		UE_LOG(LogAstral_Wilds, Display, TEXT("%s watching %s from the air"), *Astral->GetName(), NewQuarry ? *NewQuarry->GetName() : TEXT("nothing"));
+	}
+	Quarry = NewQuarry;
+}
+
 FVector AAstralWildlifeController::OrbitTarget(const FVector& Here, const FVector& Home, float Radius, float Sign)
 {
 	const FVector Off(Here.X - Home.X, Here.Y - Home.Y, 0.f);
@@ -282,6 +336,8 @@ void AAstralWildlifeController::EnterFlightPhase(EAstralFlightPhase NewPhase, AA
 	FlightPhase = NewPhase;
 	FlightPhaseTime = 0.f;
 	bTouchedDown = false;
+	Quarry.Reset();   // each phase picks its own thing to watch
+	QuarryTimer = 0.f;
 
 	switch (NewPhase)
 	{
@@ -396,8 +452,23 @@ void AAstralWildlifeController::SteerFlight(AAstralCharacter* Astral, const APaw
 		}
 		else
 		{
-			// Soaring circles round home, with a slow rise and fall.
-			Target = OrbitTarget(Here, HomeLocation, F.SoarRadius, OrbitSign);
+			// Soaring circles with a slow rise and fall: round home, or over
+			// whatever it is watching on the ground, like a hawk working a
+			// field (the centre eases across rather than jumping).
+			UpdateQuarry(Astral, Player, DeltaSeconds);
+			FVector Want = HomeLocation;
+			if (const AActor* Q = Quarry.Get())
+			{
+				const FVector Off = (Q->GetActorLocation() - HomeLocation) * FVector(1.f, 1.f, 0.f);
+				Want = HomeLocation + Off.GetClampedToMaxSize(F.QuarryLeash);
+			}
+			if (!bHasSoarCentre)
+			{
+				SoarCentre = HomeLocation;
+				bHasSoarCentre = true;
+			}
+			SoarCentre += (Want - SoarCentre).GetClampedToMaxSize(250.f * DeltaSeconds);
+			Target = OrbitTarget(Here, SoarCentre, Quarry.IsValid() ? F.QuarryCircleRadius : F.SoarRadius, OrbitSign);
 			DesiredZ = GroundRef + Half + F.CruiseHeight + 80.f * FMath::Sin(FlightPhaseTime * 0.5f);
 		}
 		break;
