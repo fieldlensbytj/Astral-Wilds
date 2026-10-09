@@ -23,7 +23,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralWildlife_ReceptiveHoldsStill, "AstralWil
 bool FAstralWildlife_ReceptiveHoldsStill::RunTest(const FString& Parameters)
 {
 	using namespace AstralWildlifeControllerTests;
-	for (EAstralAIArchetype Arch : { EAstralAIArchetype::Aggressive, EAstralAIArchetype::Skittish, EAstralAIArchetype::Territorial, EAstralAIArchetype::Docile })
+	for (EAstralAIArchetype Arch : { EAstralAIArchetype::Aggressive, EAstralAIArchetype::Skittish, EAstralAIArchetype::Territorial, EAstralAIArchetype::Docile, EAstralAIArchetype::Wary })
 	{
 		TestEqual(*FString::Printf(TEXT("Receptive %s idles with the player close"), *UEnum::GetValueAsString(Arch)),
 			Choose(Arch, EMode::Wander, 100.f, 0.f, 100.f, EAstralWildState::Receptive), EMode::Idle);
@@ -51,6 +51,18 @@ bool FAstralWildlife_SkittishFleesWithHysteresis::RunTest(const FString& Paramet
 	TestEqual(TEXT("Stalled flee: settles instead of fleeing in place"), Choose(EAstralAIArchetype::Skittish, EMode::Flee, 520.f, 0.f, 5000.f, EAstralWildState::Calm, true, true), EMode::Wander);
 	TestEqual(TEXT("Recently cornered: a player at 5.2m doesn't re-spook it (the 2026-10-05 loop)"), Choose(EAstralAIArchetype::Skittish, EMode::Wander, 520.f, 0.f, 5000.f, EAstralWildState::Calm, false, true), EMode::Wander);
 	TestEqual(TEXT("Recently cornered: a player inside 3m still does"), Choose(EAstralAIArchetype::Skittish, EMode::Wander, 250.f, 0.f, 5000.f, EAstralWildState::Calm, false, true), EMode::Flee);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralWildlife_WaryBacksOffWhenClose, "AstralWilds.Wildlife.WaryBacksOffOnlyWhenClose", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FAstralWildlife_WaryBacksOffWhenClose::RunTest(const FString& Parameters)
+{
+	using namespace AstralWildlifeControllerTests;
+	TestEqual(TEXT("Lets the player within 5m (Skittish bolts at 6m) and keeps wandering"), Choose(EAstralAIArchetype::Wary, EMode::Wander, 500.f), EMode::Wander);
+	TestEqual(TEXT("Backs off once the player is within 3m"), Choose(EAstralAIArchetype::Wary, EMode::Wander, 300.f), EMode::Flee);
+	TestEqual(TEXT("Keeps backing off until it has some room"), Choose(EAstralAIArchetype::Wary, EMode::Flee, 600.f), EMode::Flee);
+	TestEqual(TEXT("Settles at 7.5m, sooner than Skittish (10m)"), Choose(EAstralAIArchetype::Wary, EMode::Flee, 750.f), EMode::Wander);
+	TestEqual(TEXT("Recently cornered: a player at 3m doesn't re-spook it"), Choose(EAstralAIArchetype::Wary, EMode::Wander, 300.f, 0.f, 5000.f, EAstralWildState::Calm, false, true), EMode::Wander);
 	return true;
 }
 

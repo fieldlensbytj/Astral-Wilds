@@ -30,7 +30,9 @@ enum class EAstralAIArchetype : uint8
 	Aggressive	UMETA(DisplayName = "Aggressive"),
 	Skittish	UMETA(DisplayName = "Skittish"),
 	Territorial	UMETA(DisplayName = "Territorial"),
-	Docile		UMETA(DisplayName = "Docile")
+	Docile		UMETA(DisplayName = "Docile"),
+	/** Cautious, not panicky: keeps its distance, and only backs off at a lope when the player gets close (Ripplefin). */
+	Wary		UMETA(DisplayName = "Wary")
 };
 
 /**

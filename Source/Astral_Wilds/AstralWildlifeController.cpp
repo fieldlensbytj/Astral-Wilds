@@ -13,6 +13,11 @@ namespace
 	constexpr float DecisionInterval = 0.25f;
 	constexpr float RepathInterval = 0.5f;
 	constexpr float FlyerWalkSpeed = 70.f;   // cm/s: Stormrook's walk clip is authored at ~60
+
+	bool IsWary(const AAstralCharacter* Astral)
+	{
+		return Astral && Astral->SpeciesData && Astral->SpeciesData->AIArchetype == EAstralAIArchetype::Wary;
+	}
 }
 
 AAstralWildlifeController::AAstralWildlifeController()
@@ -68,6 +73,19 @@ EAstralWildlifeMode AAstralWildlifeController::ChooseMode(EAstralAIArchetype Arc
 		}
 		// A recently cornered Astral only spooks again if the player comes much closer.
 		if (DistToPlayer < (bRecentlyCornered ? T.AlertRange * 0.5f : T.AlertRange))
+		{
+			return EAstralWildlifeMode::Flee;
+		}
+		return EAstralWildlifeMode::Wander;
+
+	case EAstralAIArchetype::Wary:
+		// Skittish's rule at closer ranges: backs off only when the player
+		// is close, and settles once it has a little room.
+		if (Current == EAstralWildlifeMode::Flee)
+		{
+			return (DistToPlayer < T.WaryCalmRange && !bFleeStalled) ? EAstralWildlifeMode::Flee : EAstralWildlifeMode::Wander;
+		}
+		if (DistToPlayer < (bRecentlyCornered ? T.WaryAlertRange * 0.5f : T.WaryAlertRange))
 		{
 			return EAstralWildlifeMode::Flee;
 		}
@@ -162,7 +180,7 @@ void AAstralWildlifeController::Tick(float DeltaSeconds)
 			bRecentlyCornered = true;
 		}
 	}
-	if (DistToPlayer > Tuning.CalmRange)
+	if (DistToPlayer > (IsWary(Astral) ? Tuning.WaryCalmRange : Tuning.CalmRange))
 	{
 		bRecentlyCornered = false;
 	}
@@ -452,7 +470,7 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 	float Speed = Tuning.WanderSpeed;
 	switch (NewMode)
 	{
-	case EAstralWildlifeMode::Flee:			Speed = Tuning.FleeSpeed; break;
+	case EAstralWildlifeMode::Flee:			Speed = IsWary(Astral) ? Tuning.WaryFleeSpeed : Tuning.FleeSpeed; break;
 	case EAstralWildlifeMode::Chase:		Speed = Tuning.ChaseSpeed; break;
 	case EAstralWildlifeMode::ReturnHome:	Speed = Tuning.ChaseSpeed; break;
 	default: break;
@@ -475,7 +493,7 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 		const FVector Dir = Astral->GetVelocity().GetSafeNormal2D();
 		UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
 		FNavLocation RunOut;
-		if (!Dir.IsZero() && NavSys && NavSys->ProjectPointToNavigation(Astral->GetActorLocation() + Dir * Tuning.FleeRunOut, RunOut))
+		if (!Dir.IsZero() && NavSys && NavSys->ProjectPointToNavigation(Astral->GetActorLocation() + Dir * (IsWary(Astral) ? Tuning.WaryFleeRunOut : Tuning.FleeRunOut), RunOut))
 		{
 			MoveToLocation(RunOut.Location, 15.f);
 		}
@@ -569,7 +587,7 @@ void AAstralWildlifeController::UpdateMode(AAstralCharacter* Astral, const APawn
 			// Best of several reachable escape points, so a wall behind it
 			// doesn't leave it stuck trying to run straight through it.
 			FVector Target;
-			if (PickPoint(Astral->GetActorLocation(), Tuning.FleeDistance, Player, /*bFarthestFromPlayer*/ true, Target))
+			if (PickPoint(Astral->GetActorLocation(), IsWary(Astral) ? Tuning.WaryFleeDistance : Tuning.FleeDistance, Player, /*bFarthestFromPlayer*/ true, Target))
 			{
 				MoveToLocation(Target);
 			}

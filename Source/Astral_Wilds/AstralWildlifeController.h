@@ -102,6 +102,28 @@ struct FAstralWildlifeTuning
 	/** Kept below the Mage's 500 walk speed so the player can always get away. */
 	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife", meta = (Units = "cm/s"))
 	float ChaseSpeed = 350.f;
+
+	/**
+	 * Wary (TJ, 2026-10-09: Ripplefin "weary but not as skiddish as
+	 * Glacielle"): it lets the player much closer before it moves off, backs
+	 * away at a lope rather than bolting, and settles sooner. Between this
+	 * and AlertRange it just keeps wandering, picking points away from the
+	 * player, and the gaze keeps an eye on the Mage.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife|Wary", meta = (Units = "cm"))
+	float WaryAlertRange = 350.f;
+
+	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife|Wary", meta = (Units = "cm"))
+	float WaryCalmRange = 700.f;
+
+	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife|Wary", meta = (Units = "cm"))
+	float WaryFleeDistance = 350.f;
+
+	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife|Wary", meta = (Units = "cm"))
+	float WaryFleeRunOut = 250.f;
+
+	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife|Wary", meta = (Units = "cm/s"))
+	float WaryFleeSpeed = 300.f;
 };
 
 UCLASS()
