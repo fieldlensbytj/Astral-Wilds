@@ -65,8 +65,19 @@ for k in LEGS:
         shift = Vector(arm["plant_" + k]) - T
         T, A = T + shift, A + shift
         log.append("%s planted: toe moved %s" % (k, tuple(round(c, 3) for c in shift)))
-    d = A - H
     front = k[0] == "f"
+    # "hind_track" (opt-in): the hind feet's side-to-side spacing (m), centred
+    # between the hips. Glacielle's model stands with her hind paws ~14cm
+    # outside each hip (0.54m apart against 0.15m for her fronts), which TJ
+    # read as a "massive spacing" in the back legs (2026-10-08). A poised
+    # reindeer sets its hind feet under the hips, near the line of the fronts.
+    if not front and arm.get("hind_track") is not None:
+        mid = (bones["bl_upper"].head_local.x + bones["br_upper"].head_local.x) / 2
+        side = 1 if H.x > mid else -1
+        shift = Vector((mid + side * float(arm["hind_track"]) / 2 - T.x, 0, 0))
+        T, A = T + shift, A + shift
+        log.append("%s hind track: toe moved %+.3f m sideways" % (k, shift.x))
+    d = A - H
     # Anatomical bend in the sagittal plane: elbow back for front legs,
     # stifle forward for hind. (The model's own rest bend includes its
     # sideways splay, which bent knees outward.)
@@ -142,17 +153,20 @@ def foot_targets(k, u, g):
     else:                                       # swing: C1 Hermite back -> front, lifted
         s = (u - b) / (1 - b)
         m = S / b * (1 - b) * 0.35              # leaves and lands with a share of the stance velocity
+        ka = g.get("knee_action") if v["front"] else None
+        # A reaching foreleg lands with a bigger tangent, so its hoof swings out
+        # past the landing spot and draws back onto it.
+        m1 = m * (ka.get("reach", 1.0) if ka else 1.0)
         h00, h10, h01, h11 = 2*s**3 - 3*s**2 + 1, s**3 - 2*s**2 + s, -2*s**3 + 3*s**2, s**3 - s**2
-        dy = h00 * (S / 2) + h10 * m + h01 * (-S / 2) + h11 * m
+        dy = h00 * (S / 2) + h10 * m + h01 * (-S / 2) + h11 * m1
         dz = g["lift"] * math.sin(math.pi * s ** 0.8) ** 2
         pitch = g["toeoff"] * (1 - smooth(s / 0.55))
-        ka = g.get("knee_action") if v["front"] else None
         if ka:
-            # Reindeer's high-stepping trot ("rivals a prize hackney"): the
-            # wrist snaps up early in the swing, folding the hoof up and back
-            # under the forearm, then unfolds to reach for the landing.
+            # Reindeer's extended trot (TJ's reference video, 2026-10-08): the
+            # knee folds early in the swing, hoof tucked under the forearm, then
+            # the leg unfolds nearly straight and reaches far out ahead, low.
             dz = ka["lift"] * math.sin(math.pi * s ** 0.6) ** 2
-            pitch += ka["fold"] * math.sin(math.pi * min(s / 0.85, 1.0) ** 0.8) ** 2
+            pitch += ka["fold"] * math.sin(math.pi * min(s / ka.get("fold_end", 0.85), 1.0) ** 0.8) ** 2
     dy += g["centre"][k]
     toe = Vector((T0.x, T0.y + dy, T0.z + dz))
     ankle = toe + Matrix.Rotation(math.radians(pitch), 3, 'X') @ (A0 - T0)
@@ -255,7 +269,7 @@ def body_run(t, g):
         # blades working), while the heavy antlered neck stays still against it.
         roll = st["withers"] * math.sin(TAU * t + 0.3)
         poses["chest"] = poses["chest"] @ wrot("chest", Y, -roll) @ wrot("chest", X, st["withers"] * 0.6 * math.sin(2 * TAU * (t - 0.15)))
-        poses["neck"] = wrot("neck", X, -st["withers"] * 0.5 * math.sin(2 * TAU * (t - 0.15)))
+        poses["neck"] = wrot("neck", X, st.get("neck_reach", 0.0) - st["withers"] * 0.5 * math.sin(2 * TAU * (t - 0.15)))
     tail_wave(poses, t, 6.0, 6.0, freq=2, lag=0.6)
     return poses, Vector((0, 0, bob)), (st["head_steady"] if st else 0.6), Quaternion()
 
@@ -288,19 +302,25 @@ def body_idle(t, g):
 CROUCH = float(arm.get("crouch", 0.0))
 REACH = float(arm.get("reach_margin", 0.985))
 LIFT = float(arm.get("lift_scale", 1.0))
-log.append("style: crouch %.3f, reach_margin %.3f, lift_scale %.2f" % (CROUCH, REACH, LIFT))
+# - stride_scale: shortens (or lengthens) the Walk and Run strides; at the
+#   same ground speed the engine then steps faster (Ironbur: a boar's short,
+#   quick, choppy trot).
+# - bob_scale: multiplies the body's rise and fall in Walk and Run.
+STRIDE = float(arm.get("stride_scale", 1.0))
+BOB = float(arm.get("bob_scale", 1.0))
+log.append("style: crouch %.3f, reach_margin %.3f, lift_scale %.2f, stride_scale %.2f, bob_scale %.2f" % (CROUCH, REACH, LIFT, STRIDE, BOB))
 hs_walk = max_half_stride(0.055 + CROUCH)
 hs_run = max_half_stride(0.075 + CROUCH)
 GAITS = {
     # Walk is a brisk diagonal walk/trot: wild Astrals wander at 200 cm/s,
     # a trotting pace for their size.
     "Walk": dict(frames=30, phase={"bl": 0.0, "fr": 0.06, "br": 0.5, "fl": 0.56}, beta=0.5,
-                 S=2 * min(hs_walk, 0.26), lift=0.07 * LIFT, toeoff=28.0, drop=0.055 + CROUCH, bob=0.012, body=body_walk),
+                 S=2 * min(hs_walk, 0.26) * STRIDE, lift=0.07 * LIFT, toeoff=28.0, drop=0.055 + CROUCH, bob=0.012 * BOB, body=body_walk),
     # Run is a fast trot: diagonal pairs alternate (bl+fr, then br+fl). The
     # front feet land a little after their hind partner so the two share a
     # mid-stance (the hind stance is longer, see below).
     "Run":  dict(frames=24, phase={"bl": 0.0, "fr": 0.91, "br": 0.5, "fl": 0.41}, beta=0.3,
-                 S=2 * min(hs_run, 0.32), lift=0.12 * LIFT, toeoff=40.0, drop=0.075 + CROUCH, bob=0.03, body=body_run),
+                 S=2 * min(hs_run, 0.32) * STRIDE, lift=0.12 * LIFT, toeoff=40.0, drop=0.075 + CROUCH, bob=0.03 * BOB, body=body_run),
     "Idle": dict(frames=360, phase=None, drop=0.6 * CROUCH, body=body_idle),
 }
 # Hind legs get a longer stroke than the front (reaching under the belly,
@@ -317,17 +337,26 @@ for name, g in GAITS.items():
 run = GAITS["Run"]
 # run_style "reindeer" (Glacielle, TJ 2026-10-08: "based off of a reindeer"):
 # still a trot, which is the caribou's own fast gait (Pecora gait study,
-# UWaterloo 2019), but in reindeer style: hackney-like high fore action with
-# the hoof tucked up, a light, level body (hooves "hardly appear to touch the
-# ground"), withers rising and falling, and a steadier antlered head.
+# UWaterloo 2019). Matched to TJ's reference (youtube OoqfsSWDMBs, caribou
+# running beside a road in Alaska): an extended, floating trot. The forelegs
+# fold briefly then fling out nearly straight and reach well ahead, skimming
+# low (not a high hackney step); the body glides level; the neck stretches
+# forward with the nose held out level.
 if arm.get("run_style") == "reindeer":
-    run["knee_action"] = dict(lift=run["lift"] * 1.7, fold=95.0)
-    run["bob"] *= 0.5
-    run["style"] = dict(withers=3.0, head_steady=0.85)
-    log.append("Run style: reindeer (fore lift %.3f m, fold 95 deg)" % run["knee_action"]["lift"])
-hS, hoff = hind_stroke(run["drop"], land=-12.0, push=45.0)
+    run["knee_action"] = dict(lift=run["lift"] * 0.9, fold=70.0, fold_end=0.7, reach=3.0)
+    run["bob"] *= 0.4
+    run["style"] = dict(withers=1.5, head_steady=0.92, neck_reach=10.0)
+    log.append("Run style: reindeer extended trot (fore lift %.3f m, fold 70 deg, reach x3)" % run["knee_action"]["lift"])
+# hind_scale / hind_push (opt-in): a shorter hind stroke and a gentler toe-off.
+# Glacielle's crouch let her hind legs reach 0.92m (1.75x the fronts; Mossling
+# 1.58x), pushing off 45 deg behind, which TJ read as a "massive spacing"
+# between the back legs and wants "a refined, poised reindeer" (2026-10-08):
+# hind feet stepping close under her rather than driving far out behind.
+PUSH = float(arm.get("hind_push", 45.0))
+hS, hoff = hind_stroke(run["drop"], land=-12.0, push=PUSH)
+hS *= float(arm.get("hind_scale", 1.0)) * STRIDE
 run["hind"] = dict(S=hS, off=hoff, beta=run["beta"] * hS / run["S"],
-                   land=-12.0, push=45.0, fold=65.0, lift=0.13 * LIFT)
+                   land=-12.0, push=PUSH, fold=65.0, lift=0.13 * LIFT)
 log.append("Run hind stroke %.3f m (front %.3f), centre %+.3f m from rest toe, duty %.2f"
            % (hS, run["S"], hoff, run["hind"]["beta"]))
 
@@ -415,5 +444,6 @@ bpy.ops.object.select_all(action='DESELECT'); mesh.select_set(True); arm.select_
 bpy.ops.export_scene.fbx(filepath="%s/%s_Rigged.fbx" % (RIGS, NAME), use_selection=True,
     object_types={'ARMATURE', 'MESH'}, add_leaf_bones=False, bake_anim=True,
     bake_anim_use_all_actions=True, bake_anim_use_nla_strips=False, bake_anim_simplify_factor=0.0,
-    path_mode='COPY', embed_textures=True, mesh_smooth_type='FACE', apply_unit_scale=True)
+    path_mode='COPY', embed_textures=True, mesh_smooth_type='FACE', apply_unit_scale=True,
+    use_mesh_modifiers=False)   # keep shape keys (the Blink eyelids); skinning exports from the vertex groups
 open(OUT + "/reanimate_log.txt", "w").write("\n".join(log))

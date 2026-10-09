@@ -13,7 +13,9 @@
 import bpy
 RIG = r"C:/Users/camer/Astral Wilds/ArtSource/Blender/Rigs/Glacielle_Rigged.blend"
 STYLE = dict(crouch=0.04, reach_margin=0.92, lift_scale=1.6, fit_stance=True,
-             run_style="reindeer")   # TJ: she is a reindeer; see quadruped_reanimate.py
+             run_style="reindeer",   # TJ: she is a reindeer; see quadruped_reanimate.py
+             hind_scale=0.7, hind_push=28.0,   # TJ: back legs too far apart; "refined, poised", a queen's elegance
+             hind_track=0.32)      # hind feet just outside the hips (model: 0.54m apart; 0.26 was a touch narrow)
 bpy.ops.wm.open_mainfile(filepath=RIG)
 arm = [o for o in bpy.context.scene.objects if o.type == 'ARMATURE'][0]
 for k, v in STYLE.items():

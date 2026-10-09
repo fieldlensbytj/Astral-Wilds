@@ -2,11 +2,11 @@
 
 This is the real, current priority list for the active engine (Unreal Engine 5.8, C++, `Astral_Wilds_Unreal/Astral_Wilds/`). `Docs/AI/WorkQueue.md` is the old Unity-era queue, kept for history/design provenance only — its "Current priority"/"Status" sections describe the frozen Unity project, not this one. This file replaces it as the thing to read for "what's next" on Unreal, per the split multiple prior sessions recommended (`CoworkReview-20260918.md`, `CoworkReview-20260918-AutomationTests.md`) but never got around to doing.
 
-## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-08, after the Glacielle naturalness pass `d2e7827`)
+## PICK UP HERE (kept up to date in place, not appended - last updated 2026-10-09)
 
 **Project:** `C:\Users\camer\Astral_Wilds_Unreal\Astral_Wilds\`, a standalone repo (`origin` branch `astral-wilds-unreal`). Its root `NEXT_STEPS.md` mirrors this block in more detail and has the exact, verified PowerShell commands for build, tests and the rendered bot playtest. Update both together.
 
-**State:** everything is build-verified, tested and pushed. Suite **61/61**, 0 unloadable. Rendered `Astral.AutoPlaytest`: the bot bonds with the rigged Glacielle.
+**State:** everything is build-verified, tested and pushed. Suite **67/67**, 0 unloadable. The Unreal repo's `NEXT_STEPS.md` has the 2026-10-08/09 detail: fluid turns (`UAstralMovementComponent`), per-species turning, Stormrook rigged with flapping wings and flight phases, Cindrel + Ripplefin rigged (shared `astral_rig_prep.py` / `astral_rig_quadruped.py`, new GLBs from TJ), gait styles for every rig, gaze, tail spring, foot IK, and blinking eyelids (`astral_add_eyelids.py`). Most of it awaits TJ's verdict. Rendered `Astral.AutoPlaytest`: the bot bonds with the rigged Glacielle.
 - `43def68`: the six Meshy Astrals (Cindrel, Mossling, Ironbur, Ripplefin, Stormrook, Glacielle) replace the placeholder cylinders and spawn wild in the arena.
 - `68098cf`: procedural breathing, gait bob and turn lean for unrigged (static) Astrals.
 - `db19d63` / `a70cfe9`: scripted Blender rigging (22-bone quadruped, Idle/Walk/Run, played by ground speed). Glacielle is rigged. Cindrel went back to its static model (TJ: its curved paw needs hand animation). Rig scripts are in `ArtSource/Blender/Scripts/<name>_rig_*.py`, and the rigged .blend/.fbx files are in `ArtSource/Blender/Rigs/`.
