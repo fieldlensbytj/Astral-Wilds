@@ -616,11 +616,13 @@ namespace AstralAutoPlaytest
 				}
 				const float Yaw = Astral->GetActorRotation().Yaw;
 				const UAstralLocomotionAnimInstance* Anim = Cast<UAstralLocomotionAnimInstance>(Astral->GetMesh()->GetAnimInstance());
-				UE_LOG(LogAstralAutoPlaytest, Display, TEXT("[MotionCapture] f=%d t=%.3f speed=%.1f yaw=%.1f yawrate=%.1f vyaw=%.1f move=%.2f run=%.2f fly=%.2f flap=%.2f brake=%.2f wingz=%.1f vz=%.0f drop=%.1f foot=%.1f tail=%.1f look=%.0f/%.0f blink=%.2f"),
+				const AAstralWildlifeController* AIC = Cast<AAstralWildlifeController>(Astral->GetController());
+				UE_LOG(LogAstralAutoPlaytest, Display, TEXT("[MotionCapture] f=%d t=%.3f speed=%.1f yaw=%.1f yawrate=%.1f vyaw=%.1f move=%.2f run=%.2f fly=%.2f flap=%.2f brake=%.2f wingz=%.1f vz=%.0f drop=%.1f foot=%.1f tail=%.1f look=%.0f/%.0f blink=%.2f bpitch=%.1f exert=%.2f fidget=%d act=%d"),
 					Frame, T, Astral->GetVelocity().Size2D(), Yaw, Dt > 0.f ? FMath::FindDeltaAngleDegrees(LastYaw, Yaw) / Dt : 0.f, Astral->GetVelocity().Rotation().Yaw,
 					Anim ? Anim->GetMoveAlpha() : -1.f, Anim ? Anim->GetRunAlpha() : -1.f, Anim ? Anim->GetFlightAlpha() : -1.f, Anim ? Anim->GetFlapAlpha() : -1.f, Anim ? Anim->GetBrakeAlpha() : -1.f,
 					Astral->GetMesh()->GetBoneIndex(TEXT("wing_l_hand")) != INDEX_NONE ? (Astral->GetMesh()->GetBoneLocation(TEXT("wing_l_hand"), EBoneSpaces::ComponentSpace).Z) : -999.f, Astral->GetVelocity().Z,
-					Anim ? Anim->GetPelvisDrop() : 0.f, Anim ? Anim->GetMaxFootOffset() : 0.f, Anim ? Anim->GetTailYaw() : 0.f, Anim ? Anim->GetLookYaw() : 0.f, Anim ? Anim->GetLookPitch() : 0.f, Anim ? Anim->GetBlink() : 0.f);
+					Anim ? Anim->GetPelvisDrop() : 0.f, Anim ? Anim->GetMaxFootOffset() : 0.f, Anim ? Anim->GetTailYaw() : 0.f, Anim ? Anim->GetLookYaw() : 0.f, Anim ? Anim->GetLookPitch() : 0.f, Anim ? Anim->GetBlink() : 0.f,
+					Anim ? Anim->GetBodyPitch() : 0.f, Anim ? Anim->GetExertion() : 0.f, Anim ? Anim->GetFidget() : -1, AIC ? static_cast<int32>(AIC->GetActivity()) : -1);
 				LastYaw = Yaw;
 				if (Frame++ % 2 == 0)
 				{

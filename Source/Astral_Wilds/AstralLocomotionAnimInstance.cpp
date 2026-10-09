@@ -21,6 +21,10 @@
 // shut from any angle; -1 (default) blinks normally.
 static TAutoConsoleVariable<float> CVarAstralForceBlink(TEXT("Astral.ForceBlink"), -1.f, TEXT("Hold the Blink morph at this value (0..1); -1 blinks normally."));
 
+// Repeats one fidget every 2s while standing, for filming it: 1 shake, 2 tail
+// swish, 3 stretch, 4 paw shuffle; 0 (default) picks at random.
+static TAutoConsoleVariable<int32> CVarAstralForceFidget(TEXT("Astral.ForceFidget"), 0, TEXT("Repeat one standing fidget for review: 1 shake, 2 tail swish, 3 stretch, 4 paw shuffle; 0 = random."));
+
 const FAstralFootIKLeg FootIKLegs[6] = {
 	{ TEXT("fl_upper"), TEXT("fl_lower"), TEXT("fl_foot") },
 	{ TEXT("fr_upper"), TEXT("fr_lower"), TEXT("fr_foot") },
@@ -42,6 +46,174 @@ void UAstralLocomotionAnimInstance::StepSpring(float& Value, float& Velocity, fl
 	}
 }
 
+bool UAstralLocomotionAnimInstance::ReachesSettlePhase(float Prev, float Step)
+{
+	if (Step < 0.f)
+	{
+		return false;
+	}
+	for (const float P : { 0.25f, 0.75f })
+	{
+		if (FMath::Frac(P - Prev + 1.f) <= Step)   // how far ahead P is
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void UAstralLocomotionAnimInstance::UpdateLife(float Dt, float ForwardAccel)
+{
+	if (Dt <= 0.f)
+	{
+		return;
+	}
+	LifeTime += Dt;
+	const APawn* Pawn = TryGetPawnOwner();
+	const USkeletalMeshComponent* Mesh = GetSkelMeshComponent();
+	const AAstralWildlifeController* AI = Pawn ? Cast<AAstralWildlifeController>(Pawn->GetController()) : nullptr;
+	const EAstralWildlifeMode Mode = AI ? AI->GetMode() : EAstralWildlifeMode::Wander;
+	const EAstralWanderActivity Activity = AI ? AI->GetActivity() : EAstralWanderActivity::LookAround;
+	const bool bQuad = Mesh && Mesh->GetBoneIndex(TEXT("bl_foot")) != INDEX_NONE;
+	const float Ground = 1.f - FlightAlpha;
+
+	// Fidgets while standing about (none while alert, chasing or fleeing; a
+	// receptive Astral being bonded keeps to the small ones). A grazer swishes
+	// its tail and shifts its feet but doesn't stop to shake or stretch.
+	const bool bStill = MoveAlpha < 0.05f && FlightAlpha < 0.05f;
+	StillTime = bStill ? StillTime + Dt : 0.f;
+	const bool bCalm = Activity != EAstralWanderActivity::Alert && Mode != EAstralWildlifeMode::Chase && Mode != EAstralWildlifeMode::Flee;
+	// The timer runs whenever it stands (pauses are only 2-5s), firing once it
+	// has settled for a moment.
+	if (Fidget == EFidget::None && bStill)
+	{
+		FidgetTimer -= Dt;
+	}
+	const int32 Forced = CVarAstralForceFidget.GetValueOnGameThread();
+	if (Fidget == EFidget::None && bStill && bCalm && StillTime > 0.8f && FidgetTimer <= 0.f)
+	{
+		FidgetTimer = Forced > 0 ? 2.f : FMath::FRandRange(2.f, 5.f);
+		FidgetT = 0.f;
+		FidgetSide = FMath::RandBool() ? 1.f : -1.f;
+		const bool bBusy = Activity == EAstralWanderActivity::Graze || Mode == EAstralWildlifeMode::Idle;
+		const float R = FMath::FRand();
+		const int32 Pick = Forced > 0 ? Forced
+			: R < 0.3f ? static_cast<int32>(EFidget::TailSwish)
+			: R < 0.6f ? static_cast<int32>(EFidget::PawShuffle)
+			: (R < 0.8f && !bBusy) ? static_cast<int32>(EFidget::Shake)
+			: (R < 0.95f && !bBusy) ? static_cast<int32>(EFidget::Stretch)
+			: 0;
+		Fidget = static_cast<EFidget>(FMath::Clamp(Pick, 0, 4));
+		if (Fidget == EFidget::Stretch && !bQuad)
+		{
+			Fidget = EFidget::None;
+		}
+		FidgetLeg = bQuad ? FMath::RandRange(0, 3) : FMath::RandRange(4, 5);
+	}
+	FidgetPitch = 0.f;
+	FidgetLook = 0.f;
+	ShakeRoll = 0.f;
+	for (float& L : PawLift)
+	{
+		L = 0.f;
+	}
+	if (Fidget != EFidget::None)
+	{
+		FidgetT += Dt;
+	}
+	switch (Fidget)
+	{
+	case EFidget::Shake:
+	{
+		// A shake-off, like a wet dog: head and neck whip side to side, the
+		// trunk rolling with them; eyes shut through it.
+		constexpr float Dur = 0.9f;
+		if (FidgetT <= Dt + KINDA_SMALL_NUMBER && BlinkT < 0.f)
+		{
+			BlinkT = 0.f;
+			bDoubleBlink = true;
+		}
+		ShakeRoll = 22.f * FidgetSide * FMath::Sin(PI * FMath::Min(FidgetT / Dur, 1.f)) * FMath::Sin(2.f * PI * 4.5f * FidgetT);
+		if (FidgetT > Dur)
+		{
+			Fidget = EFidget::None;
+		}
+		break;
+	}
+	case EFidget::TailSwish:
+		// Flicking at a fly: a kick one way, then back.
+		if (FidgetT <= Dt + KINDA_SMALL_NUMBER)
+		{
+			TailYawVel += 260.f * FidgetSide;
+		}
+		if (FidgetT >= 0.35f && FidgetT - Dt < 0.35f)
+		{
+			TailYawVel -= 300.f * FidgetSide;
+		}
+		if (FidgetT > 0.9f)
+		{
+			Fidget = EFidget::None;
+		}
+		break;
+	case EFidget::Stretch:
+	{
+		// Chest down, rump up, head lifted (a cat or dog stretching); let go
+		// of early if it sets off.
+		constexpr float Dur = 2.6f;
+		if (!bStill && FidgetT < Dur - 0.6f)
+		{
+			FidgetT = Dur - 0.6f;
+		}
+		const float Env = FMath::SmoothStep(0.f, 0.7f, FidgetT) * (1.f - FMath::SmoothStep(Dur - 0.7f, Dur, FidgetT));
+		FidgetPitch = -7.f * Env;
+		FidgetLook = 20.f * Env;
+		if (FidgetT > Dur)
+		{
+			Fidget = EFidget::None;
+		}
+		break;
+	}
+	case EFidget::PawShuffle:
+	{
+		// One foot lifted a little and set back down; sometimes its partner after it.
+		constexpr float Dur = 0.5f;
+		const float Scale = Mesh ? FMath::Clamp(Mesh->Bounds.SphereRadius / 120.f, 0.6f, 1.5f) : 1.f;
+		PawLift[FidgetLeg] = 6.f * Scale * FMath::Square(FMath::Sin(PI * FMath::Min(FidgetT / Dur, 1.f)));
+		if (FidgetT > Dur)
+		{
+			if (bStill && FMath::FRand() < 0.4f)
+			{
+				FidgetT = 0.f;
+				FidgetLeg ^= 1;   // fl <-> fr, bl <-> br, left <-> right
+			}
+			else
+			{
+				Fidget = EFidget::None;
+			}
+		}
+		break;
+	}
+	default:
+		break;
+	}
+
+	// Weight transfer: pushing off squats the hindquarters, braking drops the
+	// chest; a spring, so after a stop the body rocks back and settles.
+	SmoothedAccel = FMath::FInterpTo(SmoothedAccel, ForwardAccel, Dt, 6.f);
+	const float PitchTarget = (FMath::Clamp(SmoothedAccel * 0.008f, -5.f, 4.f) + FidgetPitch) * Ground;
+	StepSpring(BodyPitch, BodyPitchVel, PitchTarget, Dt, 7.f, 0.45f);
+
+	// Winded after a run: breathing quickens and deepens, then calms.
+	const float Effort = MoveAlpha * RunAlpha * Ground;
+	Exertion = Effort > 0.5f ? FMath::Min(1.f, Exertion + Dt / 5.f) : FMath::Max(0.f, Exertion - Dt / 14.f);
+	BreathPhase = FMath::Frac(BreathPhase + Dt * FMath::Lerp(0.4f, 2.4f, Exertion));
+
+	// Nose to the ground: sniffing twitches, in bursts.
+	const float Burst = (LookPitch < -30.f && FMath::PerlinNoise1D(LifeTime * 0.6f + NoiseSeed) > 0.f) ? 1.f : 0.f;
+	SniffEnv = FMath::FInterpTo(SniffEnv, Burst, Dt, 6.f);
+	SniffPitch = SniffEnv * 2.2f * FMath::Sin(2.f * PI * 6.5f * LifeTime);
+}
+
 void UAstralLocomotionAnimInstance::LookAngles(const FTransform& Body, const FVector& From, const FVector& Target, float& OutYaw, float& OutPitch)
 {
 	const FVector L = Body.InverseTransformVectorNoScale(Target - From);
@@ -61,12 +233,22 @@ void UAstralLocomotionAnimInstance::UpdateGaze(float Dt)
 	const bool bFlying = FlightAlpha > 0.5f;
 	const AAstralWildlifeController* AI = Cast<AAstralWildlifeController>(Pawn->GetController());
 	const EAstralWildlifeMode Mode = AI ? AI->GetMode() : EAstralWildlifeMode::Wander;
+	const EAstralWanderActivity Activity = AI ? AI->GetActivity() : EAstralWanderActivity::LookAround;
 	const APawn* Player = UGameplayStatics::GetPlayerPawn(Pawn, 0);
 	const float PlayerDist = Player ? FVector::Dist(Player->GetActorLocation(), Pawn->GetActorLocation()) : TNumericLimits<float>::Max();
 	auto Rand = [](float A, float B) { return FMath::FRandRange(A, B); };
 	auto Side = []() { return FMath::RandBool() ? 1.f : -1.f; };
 
 	GazeHold -= Dt;
+	// Noticing the Mage, or starting to graze, takes the eyes at once.
+	if (static_cast<uint8>(Activity) != LastActivity)
+	{
+		LastActivity = static_cast<uint8>(Activity);
+		if (Activity == EAstralWanderActivity::Alert || Activity == EAstralWanderActivity::Graze)
+		{
+			GazeHold = 0.f;
+		}
+	}
 	// Starting or stopping changes what an animal attends to (a look picked
 	// while standing shouldn't carry on into the walk, or eyes-front past a
 	// stop), and the Mage stops being interesting once far off.
@@ -94,7 +276,11 @@ void UAstralLocomotionAnimInstance::UpdateGaze(float Dt)
 		GazePitch = -4.f;
 		GazeActor.Reset();
 		const float R = FMath::FRand();
-		if (Mode == EAstralWildlifeMode::Chase && Player)
+		if (Activity == EAstralWanderActivity::Alert && Player)
+		{
+			Gaze = EGaze::Watch; GazeActor = Player; GazeHold = Rand(1.5f, 3.f);              // frozen, staring at the Mage
+		}
+		else if (Mode == EAstralWildlifeMode::Chase && Player)
 		{
 			Gaze = EGaze::Watch; GazeActor = Player; GazeHold = Rand(0.6f, 1.2f);          // eyes locked on
 		}
@@ -113,6 +299,15 @@ void UAstralLocomotionAnimInstance::UpdateGaze(float Dt)
 			// circling under it; now and then a quick scan of the ground.
 			if (R < 0.85f) { Gaze = EGaze::Watch; GazeActor = Quarry; GazeHold = Rand(1.5f, 3.f); }
 			else { Gaze = EGaze::Glance; GazeYaw = Side() * Rand(20.f, 60.f); GazePitch = -Rand(25.f, 45.f); GazeHold = Rand(0.4f, 0.8f); }
+		}
+		else if (Activity == EAstralWanderActivity::Graze && !bFlying)
+		{
+			// Grazing: nose down working the ground, now and then the head
+			// comes up to look round (at the Mage if it is near) while chewing.
+			Gaze = EGaze::Glance;
+			if (R < 0.78f) { GazeYaw = Rand(-30.f, 30.f); GazePitch = -Rand(50.f, 65.f); GazeHold = Rand(2.f, 4.5f); }
+			else if (Player && PlayerDist < 1400.f) { Gaze = EGaze::Watch; GazeActor = Player; GazeHold = Rand(1.f, 2.f); }
+			else { GazeYaw = Side() * Rand(20.f, 50.f); GazePitch = Rand(-5.f, 10.f); GazeHold = Rand(1.f, 2.f); }
 		}
 		else if (Player && PlayerDist < 1400.f && R < 0.45f)
 		{
@@ -179,6 +374,16 @@ void UAstralLocomotionAnimInstance::UpdateGaze(float Dt)
 	// A raptor in the air keeps its looks full length (it is hunting, not
 	// minding the way ahead).
 	const bool bHunting = bRaptor && bFlying;
+	// Alert: head held high. Otherwise a slow drift, so the head is never
+	// dead still (a hawk barely moves its head between snaps), and the
+	// stretch's lifted head.
+	if (Activity == EAstralWanderActivity::Alert)
+	{
+		TargetPitch += 6.f;
+	}
+	const float Drift = bRaptor ? 0.3f : 1.f;
+	TargetYaw += Drift * 4.f * FMath::PerlinNoise1D(LifeTime * 0.35f + NoiseSeed);
+	TargetPitch += Drift * 2.5f * FMath::PerlinNoise1D(LifeTime * 0.3f + NoiseSeed + 17.f) + FidgetLook;
 	const float Calm = (Mode == EAstralWildlifeMode::Flee || bHunting) ? 1.f : 1.f - 0.5f * RunAlpha * MoveAlpha;
 	TargetYaw = FMath::Clamp(TargetYaw, -75.f, 75.f) * Calm;
 	TargetPitch = FMath::Clamp(TargetPitch, -65.f, 38.f) * Calm;
@@ -306,11 +511,16 @@ void UAstralLocomotionAnimInstance::UpdateFootIK(float DeltaSeconds, FAstralLoco
 	}
 	// World Z offsets into component space (the mesh is scaled, yawed and rolled).
 	const FTransform& C2W = Mesh->GetComponentTransform();
-	Proxy.PelvisOffset = C2W.InverseTransformVector(FVector(0.f, 0.f, PelvisDrop));
+	// Winded: the trunk heaves (only ever down from the clip, so the legs can
+	// always reach), standing only - a running gait has its own bob.
+	const float Heave = Exertion * (1.f - MoveAlpha) * (0.5f + 0.5f * FMath::Sin(2.f * PI * BreathPhase));
+	Proxy.PelvisOffset = C2W.InverseTransformVector(FVector(0.f, 0.f, PelvisDrop - 1.2f * Heave));
+	Proxy.BreathNod = 2.5f * Heave;
 	Proxy.BodySlope = bQuad ? C2W.InverseTransformVector(FVector(0.f, 0.f, Front - Hind)) : FVector::ZeroVector;
+	Proxy.ComponentUp = C2W.InverseTransformVector(FVector::UpVector).GetSafeNormal();
 	for (int32 i = 0; i < 6; ++i)
 	{
-		Proxy.FootOffsets[i] = C2W.InverseTransformVector(FVector(0.f, 0.f, FootGround[i]));
+		Proxy.FootOffsets[i] = C2W.InverseTransformVector(FVector(0.f, 0.f, FootGround[i] + PawLift[i]));
 	}
 }
 
@@ -322,6 +532,11 @@ void UAstralLocomotionAnimInstance::SetClips(UAnimSequence* InIdle, UAnimSequenc
 	WalkSpeed = FMath::Max(InWalkSpeed, 1.f);
 	RunSpeed = FMath::Max(InRunSpeed, WalkSpeed + 1.f);
 	IdleThreshold = FMath::Max(InIdleThreshold, 0.f);
+	// No two Astrals breathe, fidget or drift in step.
+	IdleTime = IdleAnim ? FMath::FRand() * IdleAnim->GetPlayLength() : 0.f;
+	IdleRate = FMath::FRandRange(0.9f, 1.1f);
+	NoiseSeed = FMath::FRandRange(0.f, 100.f);
+	FidgetTimer = FMath::FRandRange(2.f, 6.f);
 }
 
 FAnimInstanceProxy* UAstralLocomotionAnimInstance::CreateAnimInstanceProxy()
@@ -337,9 +552,34 @@ void UAstralLocomotionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	const float Speed = Pawn ? Pawn->GetVelocity().Size2D() : 0.f;
 	const bool bCanMove = WalkAnim || RunAnim;
 
-	// Targets: fade idle -> moving over the first half of walk speed, then
+	// Targets: fade idle -> moving over the first 40% of walk speed, then
 	// walk -> run between the two authored speeds.
-	const float MoveTarget = !bCanMove ? 0.f : (IdleAnim ? FMath::SmoothStep(IdleThreshold, FMath::Max(IdleThreshold + 1.f, 0.5f * WalkSpeed), Speed) : 1.f);
+	float MoveTarget = !bCanMove ? 0.f : (IdleAnim ? FMath::SmoothStep(IdleThreshold, FMath::Max(IdleThreshold + 1.f, 0.4f * WalkSpeed), Speed) : 1.f);
+	// Starting from a stand: begin the cycle with one diagonal pair planted
+	// under the body and the other about to lift, so the first step comes
+	// out of the standing pose rather than from mid-stride.
+	if (MoveAlpha < 0.02f)
+	{
+		bStopSettled = true;
+	}
+	if (bStopSettled && MoveTarget > 0.05f && MoveAlpha < 0.05f)
+	{
+		GaitPhase = FMath::RandBool() ? 0.18f : 0.68f;
+		bStopSettled = false;
+	}
+	if (MoveTarget > 0.6f)
+	{
+		bStopSettled = false;
+	}
+	// Stopping: finish the step. Hold the gait until a diagonal pair is
+	// planted mid-stance, then settle into the idle (it used to fade out of
+	// whatever stride it was in, sliding the feet into place).
+	bStopHolding = !bStopSettled && MoveTarget < 0.5f && MoveAlpha > 0.2f && IdleAnim != nullptr;
+	StopHoldTime = bStopHolding ? StopHoldTime + DeltaSeconds : 0.f;
+	if (bStopHolding)
+	{
+		MoveTarget = MoveAlpha;
+	}
 	// Walk and Run differ in stride and footfall timing, so mixing them reads
 	// as muddle: blend only in the gap between the two paces.
 	const float RunTarget = !RunAnim ? 0.f : (!WalkAnim ? 1.f : FMath::SmoothStep(FMath::Lerp(WalkSpeed, RunSpeed, 0.25f), FMath::Lerp(WalkSpeed, RunSpeed, 0.75f), Speed));
@@ -356,11 +596,17 @@ void UAstralLocomotionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	const float WalkCps = Speed / (WalkSpeed * WalkLen);
 	const float RunCps = Speed / (RunSpeed * RunLen);
 	// Keep a minimum cadence while blending out, so legs don't freeze mid-stride.
-	const float Cps = FMath::Max(FMath::Lerp(WalkCps, RunCps, RunAlpha), 0.5f / FMath::Lerp(WalkLen, RunLen, RunAlpha));
-	GaitPhase = FMath::Frac(GaitPhase + DeltaSeconds * Cps);
+	// Finishing a step on stopping goes at a steady stepping pace.
+	const float Cps = FMath::Max(FMath::Lerp(WalkCps, RunCps, RunAlpha), (bStopHolding ? 0.8f : 0.5f) / FMath::Lerp(WalkLen, RunLen, RunAlpha));
+	const float PhaseStep = DeltaSeconds * Cps;
+	if (bStopHolding && (ReachesSettlePhase(GaitPhase, PhaseStep) || StopHoldTime > 0.6f))
+	{
+		bStopSettled = true;
+	}
+	GaitPhase = FMath::Frac(GaitPhase + PhaseStep);
 
 	const float IdleLen = IdleAnim ? FMath::Max(IdleAnim->GetPlayLength(), 0.01f) : 1.f;
-	IdleTime = FMath::Fmod(IdleTime + DeltaSeconds, IdleLen);
+	IdleTime = FMath::Fmod(IdleTime + DeltaSeconds * IdleRate, IdleLen);
 
 	// Body bend into turns: ~0.1 deg of bend per deg/s of yaw rate, capped,
 	// eased so it builds into a turn and unwinds after it.
@@ -374,7 +620,9 @@ void UAstralLocomotionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bHasLastYaw = Pawn != nullptr;
 	if (DeltaSeconds > 0.f)
 	{
-		TurnBend = FMath::FInterpTo(TurnBend, FMath::Clamp(YawRate * 0.1f, -22.f, 22.f), DeltaSeconds, 4.f);
+		// Plus a slow wander of the spine while moving, so no two strides are quite the same.
+		const float Wobble = 2.f * MoveAlpha * FMath::PerlinNoise1D(LifeTime * 0.45f + NoiseSeed + 40.f);
+		TurnBend = FMath::FInterpTo(TurnBend, FMath::Clamp(YawRate * 0.1f + Wobble, -22.f, 22.f), DeltaSeconds, 4.f);
 	}
 
 	// The head leads the turn (gazelle cutting away from a cheetah, a runner
@@ -399,10 +647,11 @@ void UAstralLocomotionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	// it to the outside; speeding up pushes it back and down, braking throws
 	// it forward and up; then it overshoots and settles (under-damped), so a
 	// stop reads as weight in the tail rather than a freeze.
+	float ForwardAccel = 0.f;
 	if (DeltaSeconds > 0.f && Pawn)
 	{
 		const float ForwardSpeed = FVector::DotProduct(Pawn->GetVelocity(), Pawn->GetActorForwardVector());
-		const float ForwardAccel = (ForwardSpeed - LastForwardSpeed) / DeltaSeconds;
+		ForwardAccel = (ForwardSpeed - LastForwardSpeed) / DeltaSeconds;
 		LastForwardSpeed = ForwardSpeed;
 		StepSpring(TailYaw, TailYawVel, FMath::Clamp(-0.08f * YawRate, -28.f, 28.f), DeltaSeconds);
 		StepSpring(TailPitch, TailPitchVel, FMath::Clamp(-0.012f * ForwardAccel, -18.f, 18.f), DeltaSeconds, 7.f, 0.35f);
@@ -413,10 +662,14 @@ void UAstralLocomotionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	Proxy.HeadLead = HeadLead;
 	Proxy.TailYaw = TailYaw;
 	Proxy.TailPitch = TailPitch;
+	UpdateLife(DeltaSeconds, ForwardAccel);
 	UpdateGaze(DeltaSeconds);
 	UpdateBlink(DeltaSeconds);
 	Proxy.LookYaw = LookYaw;
-	Proxy.LookPitch = LookPitch;
+	Proxy.LookPitch = LookPitch + SniffPitch;
+	Proxy.BodyPitch = BodyPitch;
+	Proxy.BodyRoll = 0.3f * ShakeRoll;
+	Proxy.ShakeRoll = ShakeRoll;
 	UpdateFootIK(DeltaSeconds, Proxy);
 	Proxy.Layers.Reset();
 	auto Add = [&Proxy](const UAnimSequence* Seq, float Time, float Weight)
@@ -545,10 +798,11 @@ void FAstralLocomotionProxy::CacheBendBones(const FBoneContainer& Bones)
 	// Fourth column: share of the tail spring, growing toward the tip (the
 	// spring now carries the tail's swing into turns; it used to be a fixed
 	// share of TurnBend with no overshoot).
-	struct FShare { const TCHAR* Bone; float Bend; float Lead; float Tail; };
+	// Fifth and sixth: shares of a shake's roll and the winded nod (neck and head).
+	struct FShare { const TCHAR* Bone; float Bend; float Lead; float Tail; float Roll; float Nod; };
 	static const FShare Shares[] = {
-		{ TEXT("spine_01"), 0.15f, 0.f, 0.f }, { TEXT("chest"), 0.25f, 0.f, 0.f }, { TEXT("neck"), 0.3f, 0.4f, 0.f }, { TEXT("head"), 0.3f, 0.6f, 0.f },
-		{ TEXT("tail_01"), 0.f, 0.f, 0.15f }, { TEXT("tail_02"), 0.f, 0.f, 0.22f }, { TEXT("tail_03"), 0.f, 0.f, 0.28f }, { TEXT("tail_04"), 0.f, 0.f, 0.35f },
+		{ TEXT("spine_01"), 0.15f, 0.f, 0.f, 0.f, 0.f }, { TEXT("chest"), 0.25f, 0.f, 0.f, 0.f, 0.f }, { TEXT("neck"), 0.3f, 0.4f, 0.f, 0.4f, 0.6f }, { TEXT("head"), 0.3f, 0.6f, 0.f, 0.6f, 0.4f },
+		{ TEXT("tail_01"), 0.f, 0.f, 0.15f, 0.f, 0.f }, { TEXT("tail_02"), 0.f, 0.f, 0.22f, 0.f, 0.f }, { TEXT("tail_03"), 0.f, 0.f, 0.28f, 0.f, 0.f }, { TEXT("tail_04"), 0.f, 0.f, 0.35f, 0.f, 0.f },
 	};
 	const FReferenceSkeleton& Ref = Bones.GetReferenceSkeleton();
 
@@ -572,6 +826,7 @@ void FAstralLocomotionProxy::CacheBendBones(const FBoneContainer& Bones)
 	// The body's sideways axis for looking up/down: across the horizontal
 	// line from the pelvis to the head (works for upright Stormrook too).
 	FVector LookSide = FVector::RightVector;
+	FVector BodyForward = FVector::ForwardVector;   // the roll axis of a shake
 	{
 		const int32 P = Ref.FindBoneIndex(TEXT("pelvis"));
 		const int32 H = Ref.FindBoneIndex(TEXT("head"));
@@ -583,6 +838,7 @@ void FAstralLocomotionProxy::CacheBendBones(const FBoneContainer& Bones)
 			if (!S.IsNearlyZero())
 			{
 				LookSide = S;   // + rotation about it tips the head up
+				BodyForward = D.GetSafeNormal();
 			}
 		}
 	}
@@ -617,7 +873,8 @@ void FAstralLocomotionProxy::CacheBendBones(const FBoneContainer& Bones)
 		const FTransform ParentRef = FAnimationRuntime::GetComponentSpaceTransformRefPose(Ref, ParentIndex);
 		BendBones.Add({ BoneIndex, ParentRef.GetRotation().UnrotateVector(FVector::UpVector).GetSafeNormal(),
 			ParentRef.GetRotation().UnrotateVector(TailSide).GetSafeNormal(), S.Bend, S.Lead, S.Tail,
-			ParentRef.GetRotation().UnrotateVector(LookSide).GetSafeNormal(), S.Lead });   // the gaze uses the head-lead shares: neck 40%, head 60%
+			ParentRef.GetRotation().UnrotateVector(LookSide).GetSafeNormal(), S.Lead,   // the gaze uses the head-lead shares: neck 40%, head 60%
+			ParentRef.GetRotation().UnrotateVector(BodyForward).GetSafeNormal(), S.Roll, S.Nod });
 	}
 }
 
@@ -628,7 +885,8 @@ void FAstralLocomotionProxy::ApplyTurnBend(FPoseContext& Output)
 	{
 		CacheBendBones(Bones);
 	}
-	if (FMath::Abs(TurnBend) < 0.05f && FMath::Abs(HeadLead) < 0.05f && FMath::Abs(TailYaw) < 0.05f && FMath::Abs(TailPitch) < 0.05f && FMath::Abs(LookYaw) < 0.05f && FMath::Abs(LookPitch) < 0.05f)
+	if (FMath::Abs(TurnBend) < 0.05f && FMath::Abs(HeadLead) < 0.05f && FMath::Abs(TailYaw) < 0.05f && FMath::Abs(TailPitch) < 0.05f && FMath::Abs(LookYaw) < 0.05f && FMath::Abs(LookPitch) < 0.05f
+		&& FMath::Abs(ShakeRoll) < 0.05f && FMath::Abs(BreathNod) < 0.05f)
 	{
 		return;
 	}
@@ -637,8 +895,9 @@ void FAstralLocomotionProxy::ApplyTurnBend(FPoseContext& Output)
 		FTransform& Local = Output.Pose[B.Index];
 		const FQuat Yaw(B.Axis, FMath::DegreesToRadians(TurnBend * B.Share + HeadLead * B.LeadShare + TailYaw * B.TailShare + LookYaw * B.LookShare));
 		const FQuat Pitch(B.PitchAxis, FMath::DegreesToRadians(TailPitch * B.TailShare));
-		const FQuat Look(B.LookPitchAxis, FMath::DegreesToRadians(LookPitch * B.LookShare));
-		Local.SetRotation((Yaw * Look * Pitch * Local.GetRotation()).GetNormalized());
+		const FQuat Look(B.LookPitchAxis, FMath::DegreesToRadians(LookPitch * B.LookShare + BreathNod * B.NodShare));
+		const FQuat Roll(B.RollAxis, FMath::DegreesToRadians(ShakeRoll * B.RollShare));
+		Local.SetRotation((Yaw * Look * Pitch * Roll * Local.GetRotation()).GetNormalized());
 	}
 }
 
@@ -648,7 +907,7 @@ void FAstralLocomotionProxy::ApplyFootIK(FPoseContext& Output)
 	{
 		return;
 	}
-	bool bAnyOffset = PelvisOffset.SizeSquared() > 0.01f || BodySlope.SizeSquared() > 0.01f;
+	bool bAnyOffset = PelvisOffset.SizeSquared() > 0.01f || BodySlope.SizeSquared() > 0.01f || FMath::Abs(BodyPitch) > 0.05f || FMath::Abs(BodyRoll) > 0.05f;
 	for (const FVector& F : FootOffsets)
 	{
 		bAnyOffset |= F.SizeSquared() > 0.01f;
@@ -674,11 +933,16 @@ void FAstralLocomotionProxy::ApplyFootIK(FPoseContext& Output)
 	// pelvis follows.
 	FQuat Pitch = FQuat::Identity;
 	FVector Pivot = CS.GetComponentSpaceTransform(PelvisIndex).GetLocation();
-	if (!BodySlope.IsNearlyZero() && LegChains[0].Upper.IsValid() && LegChains[1].Upper.IsValid() && LegChains[2].Upper.IsValid() && LegChains[3].Upper.IsValid())
+	const bool bQuad = LegChains[0].Upper.IsValid() && LegChains[1].Upper.IsValid() && LegChains[2].Upper.IsValid() && LegChains[3].Upper.IsValid();
+	FVector Shoulders = Pivot, Hips = Pivot;
+	if (bQuad)
 	{
-		const FVector Shoulders = 0.5f * (CS.GetComponentSpaceTransform(LegChains[0].Upper).GetLocation() + CS.GetComponentSpaceTransform(LegChains[1].Upper).GetLocation());
-		const FVector Hips = 0.5f * (CS.GetComponentSpaceTransform(LegChains[2].Upper).GetLocation() + CS.GetComponentSpaceTransform(LegChains[3].Upper).GetLocation());
-		const FVector Forward = Shoulders - Hips;
+		Shoulders = 0.5f * (CS.GetComponentSpaceTransform(LegChains[0].Upper).GetLocation() + CS.GetComponentSpaceTransform(LegChains[1].Upper).GetLocation());
+		Hips = 0.5f * (CS.GetComponentSpaceTransform(LegChains[2].Upper).GetLocation() + CS.GetComponentSpaceTransform(LegChains[3].Upper).GetLocation());
+	}
+	const FVector Forward = Shoulders - Hips;
+	if (!BodySlope.IsNearlyZero() && bQuad)
+	{
 		// Feet spread wider than the hips-to-shoulders line, so scale the
 		// ground rise to it: rise over the feet's span, same angle.
 		const float FootSpan = FMath::Max((0.5f * (AnkleFromClip[0] + AnkleFromClip[1]) - 0.5f * (AnkleFromClip[2] + AnkleFromClip[3])).Size(), 1.f);
@@ -692,8 +956,24 @@ void FAstralLocomotionProxy::ApplyFootIK(FPoseContext& Output)
 		Pivot = 0.5f * (Shoulders + Hips);
 	}
 	FTransform Pelvis = CS.GetComponentSpaceTransform(PelvisIndex);
-	Pelvis.SetLocation(Pitch.RotateVector(Pelvis.GetLocation() - Pivot) + Pivot + PelvisOffset);
-	Pelvis.SetRotation((Pitch * Pelvis.GetRotation()).GetNormalized());
+	auto RotateAbout = [&Pelvis](const FQuat& Q, const FVector& At)
+	{
+		Pelvis.SetLocation(Q.RotateVector(Pelvis.GetLocation() - At) + At);
+		Pelvis.SetRotation((Q * Pelvis.GetRotation()).GetNormalized());
+	};
+	RotateAbout(Pitch, Pivot);
+	// Weight shift on top: nose up about the shoulders (hindquarters squat),
+	// nose down about the hips (chest drops), so the body only ever lowers and
+	// the legs can always reach their feet; then a shake's roll along the back.
+	const FVector Side = FVector::CrossProduct(Forward, ComponentUp).GetSafeNormal();
+	if (bQuad && !Side.IsNearlyZero() && (FMath::Abs(BodyPitch) > 0.05f || FMath::Abs(BodyRoll) > 0.05f))
+	{
+		const FVector At = Pitch.RotateVector((BodyPitch > 0.f ? Shoulders : Hips) - Pivot) + Pivot;
+		RotateAbout(FQuat(Pitch.RotateVector(Side), FMath::DegreesToRadians(BodyPitch)), At);
+		const FVector Mid = Pitch.RotateVector(0.5f * (Shoulders + Hips) - Pivot) + Pivot;
+		RotateAbout(FQuat(Pitch.RotateVector(Forward).GetSafeNormal(), FMath::DegreesToRadians(BodyRoll)), Mid);
+	}
+	Pelvis.AddToTranslation(PelvisOffset);
 	CS.SafeSetCSBoneTransforms({ FBoneTransform(PelvisIndex, Pelvis) });
 
 	// Two-bone solve per leg: the knee stays in its plane (pole = where it

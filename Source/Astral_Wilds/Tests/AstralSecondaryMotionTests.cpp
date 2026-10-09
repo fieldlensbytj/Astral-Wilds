@@ -67,4 +67,17 @@ bool FAstralSecondary_Blink::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralSecondary_SettlePhase, "AstralWilds.Animation.SettlePhase", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FAstralSecondary_SettlePhase::RunTest(const FString& Parameters)
+{
+	// A stop settles when a diagonal pair is planted mid-stance: 0.25 or 0.75 of the cycle.
+	TestTrue(TEXT("Stepping over 0.25 settles"), UAstralLocomotionAnimInstance::ReachesSettlePhase(0.24f, 0.02f));
+	TestTrue(TEXT("Stepping over 0.75 settles"), UAstralLocomotionAnimInstance::ReachesSettlePhase(0.7f, 0.06f));
+	TestFalse(TEXT("Mid-way between, it carries on"), UAstralLocomotionAnimInstance::ReachesSettlePhase(0.4f, 0.05f));
+	TestFalse(TEXT("Just past a settle point, it carries on to the next"), UAstralLocomotionAnimInstance::ReachesSettlePhase(0.26f, 0.1f));
+	TestTrue(TEXT("Across the wrap from 0.95 by 0.35"), UAstralLocomotionAnimInstance::ReachesSettlePhase(0.95f, 0.35f));
+	TestFalse(TEXT("No step, no settle (unless on the point)"), UAstralLocomotionAnimInstance::ReachesSettlePhase(0.5f, 0.f));
+	return true;
+}
+
 #endif

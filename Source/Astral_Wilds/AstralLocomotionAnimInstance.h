@@ -46,6 +46,22 @@ struct FAstralLocomotionProxy : public FAnimInstanceProxy
 	FVector FootOffsets[6];
 	bool bFootIK = false;
 
+	/**
+	 * Whole-body weight shift, degrees (quadrupeds; feet stay planted by the
+	 * foot IK): + noses up, pivoting at the shoulders so the hindquarters
+	 * squat (pushing off); - noses down about the hips so the chest drops
+	 * (braking, stretching). BodyRoll rolls the trunk about its length (a shake).
+	 */
+	float BodyPitch = 0.f;
+	float BodyRoll = 0.f;
+	/** Component-space up, for BodyPitch's axis. */
+	FVector ComponentUp = FVector::UpVector;
+	/** Breathing after exertion: trunk rise (cm, component) and the neck's nod with it (degrees). */
+	float BreathLift = 0.f;
+	float BreathNod = 0.f;
+	/** Head-and-neck roll of a shake, degrees. */
+	float ShakeRoll = 0.f;
+
 private:
 	/** Per bent bone: compact index, rotation axes (component up / tail side, in its parent's ref frame), shares of TurnBend, HeadLead and the tail spring. */
 	struct FBendBone
@@ -58,6 +74,9 @@ private:
 		float TailShare = 0.f;
 		FVector LookPitchAxis = FVector::RightVector;
 		float LookShare = 0.f;
+		FVector RollAxis = FVector::ForwardVector;
+		float RollShare = 0.f;
+		float NodShare = 0.f;
 	};
 	TArray<FBendBone> BendBones;
 	const FBoneContainer* BendBonesFor = nullptr;
@@ -144,6 +163,19 @@ public:
 	 * stop instead of stopping dead.
 	 */
 	static void StepSpring(float& Value, float& Velocity, float Target, float Dt, float Omega = 9.f, float Zeta = 0.3f);
+
+	/**
+	 * Gait phases where a stop or start looks clean: one diagonal pair planted
+	 * mid-stance under the body, the other mid-swing (0.25 and 0.75 of the
+	 * Walk). True if advancing the phase from Prev by Step reaches one.
+	 */
+	static bool ReachesSettlePhase(float Prev, float Step);
+
+	/** How winded it is, 0..1: builds over ~5s of running, fades over ~14s. Panting shows standing. */
+	float GetExertion() const { return Exertion; }
+	float GetBodyPitch() const { return BodyPitch; }
+	/** The current fidget, for the capture log: 0 none, 1 shake, 2 tail swish, 3 stretch, 4 paw shuffle. */
+	int32 GetFidget() const { return static_cast<int32>(Fidget); }
 
 protected:
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;
@@ -233,4 +265,42 @@ private:
 	float GazeHold = 0.f;     // seconds left on the current target
 	bool bGazeWasMoving = false;
 	float LookYaw = 0.f, LookYawVel = 0.f, LookPitch = 0.f, LookPitchVel = 0.f;
+	uint8 LastActivity = 0;
+
+	/**
+	 * More real life (TJ, 2026-10-09: "more fluid and real life like"):
+	 * - Stops finish the step: the gait carries on to a planted pose
+	 *   (ReachesSettlePhase) before the idle takes over, and starts step out
+	 *   of the standing pose.
+	 * - Weight transfer: the hindquarters squat pushing off, the chest dips
+	 *   braking, on a spring so it settles after a stop.
+	 * - Panting after a run, sniffing twitches with the nose down, a little
+	 *   drift so the head is never dead still.
+	 * - Fidgets while standing: a shake, a tail swish, a stretch, shuffling a paw.
+	 */
+	void UpdateLife(float DeltaSeconds, float ForwardAccel);
+	float LifeTime = 0.f;
+	float NoiseSeed = 0.f;
+	bool bStopSettled = true;
+	float StopHoldTime = 0.f;
+	bool bStopHolding = false;
+	float Exertion = 0.f;
+	float BreathPhase = 0.f;
+	float SmoothedAccel = 0.f;
+	float BodyPitch = 0.f, BodyPitchVel = 0.f;
+	float IdleRate = 1.f;
+	float StillTime = 0.f;
+	enum class EFidget : uint8 { None, Shake, TailSwish, Stretch, PawShuffle };
+	EFidget Fidget = EFidget::None;
+	float FidgetT = 0.f;
+	float FidgetTimer = 3.f;
+	int32 FidgetLeg = 0;
+	float FidgetSide = 1.f;
+	/** This frame's fidget outputs. */
+	float FidgetPitch = 0.f;
+	float FidgetLook = 0.f;
+	float ShakeRoll = 0.f;
+	float PawLift[6] = { 0.f, 0.f, 0.f, 0.f, 0.f, 0.f };
+	float SniffPitch = 0.f;
+	float SniffEnv = 0.f;
 };

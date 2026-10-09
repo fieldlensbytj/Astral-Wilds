@@ -44,6 +44,21 @@ enum class EAstralFlightPhase : uint8
 	Landing
 };
 
+/**
+ * What a wandering Astral is doing between and during its walks (TJ,
+ * 2026-10-09: "more fluid and real life like"; behaviour read as robotic).
+ * The anim instance reads it: grazing holds the nose to the ground, alert
+ * holds the head up on the Mage and stops fidgeting.
+ */
+UENUM(BlueprintType)
+enum class EAstralWanderActivity : uint8
+{
+	Travel,
+	LookAround,
+	Graze,
+	Alert
+};
+
 /** Distances (cm) and speeds (cm/s) for the native wildlife behavior. Defaults match the StateTree task defaults where one exists. */
 USTRUCT(BlueprintType)
 struct FAstralWildlifeTuning
@@ -124,6 +139,22 @@ struct FAstralWildlifeTuning
 
 	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife|Wary", meta = (Units = "cm/s"))
 	float WaryFleeSpeed = 300.f;
+
+	/** Wandering pulls away to the Mage's speed gently: a walk builds up over ~0.4s rather than snapping to pace. Flee and chase use the character's full acceleration. */
+	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife|Natural", meta = (Units = "cm/s^2"))
+	float WanderAcceleration = 350.f;
+
+	/** Each wander leg picks its pace from WanderSpeed x this range, and now and then a brisker one, so walks aren't all the same speed. */
+	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife|Natural")
+	FVector2D WanderSpeedScale = FVector2D(0.8f, 1.1f);
+
+	/** Share of pauses spent grazing / sniffing the ground (with small steps forward) rather than looking round. */
+	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife|Natural", meta = (ClampMin = "0", ClampMax = "1"))
+	float GrazeChance = 0.5f;
+
+	/** Skittish and Wary Astrals freeze and stare when the Mage comes within this multiple of their alert range, before deciding to bolt. */
+	UPROPERTY(EditAnywhere, Category = "Astral|Wildlife|Natural")
+	float NoticeRangeScale = 1.5f;
 };
 
 UCLASS()
@@ -156,6 +187,18 @@ public:
 	static EAstralWildlifeMode ChooseMode(EAstralAIArchetype Archetype, EAstralWildState WildState, EAstralWildlifeMode Current,
 		float DistToPlayer, float DistFromHome, float PlayerDistFromHome, const FAstralWildlifeTuning& Tuning,
 		bool bFleeStalled = false, bool bRecentlyCornered = false);
+
+	/** What it is doing while wandering (or Alert while frozen before a flee). */
+	UFUNCTION(BlueprintPure, Category = "Astral|Wildlife")
+	EAstralWanderActivity GetActivity() const { return Activity; }
+
+	/**
+	 * Where a wandering Astral walks next: on from where it is facing, turned
+	 * by Turn (degrees, -1..1 of the spread), bent back toward home the
+	 * farther it is from it, Distance away. Animals amble in curving lines,
+	 * not between random points in a circle.
+	 */
+	static FVector MeanderTarget(const FVector& Here, const FVector& Facing, const FVector& Home, float RoamRadius, float Turn, float Distance);
 
 	UFUNCTION(BlueprintPure, Category = "Astral|Wildlife")
 	EAstralFlightPhase GetFlightPhase() const { return FlightPhase; }
@@ -209,6 +252,17 @@ private:
 	float FleeLastProgressTime = 0.f;
 	/** Set when a flee stalls; the Astral then only re-spooks inside half the alert range, until the player is past CalmRange. */
 	bool bRecentlyCornered = false;
+
+	/** Wander activity, graze steps left in this pause, the freeze before a flee, and when it may next stop to stare. */
+	EAstralWanderActivity Activity = EAstralWanderActivity::LookAround;
+	int32 GrazeSteps = 0;
+	float AlertFreeze = 0.f;
+	float NoticeCooldown = 0.f;
+	/** The character's own MaxAcceleration (flee, chase); wandering uses Tuning.WanderAcceleration. */
+	float DefaultAcceleration = 900.f;
+	/** Picks the next wander leg (meander, pace) or the next graze step. */
+	void StartWanderLeg(AAstralCharacter* Astral, const APawn* Player);
+	void SetWalkPace(AAstralCharacter* Astral, float Speed, float Accel);
 
 	/** Flight (bCanFly species only). */
 	void EnterFlightPhase(EAstralFlightPhase NewPhase, AAstralCharacter* Astral);

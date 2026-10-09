@@ -19,6 +19,93 @@ namespace
 	{
 		return Astral && Astral->SpeciesData && Astral->SpeciesData->AIArchetype == EAstralAIArchetype::Wary;
 	}
+
+	bool IsShy(const AAstralCharacter* Astral)
+	{
+		return IsWary(Astral) || (Astral && Astral->SpeciesData && Astral->SpeciesData->AIArchetype == EAstralAIArchetype::Skittish);
+	}
+}
+
+FVector AAstralWildlifeController::MeanderTarget(const FVector& Here, const FVector& Facing, const FVector& Home, float RoamRadius, float Turn, float Distance)
+{
+	FVector Fwd = Facing.GetSafeNormal2D();
+	if (Fwd.IsZero())
+	{
+		Fwd = FVector::ForwardVector;
+	}
+	FVector Dir = Fwd.RotateAngleAxis(FMath::Clamp(Turn, -1.5f, 1.5f) * 70.f, FVector::UpVector);
+	// Past half its roam radius it bends back toward home (fully at the
+	// edge), so it loops round its patch instead of walking off it.
+	const FVector ToHome = (Home - Here) * FVector(1.f, 1.f, 0.f);
+	const float Out = FMath::Clamp((ToHome.Size() / FMath::Max(RoamRadius, 1.f) - 0.5f) * 2.f, 0.f, 1.f);
+	if (Out > 0.f && !ToHome.IsNearlyZero())
+	{
+		const FVector Bent = FMath::Lerp(Dir, ToHome.GetSafeNormal(), Out).GetSafeNormal();
+		Dir = Bent.IsZero() ? ToHome.GetSafeNormal() : Bent;
+	}
+	return Here + Dir * Distance;
+}
+
+void AAstralWildlifeController::SetWalkPace(AAstralCharacter* Astral, float Speed, float Accel)
+{
+	if (UCharacterMovementComponent* Move = Astral->GetCharacterMovement())
+	{
+		Move->MaxWalkSpeed = Speed;
+		Move->MaxAcceleration = Accel;
+	}
+}
+
+void AAstralWildlifeController::StartWanderLeg(AAstralCharacter* Astral, const APawn* Player)
+{
+	const bool bFlyer = Astral->SpeciesData && Astral->SpeciesData->bCanFly;
+	const FVector Here = Astral->GetActorLocation();
+	UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
+
+	// Grazing: a small step or two on with the nose still down, the way a
+	// grazer works along a patch, before it walks off anywhere.
+	if (Activity == EAstralWanderActivity::Graze && GrazeSteps > 0)
+	{
+		--GrazeSteps;
+		const FVector Fwd = Astral->GetActorForwardVector().GetSafeNormal2D().RotateAngleAxis(FMath::FRandRange(-30.f, 30.f), FVector::UpVector);
+		FNavLocation Step;
+		if (NavSys && NavSys->ProjectPointToNavigation(Here + Fwd * FMath::FRandRange(110.f, 180.f), Step)
+			&& MoveToLocation(Step.Location, 10.f) != EPathFollowingRequestResult::Failed)
+		{
+			SetWalkPace(Astral, bFlyer ? FlyerWalkSpeed : 85.f, 250.f);   // slow enough to keep the nose down, quick enough for the legs to step (a creep glided on idle feet)
+			WanderPause = FMath::FRandRange(1.5f, 4.f);
+			return;
+		}
+	}
+
+	// Travel: on from where it faces, curving (mostly gentle turns, now and
+	// then a sharp one), bending back toward home near the edge of its patch.
+	Activity = EAstralWanderActivity::Travel;
+	FVector Target;
+	bool bFound = false;
+	for (int32 Attempt = 0; Attempt < 4 && !bFound; ++Attempt)
+	{
+		const float Turn = (FMath::FRand() + FMath::FRand() - 1.f) * (1.f + 0.5f * Attempt);
+		const FVector Want = MeanderTarget(Here, Astral->GetActorForwardVector(), HomeLocation, Tuning.RoamRadius, Turn, FMath::FRandRange(300.f, 750.f));
+		FNavLocation Nav;
+		if (NavSys && NavSys->ProjectPointToNavigation(Want, Nav, FVector(150.f, 150.f, 300.f))
+			&& FVector::Dist2D(Nav.Location, Here) > 150.f
+			&& (!Player || FVector::Dist2D(Nav.Location, Player->GetActorLocation()) >= Tuning.AlertRange))
+		{
+			Target = Nav.Location;
+			bFound = true;
+		}
+	}
+
+	// Each leg at its own pace; now and then a brisk one.
+	const float Pace = FMath::FRand() < 0.12f ? 1.3f : FMath::FRandRange(Tuning.WanderSpeedScale.X, Tuning.WanderSpeedScale.Y);
+	SetWalkPace(Astral, bFlyer ? FlyerWalkSpeed : Tuning.WanderSpeed * Pace, Tuning.WanderAcceleration);
+	if (!bFound || MoveToLocation(Target, 15.f) == EPathFollowingRequestResult::Failed)
+	{
+		if (PickPoint(HomeLocation, Tuning.RoamRadius, Player, /*bFarthestFromPlayer*/ false, Target))
+		{
+			MoveToLocation(Target, 15.f);   // small radius: the path's braking zone, not the radius, ends the walk
+		}
+	}
 }
 
 AAstralWildlifeController::AAstralWildlifeController()
@@ -45,6 +132,10 @@ void AAstralWildlifeController::OnPossess(APawn* InPawn)
 	Super::OnPossess(InPawn);
 
 	HomeLocation = InPawn ? InPawn->GetActorLocation() : FVector::ZeroVector;
+	if (const ACharacter* Possessed = Cast<ACharacter>(InPawn))
+	{
+		DefaultAcceleration = Possessed->GetCharacterMovement()->MaxAcceleration;
+	}
 	// Stagger decisions so a freshly spawned group doesn't move in lockstep.
 	DecisionTimer = FMath::FRandRange(0.f, DecisionInterval);
 	WanderPause = FMath::FRandRange(0.f, Tuning.WanderPauseMax);
@@ -154,6 +245,7 @@ void AAstralWildlifeController::Tick(float DeltaSeconds)
 
 	ModeTime += DeltaSeconds;
 	RepathTimer += DeltaSeconds;
+	NoticeCooldown -= DeltaSeconds;
 	DecisionTimer -= DeltaSeconds;
 	if (DecisionTimer > 0.f)
 	{
@@ -531,6 +623,21 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 	}
 
 	const bool bWasFleeing = Mode == EAstralWildlifeMode::Flee;
+	// Startled from a distance, a shy animal freezes for a beat, head up on
+	// the threat, then bolts; one already staring at it goes at once, and so
+	// does one caught close.
+	const bool bWasAlert = Activity == EAstralWanderActivity::Alert;
+	AlertFreeze = 0.f;
+	Activity = NewMode == EAstralWildlifeMode::Idle ? EAstralWanderActivity::LookAround : EAstralWanderActivity::Travel;
+	if (NewMode == EAstralWildlifeMode::Flee && !(Astral->SpeciesData && Astral->SpeciesData->bCanFly))
+	{
+		const float Alert = IsWary(Astral) ? Tuning.WaryAlertRange : Tuning.AlertRange;
+		if (DistToPlayer > Alert * 0.6f)
+		{
+			AlertFreeze = bWasAlert ? 0.1f : FMath::FRandRange(0.3f, 0.7f);
+			Activity = EAstralWanderActivity::Alert;
+		}
+	}
 	Mode = NewMode;
 	ModeTime = 0.f;
 	FleeBestDist = DistToPlayer;
@@ -551,10 +658,7 @@ void AAstralWildlifeController::EnterMode(EAstralWildlifeMode NewMode, AAstralCh
 	{
 		Speed = FlyerWalkSpeed;
 	}
-	if (UCharacterMovementComponent* Movement = Astral->GetCharacterMovement())
-	{
-		Movement->MaxWalkSpeed = Speed;
-	}
+	SetWalkPace(Astral, Speed, NewMode == EAstralWildlifeMode::Wander ? Tuning.WanderAcceleration : DefaultAcceleration);
 
 	// A flee that ends doesn't brake to a dead stop: the Astral eases down to
 	// a walk and carries on a few metres the way it was going, then pauses
@@ -635,23 +739,48 @@ void AAstralWildlifeController::UpdateMode(AAstralCharacter* Astral, const APawn
 	switch (Mode)
 	{
 	case EAstralWildlifeMode::Wander:
+	{
+		const bool bFlyer = Astral->SpeciesData && Astral->SpeciesData->bCanFly;
+		// A shy Astral that notices the Mage coming stops what it is doing and
+		// stares, head up, before deciding whether to run (deer in a field).
+		const float Alert = IsWary(Astral) ? Tuning.WaryAlertRange : Tuning.AlertRange;
+		if (IsShy(Astral) && !bFlyer && Player && Activity != EAstralWanderActivity::Alert && NoticeCooldown <= 0.f
+			&& FVector::Dist2D(Player->GetActorLocation(), Astral->GetActorLocation()) < Alert * Tuning.NoticeRangeScale)
+		{
+			StopMovement();
+			Activity = EAstralWanderActivity::Alert;
+			ModeTime = 0.f;
+			WanderPause = FMath::FRandRange(1.5f, 3.f);
+			NoticeCooldown = FMath::FRandRange(6.f, 10.f);
+			break;
+		}
 		if (bMoving)
 		{
 			ModeTime = 0.f; // the pause counts from arrival, not departure
 		}
-		else if (ModeTime >= WanderPause)
+		else if (Activity == EAstralWanderActivity::Travel)
 		{
-			FVector Target;
-			if (PickPoint(HomeLocation, Tuning.RoamRadius, Player, /*bFarthestFromPlayer*/ false, Target))
-			{
-				MoveToLocation(Target, 15.f);   // small radius: the path's braking zone, not the radius, ends the walk
-			}
+			// Arrived: graze along a patch, or stand and look round.
+			const bool bGraze = !bFlyer && FMath::FRand() < Tuning.GrazeChance * (IsShy(Astral) ? 0.6f : 1.f);
+			Activity = bGraze ? EAstralWanderActivity::Graze : EAstralWanderActivity::LookAround;
+			GrazeSteps = bGraze ? FMath::RandRange(1, 3) : 0;
 			ModeTime = 0.f;
 			WanderPause = FMath::FRandRange(Tuning.WanderPauseMin, Tuning.WanderPauseMax);
 		}
+		else if (ModeTime >= WanderPause)
+		{
+			StartWanderLeg(Astral, Player);
+			ModeTime = 0.f;
+		}
 		break;
+	}
 
 	case EAstralWildlifeMode::Flee:
+		if (ModeTime < AlertFreeze)
+		{
+			break;   // frozen, staring, for a beat before it bolts
+		}
+		Activity = EAstralWanderActivity::Travel;
 		if (Player && (!bMoving || RepathTimer >= RepathInterval))
 		{
 			RepathTimer = 0.f;

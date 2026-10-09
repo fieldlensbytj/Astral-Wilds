@@ -92,7 +92,6 @@ bool FAstralWildlife_TerritorialGuardsHome::RunTest(const FString& Parameters)
 	return true;
 }
 
-#endif // WITH_AUTOMATION_TESTS
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralWildlife_QuarryScore, "AstralWilds.Wildlife.FlyerPicksMovingQuarry", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAstralWildlife_QuarryScore::RunTest(const FString& Parameters)
@@ -108,3 +107,27 @@ bool FAstralWildlife_QuarryScore::RunTest(const FString& Parameters)
 		AAstralWildlifeController::QuarryScore(1000.f, Range, true, true) > AAstralWildlifeController::QuarryScore(1000.f, Range, true, false));
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAstralWildlife_MeanderTarget, "AstralWilds.Wildlife.MeanderCurvesOnAndHome", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+bool FAstralWildlife_MeanderTarget::RunTest(const FString& Parameters)
+{
+	// Near home, facing +X: it walks on ahead, turned by Turn x 70 deg.
+	const FVector Home = FVector::ZeroVector;
+	const FVector Ahead = AAstralWildlifeController::MeanderTarget(FVector(100.f, 0.f, 0.f), FVector(1.f, 0.f, 0.f), Home, 800.f, 0.f, 500.f);
+	TestTrue(TEXT("No turn: straight on"), Ahead.Equals(FVector(600.f, 0.f, 0.f), 0.1f));
+	const FVector Turned = AAstralWildlifeController::MeanderTarget(FVector(100.f, 0.f, 0.f), FVector(1.f, 0.f, 0.f), Home, 800.f, 0.5f, 500.f);
+	const float TurnDeg = FMath::RadiansToDegrees(FMath::Atan2(Turned.Y, Turned.X - 100.f));
+	TestTrue(TEXT("Half a turn: 35 deg off its facing"), FMath::IsNearlyEqual(FMath::Abs(TurnDeg), 35.f, 0.5f));
+	TestTrue(TEXT("The distance is kept"), FMath::IsNearlyEqual(FVector::Dist(Turned, FVector(100.f, 0.f, 0.f)), 500.f, 0.5f));
+
+	// At the edge of its patch, still facing out: it heads back toward home.
+	const FVector Edge(800.f, 0.f, 0.f);
+	const FVector Back = AAstralWildlifeController::MeanderTarget(Edge, FVector(1.f, 0.f, 0.f), Home, 800.f, 0.2f, 500.f);
+	TestTrue(TEXT("At the edge it turns for home"), FVector::Dist2D(Back, Home) < FVector::Dist2D(Edge, Home));
+	// Facing straight away from home at the edge (the lerp would cancel): still home.
+	const FVector Away = AAstralWildlifeController::MeanderTarget(Edge, FVector(1.f, 0.f, 0.f), Home, 800.f, 0.f, 500.f);
+	TestTrue(TEXT("Facing dead away, it still comes back"), Away.X < Edge.X);
+	return true;
+}
+
+#endif // WITH_AUTOMATION_TESTS
